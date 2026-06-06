@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+npm-debug.log*
+
+/docs
+/Documentation
+/.agents
+/.codex
+/db
+/Plan
+AGENTS.md

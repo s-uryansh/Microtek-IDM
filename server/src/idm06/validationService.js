@@ -1,0 +1,107 @@
+import { z } from "zod";
+
+const serialPattern = /^[A-Z0-9][A-Z0-9._/-]{5,79}$/;
+
+const validationRequestSchema = z.object({
+  serialNo: z.string().trim().regex(serialPattern),
+  contextType: z.enum(["FOUNDATION", "IMPORT", "GRN", "DISPATCH", "SRN", "BATTERY"]),
+  contextId: z.number().int().positive().optional(),
+  warehouseId: z.number().int().positive().optional(),
+  expectedProductId: z.number().int().positive().optional(),
+  userId: z.string().trim().min(1).max(60)
+});
+
+const messages = {
+  MALFORMED_SERIAL: "Serial format is invalid.",
+  NOT_FOUND: "Serial was not found in IDM.",
+  ALREADY_DISPATCHED: "Serial has already been dispatched.",
+  WRONG_WAREHOUSE: "Serial belongs to a different warehouse."
+  ,
+  PRODUCT_INVOICE_MISMATCH: "Serial product does not match the invoice line."
+};
+
+function toPublicSerial(serial) {
+  return {
+    serialId: serial.serialId,
+    serialNo: serial.serialNo,
+    currentStatus: serial.currentStatus,
+    currentWarehouseId: serial.currentWarehouseId,
+    productId: serial.productId
+  };
+}
+
+export function createValidationService({ repositories }) {
+  async function fail({ request, ruleCode }) {
+    const exception = await repositories.exceptionsRepo.createException({
+      serialNo: request.serialNo,
+      ruleCode,
+      contextType: request.contextType,
+      contextId: request.contextId,
+      raisedBy: request.userId,
+      createdBy: request.userId
+    });
+
+    return {
+      valid: false,
+      serial: null,
+      alert: {
+        ruleCode,
+        message: messages[ruleCode]
+      },
+      exception: {
+        exceptionId: exception.exceptionId,
+        ruleCode: exception.ruleCode,
+        status: exception.status ?? "OPEN"
+      }
+    };
+  }
+
+  return {
+    async validateSerial(input) {
+      const parsed = validationRequestSchema.safeParse(input);
+
+      if (!parsed.success) {
+        const serialNo = typeof input?.serialNo === "string" ? input.serialNo : null;
+        return fail({
+          request: {
+            serialNo,
+            contextType: input?.contextType ?? "FOUNDATION",
+            contextId: input?.contextId,
+            userId: input?.userId ?? "UNKNOWN"
+          },
+          ruleCode: "MALFORMED_SERIAL"
+        });
+      }
+
+      const request = parsed.data;
+      const serial = await repositories.serials.findBySerialNo(request.serialNo);
+
+      if (!serial) {
+        return fail({ request, ruleCode: "NOT_FOUND" });
+      }
+
+      if (serial.currentStatus === "DISPATCHED") {
+        return fail({ request, ruleCode: "ALREADY_DISPATCHED" });
+      }
+
+      if (
+        request.warehouseId &&
+        serial.currentWarehouseId &&
+        serial.currentWarehouseId !== request.warehouseId
+      ) {
+        return fail({ request, ruleCode: "WRONG_WAREHOUSE" });
+      }
+
+      if (request.expectedProductId && serial.productId !== request.expectedProductId) {
+        return fail({ request, ruleCode: "PRODUCT_INVOICE_MISMATCH" });
+      }
+
+      return {
+        valid: true,
+        serial: toPublicSerial(serial),
+        alert: null,
+        exception: null
+      };
+    }
+  };
+}

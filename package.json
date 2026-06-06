@@ -1,0 +1,23 @@
+{
+  "name": "microtek-idm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sprint 0 foundation for Microtek IDM.",
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "dev:server": "npm run dev --workspace server",
+    "dev:client": "npm run dev --workspace client",
+    "seed:dev": "npm run seed:dev --workspace server",
+    "seed:dev:teardown": "npm run seed:dev:teardown --workspace server"
+  },
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

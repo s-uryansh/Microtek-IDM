@@ -1,0 +1,45 @@
+import { createAgeingReportRepository } from "./ageingReportRepository.js";
+import { createExceptionRepository } from "./exceptionRepository.js";
+import { createDispatchRepository } from "./dispatchRepository.js";
+import { createGrnRepository } from "./grnRepository.js";
+import { createIntegrationBatchRepository } from "./integrationBatchRepository.js";
+import { createInvoiceRepository } from "./invoiceRepository.js";
+import { createReconciliationRepository } from "./reconciliationRepository.js";
+import { createSerialRepository } from "./serialRepository.js";
+import { createSerialHistoryRepository } from "./serialHistoryRepository.js";
+import { createSrnRepository } from "./srnRepository.js";
+
+export function createRepositories(pool) {
+  const repositories = {
+    integrationBatches: createIntegrationBatchRepository(pool),
+    serials: createSerialRepository(pool),
+    exceptionsRepo: createExceptionRepository(pool),
+    invoices: createInvoiceRepository(pool),
+    dispatches: createDispatchRepository(pool),
+    grns: createGrnRepository(pool),
+    srns: createSrnRepository(pool),
+    ageingReports: createAgeingReportRepository(pool),
+    reconciliationReports: createReconciliationRepository(pool),
+    serialHistories: createSerialHistoryRepository(pool)
+  };
+
+  if (typeof pool.connect === "function") {
+    repositories.withTransaction = async (work) => {
+      const client = await pool.connect();
+
+      try {
+        await client.query("BEGIN");
+        const result = await work(createRepositories(client));
+        await client.query("COMMIT");
+        return result;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    };
+  }
+
+  return repositories;
+}
