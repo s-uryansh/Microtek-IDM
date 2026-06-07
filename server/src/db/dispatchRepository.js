@@ -130,7 +130,7 @@ export function createDispatchRepository(pool) {
       await pool.query(
         `UPDATE dispatch
          SET status = $2,
-             completed_at = CASE WHEN $2 = 'DISPATCHED' THEN now() ELSE completed_at END,
+             completed_at = CASE WHEN $2::varchar = 'DISPATCHED' THEN now() ELSE completed_at END,
              updated_at = now()
          WHERE dispatch_id = $1`,
         [dispatchId, status]

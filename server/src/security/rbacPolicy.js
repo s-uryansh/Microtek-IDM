@@ -11,7 +11,11 @@ const foundationPermissionsByRole = new Map([
       "fulfilment:read",
       "ageing:read",
       "reconciliation:read",
-      "serial-history:read"
+      "serial-history:read",
+      "exception:read",
+      "exception:correct",
+      "battery:write",
+      "battery:read"
     ])
   ],
   [
@@ -25,13 +29,27 @@ const foundationPermissionsByRole = new Map([
       "fulfilment:read",
       "ageing:read",
       "reconciliation:read",
-      "serial-history:read"
+      "serial-history:read",
+      "exception:read",
+      "exception:correct",
+      "battery:write",
+      "battery:read"
     ])
   ],
-  [
-    "warehouse_operator",
-    new Set(["foundation:read", "serial:validate", "dispatch:write", "grn:write", "srn:write", "fulfilment:read"])
-  ]
+    [
+      "warehouse_operator",
+      new Set([
+        "foundation:read",
+        "serial:validate",
+        "dispatch:write",
+        "grn:write",
+        "srn:write",
+        "fulfilment:read",
+        "exception:read",
+        "battery:write",
+        "battery:read"
+      ])
+    ]
 ]);
 
 function hasWarehouseScope({ userWarehouseIds, resourceWarehouseId }) {

@@ -1,4 +1,6 @@
 import { createAgeingReportRepository } from "./ageingReportRepository.js";
+import { createAuthRepository } from "../auth/authRepository.js";
+import { createBatteryPreBillingRepository } from "./batteryPreBillingRepository.js";
 import { createExceptionRepository } from "./exceptionRepository.js";
 import { createDispatchRepository } from "./dispatchRepository.js";
 import { createGrnRepository } from "./grnRepository.js";
@@ -20,7 +22,9 @@ export function createRepositories(pool) {
     srns: createSrnRepository(pool),
     ageingReports: createAgeingReportRepository(pool),
     reconciliationReports: createReconciliationRepository(pool),
-    serialHistories: createSerialHistoryRepository(pool)
+    serialHistories: createSerialHistoryRepository(pool),
+    batteryPreBilling: createBatteryPreBillingRepository(pool),
+    auth: createAuthRepository(pool)
   };
 
   if (typeof pool.connect === "function") {

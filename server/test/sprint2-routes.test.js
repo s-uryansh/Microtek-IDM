@@ -89,6 +89,38 @@ describe("Sprint 2 API authorization", () => {
     });
   });
 
+  test("returns 404 when dispatch start targets an unknown invoice", async () => {
+    const app = createApp({
+      config,
+      services: {
+        dispatchService: {
+          async startDispatch() {
+            throw Object.assign(new Error("Invoice not found"), { status: 404 });
+          }
+        }
+      }
+    });
+
+    const response = await inject(app, {
+      method: "POST",
+      url: "/api/idm-05/dispatches",
+      headers: {
+        "x-user-id": "operator_1",
+        "x-user-role": "warehouse_operator",
+        "x-warehouse-ids": "5"
+      },
+      body: { invoiceId: 999, warehouseId: 5 }
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      error: {
+        code: "NOT_FOUND",
+        message: "Invoice not found"
+      }
+    });
+  });
+
   test("denies dispatch scan outside caller warehouse scope", async () => {
     const app = createApp({
       config,
@@ -117,6 +149,36 @@ describe("Sprint 2 API authorization", () => {
     });
 
     expect(response.status).toBe(403);
+  });
+
+  test("allows dispatch scan when stored warehouse id is returned as a string", async () => {
+    const app = createApp({
+      config,
+      services: {
+        dispatchService: {
+          async getDispatchWarehouseId(dispatchId) {
+            expect(dispatchId).toBe(10);
+            return "5";
+          },
+          async scanSerial() {
+            return { valid: true, scan: { dispatchScanId: 1 } };
+          }
+        }
+      }
+    });
+
+    const response = await inject(app, {
+      method: "POST",
+      url: "/api/idm-05/dispatches/10/scans",
+      headers: {
+        "x-user-id": "operator_1",
+        "x-user-role": "warehouse_operator",
+        "x-warehouse-ids": "5"
+      },
+      body: { invoiceLineId: 200, serialNo: "MTK1234567890" }
+    });
+
+    expect(response.status).toBe(201);
   });
 
   test("denies dispatch completion outside caller warehouse scope", async () => {

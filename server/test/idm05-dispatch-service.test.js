@@ -121,6 +121,50 @@ describe("IDM-05 dispatch service", () => {
     });
   });
 
+  test("starts a dispatch when repository ids are returned as strings", async () => {
+    const repositories = createRepositories({
+      invoice: {
+        ...invoice,
+        warehouseId: "5",
+        lines: [{ invoiceLineId: "200", productId: "7", quantity: 2 }]
+      }
+    });
+    const service = createDispatchService({
+      repositories,
+      fulfilmentStatusService: createFulfilmentStatusService()
+    });
+
+    const result = await service.startDispatch({
+      invoiceId: 100,
+      warehouseId: 5,
+      userId: "operator_1"
+    });
+
+    expect(result).toMatchObject({
+      dispatchId: 10,
+      invoiceId: 100,
+      warehouseId: 5,
+      status: "PENDING"
+    });
+  });
+
+  test("marks missing or wrong-warehouse invoice as not found", async () => {
+    const repositories = createRepositories({ invoice: null });
+    const service = createDispatchService({
+      repositories,
+      fulfilmentStatusService: createFulfilmentStatusService()
+    });
+
+    await expect(service.startDispatch({
+      invoiceId: 999,
+      warehouseId: 5,
+      userId: "operator_1"
+    })).rejects.toMatchObject({
+      message: "Invoice not found",
+      status: 404
+    });
+  });
+
   test("accepts a valid scan, dispatches the serial, and writes a CUSTOMER_DISPATCH event", async () => {
     const dispatch = {
       dispatchId: 10,
@@ -177,6 +221,38 @@ describe("IDM-05 dispatch service", () => {
       referenceId: 10,
       createdBy: "operator_1"
     });
+  });
+
+  test("accepts a scan when dispatch line ids are returned as strings", async () => {
+    const dispatch = {
+      dispatchId: 10,
+      invoiceId: 100,
+      warehouseId: "5",
+      status: "PENDING",
+      lines: [{ invoiceLineId: "200", productId: "7", quantity: 1 }],
+      scans: []
+    };
+    const repositories = createRepositories({
+      invoice,
+      dispatch,
+      validationResult: {
+        valid: true,
+        serial: { serialId: "300", serialNo: "MTK1234567890", productId: "7" }
+      }
+    });
+    const service = createDispatchService({
+      repositories,
+      fulfilmentStatusService: createFulfilmentStatusService()
+    });
+
+    const result = await service.scanSerial({
+      dispatchId: 10,
+      invoiceLineId: 200,
+      serialNo: "MTK1234567890",
+      userId: "operator_1"
+    });
+
+    expect(result.valid).toBe(true);
   });
 
   test("rejects product-invoice mismatch without dispatching serial", async () => {

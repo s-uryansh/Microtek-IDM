@@ -1,5 +1,6 @@
 import { createRequest, createResponse } from "node-mocks-http";
 import { describe, expect, test } from "vitest";
+import request from "supertest";
 
 import { createApp } from "../src/app.js";
 
@@ -48,5 +49,27 @@ describe("Express foundation", () => {
       }
     });
     expect(JSON.stringify(response.body)).not.toContain("Error:");
+  });
+
+  test("allows credentialed CORS preflight requests from the frontend origin", async () => {
+    const response = await request(createApp({ config }))
+      .options("/api/auth/login")
+      .set("Origin", "http://localhost:5173")
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "content-type");
+
+    expect(response.status).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+    expect(response.headers["access-control-allow-credentials"]).toBe("true");
+  });
+
+  test("does not reflect unconfigured CORS origins", async () => {
+    const response = await request(createApp({ config }))
+      .options("/api/auth/login")
+      .set("Origin", "https://evil.example")
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "content-type");
+
+    expect(response.headers["access-control-allow-origin"]).not.toBe("https://evil.example");
   });
 });

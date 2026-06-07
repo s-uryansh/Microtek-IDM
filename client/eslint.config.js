@@ -13,7 +13,8 @@ export default [
     },
     rules: {
       ...react.configs.flat.recommended.rules,
-      ...react.configs.flat["jsx-runtime"].rules
+      ...react.configs.flat["jsx-runtime"].rules,
+      "react/prop-types": "off"
     },
     settings: {
       react: {
@@ -22,7 +23,7 @@ export default [
     }
   },
   {
-    files: ["src/**/*.jsx", "src/**/*.js", "test/**/*.test.jsx"],
+    files: ["src/**/*.jsx", "src/**/*.js", "test/**/*.test.{js,jsx}"],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: "module",
@@ -33,7 +34,8 @@ export default [
       },
       globals: {
         ...globals.browser,
-        ...globals.vitest
+        ...globals.vitest,
+        global: "readonly"
       }
     }
   }

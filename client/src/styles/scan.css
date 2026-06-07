@@ -1,0 +1,330 @@
+/* ─── Scan Input ─── */
+
+.scan-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.scan-input__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.scan-input__wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.scan-input__field {
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  padding-right: 44px;
+  background: var(--color-bg-input);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.scan-input__field::placeholder {
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  letter-spacing: normal;
+}
+
+.scan-input__field:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+}
+
+.scan-input--success .scan-input__field {
+  border-color: var(--color-success);
+  box-shadow: 0 0 0 3px var(--color-success-subtle);
+}
+
+.scan-input--warning .scan-input__field {
+  border-color: var(--color-warning);
+  box-shadow: 0 0 0 3px var(--color-warning-subtle);
+}
+
+.scan-input--error .scan-input__field {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 3px var(--color-error-subtle);
+}
+
+.scan-input__icon {
+  position: absolute;
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scan-input__icon--success {
+  color: var(--color-success);
+}
+
+.scan-input__icon--warning {
+  color: var(--color-warning);
+}
+
+.scan-input__icon--error {
+  color: var(--color-error);
+}
+
+.scan-input__hint {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+}
+
+/* ─── Scan Result ─── */
+
+.scan-result {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+}
+
+.scan-result--success {
+  border-left: 3px solid var(--color-success);
+}
+
+.scan-result--warning {
+  border-left: 3px solid var(--color-warning);
+}
+
+.scan-result--error {
+  border-left: 3px solid var(--color-error);
+}
+
+.scan-result__icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.scan-result--success .scan-result__icon {
+  color: var(--color-success);
+}
+
+.scan-result--warning .scan-result__icon {
+  color: var(--color-warning);
+}
+
+.scan-result--error .scan-result__icon {
+  color: var(--color-error);
+}
+
+.scan-result__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.scan-result__serial {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  word-break: break-all;
+}
+
+.scan-result__message {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.scan-result__status {
+  flex-shrink: 0;
+}
+
+/* ─── Scan History ─── */
+
+.scan-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.scan-history--empty {
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.scan-history__empty-text {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.scan-history__header {
+  margin-bottom: var(--space-1);
+}
+
+.scan-history__count {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.scan-history__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: min(400px, 42vh);
+  overflow-y: auto;
+}
+
+/* ─── Scan Session ─── */
+
+.scan-session {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.scan-session__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.scan-session__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.scan-session__subtitle {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.scan-session__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scan-session__pause {
+  min-height: 44px;
+}
+
+.scan-session__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.scan-session__actions .button {
+  min-height: 48px;
+}
+
+/* ─── Camera Scanner ─── */
+
+.scan-camera,
+.scan-scanner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scan-camera__viewport {
+  position: relative;
+  overflow: hidden;
+  min-height: 220px;
+  aspect-ratio: 4 / 3;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.scan-camera__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.scan-camera__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-text-secondary);
+  background: rgba(15, 23, 42, 0.76);
+}
+
+.scan-camera__controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.scan-camera__button {
+  min-height: 48px;
+}
+
+.scan-camera__status,
+.scan-camera__formats,
+.scan-scanner__mode {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.scan-scanner__mode {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 480px) {
+  .scan-session {
+    gap: var(--space-4);
+  }
+
+  .scan-session__header {
+    align-items: flex-start;
+  }
+
+  .scan-session__title {
+    font-size: 0.9375rem;
+  }
+
+  .scan-camera__viewport {
+    min-height: 190px;
+  }
+
+  .scan-camera__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .scan-result {
+    gap: var(--space-2);
+  }
+
+  .scan-result__status {
+    align-self: flex-start;
+  }
+}

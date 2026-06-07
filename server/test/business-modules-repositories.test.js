@@ -14,7 +14,7 @@ describe("business module repository SQL contracts", () => {
     expect(sql).toContain("ON CONFLICT DO NOTHING");
     expect(sql).toContain("FOR UPDATE");
     expect(sql).toContain("$1");
-    expect(sql).toContain("$2");
+    expect(sql).toContain("$2::varchar");
   });
 
   test("SRN repository protects duplicate returns with parameterized insert", () => {
@@ -23,6 +23,12 @@ describe("business module repository SQL contracts", () => {
     expect(sql).toContain("ON CONFLICT DO NOTHING");
     expect(sql).toContain("FROM srn_scan WHERE serial_id = $1");
     expect(sql).toContain("FOR UPDATE");
+  });
+
+  test("dispatch repository casts status parameter used in CASE expression", () => {
+    const sql = readRepository("dispatchRepository.js");
+
+    expect(sql).toContain("$2::varchar = 'DISPATCHED'");
   });
 
   test("serial history repository orders event and exception lookups chronologically", () => {

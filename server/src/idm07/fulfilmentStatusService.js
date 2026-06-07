@@ -43,12 +43,16 @@ export function createFulfilmentStatusService(options = {}) {
 
       const requiredQuantity = invoice.lines.reduce((total, line) => total + line.quantity, 0);
       const scannedQuantity = await repositories.dispatches.countScansForInvoice(invoiceId);
+      const committedQuantity = repositories.batteryPreBilling?.countCommitsForInvoice
+        ? await repositories.batteryPreBilling.countCommitsForInvoice(invoiceId)
+        : 0;
 
       return {
         invoiceId,
         status: calculateStatus({ requiredQuantity, scannedQuantity }),
         requiredQuantity,
-        scannedQuantity
+        scannedQuantity,
+        committedQuantity
       };
     }
   };

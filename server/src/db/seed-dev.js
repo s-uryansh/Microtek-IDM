@@ -4,6 +4,7 @@ import { loadConfig } from "../config.js";
 import { createLogger } from "../logger.js";
 
 const createdBy = "SEED";
+const defaultAdminPasswordHash = "$2b$12$tPMbnZMIwpdRNkm6EBsNpu6eYbK0E5ivwJAF.zCDdlGkwtNaRd/F6";
 
 function assertNonProduction(config) {
   if (config.nodeEnv === "production" || /prod/i.test(config.databaseUrl)) {
@@ -80,6 +81,41 @@ async function seedReferences(client) {
   }
 
   return { warehouses, products };
+}
+
+async function seedDefaultAdmin(client, { warehouses }) {
+  const admin = await upsertOne(
+    client,
+    `INSERT INTO app_user (
+       external_ref,
+       username,
+       display_name,
+       password_hash,
+       role_id,
+       is_active,
+       created_by
+     )
+     SELECT 'DEV-ADMIN', 'admin', 'Development Administrator', $1, role_id, TRUE, $2
+     FROM role
+     WHERE code = 'admin'
+     ON CONFLICT (username) DO UPDATE
+     SET password_hash = EXCLUDED.password_hash,
+         role_id = EXCLUDED.role_id,
+         is_active = TRUE,
+         updated_at = now(),
+         updated_by = EXCLUDED.created_by
+     RETURNING app_user_id AS "appUserId"`,
+    [defaultAdminPasswordHash, createdBy]
+  );
+
+  for (const warehouseId of Object.values(warehouses)) {
+    await client.query(
+      `INSERT INTO app_user_warehouse (app_user_id, warehouse_id, created_by)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (app_user_id, warehouse_id) DO NOTHING`,
+      [admin.appUserId, warehouseId, createdBy]
+    );
+  }
 }
 
 async function seedSerial(client, { serialNo, productId, status, warehouseId, receivedAt, sourceInvoiceRef }) {
@@ -347,6 +383,7 @@ async function refreshAgeingSnapshot(client) {
 
 async function seed(client) {
   const refs = await seedReferences(client);
+  await seedDefaultAdmin(client, refs);
   const serials = await seedProductionAndHistory(client, refs);
   const dispatchDocs = await seedDispatchDocs(client, { ...refs, serials });
   const invoice = await seedInvoicesAndDispatch(client, { ...refs, serials });

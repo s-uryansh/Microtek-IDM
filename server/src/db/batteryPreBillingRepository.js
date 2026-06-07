@@ -1,0 +1,42 @@
+export function createBatteryPreBillingRepository(pool) {
+  return {
+    async insertCommit({ invoiceLineId, serialId, committedBy, createdBy }) {
+      const result = await pool.query(
+        `INSERT INTO battery_pre_billing (invoice_line_id, serial_id, committed_by, created_by)
+         VALUES ($1, $2, $3, $4)
+         RETURNING battery_pre_billing_id AS "batteryPreBillingId"`,
+        [invoiceLineId, serialId, committedBy, createdBy ?? committedBy]
+      );
+
+      return result.rows[0];
+    },
+
+    async findCommitBySerial(serialId) {
+      const result = await pool.query(
+        `SELECT
+           battery_pre_billing_id AS "batteryPreBillingId",
+           invoice_line_id AS "invoiceLineId",
+           serial_id AS "serialId",
+           committed_at AS "committedAt",
+           committed_by AS "committedBy"
+         FROM battery_pre_billing
+         WHERE serial_id = $1`,
+        [serialId]
+      );
+
+      return result.rows[0] || null;
+    },
+
+    async countCommitsForInvoice(invoiceId) {
+      const result = await pool.query(
+        `SELECT COUNT(*)::int AS cnt
+         FROM battery_pre_billing bpb
+         JOIN invoice_line il ON il.invoice_line_id = bpb.invoice_line_id
+         WHERE il.invoice_id = $1`,
+        [invoiceId]
+      );
+
+      return result.rows[0].cnt;
+    }
+  };
+}

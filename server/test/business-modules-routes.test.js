@@ -52,6 +52,35 @@ describe("IDM-02, IDM-04, and IDM-09 route authorization", () => {
     expect(response.status).toBe(403);
   });
 
+  test("allows GRN scan when stored warehouse id is returned as a string", async () => {
+    const app = createApp({
+      config,
+      services: {
+        grnService: {
+          async getGrnWarehouseId() {
+            return "5";
+          },
+          async scanSerial() {
+            return { valid: true, matchStatus: "MATCHED" };
+          }
+        }
+      }
+    });
+
+    const response = await inject(app, {
+      method: "POST",
+      url: "/api/idm-02/grns/10/scans",
+      headers: {
+        "x-user-id": "operator_1",
+        "x-user-role": "warehouse_operator",
+        "x-warehouse-ids": "5"
+      },
+      body: { serialNo: "MTK1234567890" }
+    });
+
+    expect(response.status).toBe(201);
+  });
+
   test("denies SRN scan outside stored warehouse scope", async () => {
     const app = createApp({
       config,
@@ -79,6 +108,35 @@ describe("IDM-02, IDM-04, and IDM-09 route authorization", () => {
     });
 
     expect(response.status).toBe(403);
+  });
+
+  test("allows SRN scan when stored warehouse id is returned as a string", async () => {
+    const app = createApp({
+      config,
+      services: {
+        srnService: {
+          async getSrnWarehouseId() {
+            return "5";
+          },
+          async scanReturn() {
+            return { valid: true, returnScan: { srnScanId: 1 } };
+          }
+        }
+      }
+    });
+
+    const response = await inject(app, {
+      method: "POST",
+      url: "/api/idm-04/srns/20/scans",
+      headers: {
+        "x-user-id": "operator_1",
+        "x-user-role": "warehouse_operator",
+        "x-warehouse-ids": "5"
+      },
+      body: { serialNo: "MTK1234567890", conditionTag: "SALEABLE" }
+    });
+
+    expect(response.status).toBe(201);
   });
 
   test("returns serial history for authorized supervisors", async () => {

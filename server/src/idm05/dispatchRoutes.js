@@ -7,7 +7,7 @@ function parseDispatchId(request) {
 }
 
 function hasWarehouseScope(request, warehouseId) {
-  return request.auth.warehouseIds.includes(warehouseId);
+  return request.auth.warehouseIds.some((authWarehouseId) => String(authWarehouseId) === String(warehouseId));
 }
 
 export function createDispatchRoutes({ dispatchService }) {
@@ -57,6 +57,15 @@ export function createDispatchRoutes({ dispatchService }) {
         });
         response.status(201).json(result);
       } catch (error) {
+        if (error.status === 404) {
+          response.status(404).json({
+            error: {
+              code: "NOT_FOUND",
+              message: "Invoice not found"
+            }
+          });
+          return;
+        }
         next(error);
       }
     }

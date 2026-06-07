@@ -17,7 +17,9 @@ describe("loadConfig", () => {
       port: 4100,
       databaseUrl: "postgres://user:pass@localhost:5432/microtek_idm_test",
       corsOrigin: "http://localhost:5173",
-      logLevel: "silent"
+      logLevel: "silent",
+      authTokenSecret: "development-auth-secret-change-before-production",
+      authSessionTtlSeconds: 28800
     });
   });
 
@@ -28,6 +30,19 @@ describe("loadConfig", () => {
         PORT: "4100",
         CORS_ORIGIN: "http://localhost:5173",
         LOG_LEVEL: "silent"
+      })
+    ).toThrow("Invalid environment configuration");
+  });
+
+  test("rejects the development auth secret in production", () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: "production",
+        PORT: "4100",
+        DATABASE_URL: "postgres://user:pass@localhost:5432/microtek_idm_test",
+        CORS_ORIGIN: "http://localhost:5173",
+        LOG_LEVEL: "silent",
+        AUTH_TOKEN_SECRET: "development-auth-secret-change-before-production"
       })
     ).toThrow("Invalid environment configuration");
   });

@@ -121,7 +121,7 @@ export function createGrnRepository(pool) {
       await pool.query(
         `UPDATE grn
          SET status = $2,
-             completed_at = CASE WHEN $2 IN ('MATCHED', 'EXCEPTION', 'CLOSED') THEN now() ELSE completed_at END,
+             completed_at = CASE WHEN $2::varchar IN ('MATCHED', 'EXCEPTION', 'CLOSED') THEN now() ELSE completed_at END,
              updated_at = now(),
              updated_by = $3
          WHERE grn_id = $1`,

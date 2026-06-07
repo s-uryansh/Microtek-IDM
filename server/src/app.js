@@ -2,6 +2,9 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 
+import { createAuthRoutes } from "./auth/authRoutes.js";
+import { createAuthService } from "./auth/authService.js";
+import { createLoginRateLimiter } from "./auth/loginRateLimiter.js";
 import { createPool } from "./db/pool.js";
 import { createRepositories } from "./db/repositories.js";
 import { createDispatchRoutes } from "./idm05/dispatchRoutes.js";
@@ -22,6 +25,10 @@ import { createAgeingReportService } from "./idm08/ageingReportService.js";
 import { createAgeingRoutes } from "./idm08/ageingRoutes.js";
 import { createReconciliationRoutes } from "./idm08/reconciliationRoutes.js";
 import { createReconciliationService } from "./idm08/reconciliationService.js";
+import { createBatteryPreBillingRoutes } from "./idm03/batteryPreBillingRoutes.js";
+import { createBatteryPreBillingService } from "./idm03/batteryPreBillingService.js";
+import { createExceptionCorrectionRoutes } from "./idm10/exceptionCorrectionRoutes.js";
+import { createExceptionCorrectionService } from "./idm10/exceptionCorrectionService.js";
 import { createSerialHistoryRoutes } from "./idm09/serialHistoryRoutes.js";
 import { createSerialHistoryService } from "./idm09/serialHistoryService.js";
 import { createRbacPolicy } from "./security/rbacPolicy.js";
@@ -64,23 +71,69 @@ function createDefaultServices(config) {
     }),
     ageingReportService,
     reconciliationService: createReconciliationService({ repositories }),
-    serialHistoryService: createSerialHistoryService({ repositories })
+    serialHistoryService: createSerialHistoryService({ repositories }),
+    exceptionCorrectionService: createExceptionCorrectionService({ repositories }),
+    batteryPreBillingService: createBatteryPreBillingService({
+      repositories: {
+        ...repositories,
+        validationService
+      }
+    }),
+    authService: createAuthService({
+      authRepository: repositories.auth,
+      tokenSecret: config.authTokenSecret,
+      sessionTtlSeconds: config.authSessionTtlSeconds,
+      logger: createLoggerLike(config)
+    })
+  };
+}
+
+function createLoggerLike(config) {
+  return config.logLevel === "silent" ? { info: () => {}, warn: () => {} } : console;
+}
+
+function parseTestWarehouseIds(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => Number.parseInt(item.trim(), 10))
+    .filter(Number.isInteger);
+}
+
+function createTestHeaderAuthService() {
+  return {
+    async authenticateHeaders(request) {
+      const userId = request.get("x-user-id");
+      const role = request.get("x-user-role");
+      if (!userId || !role) return null;
+      return {
+        userId,
+        username: userId,
+        role,
+        warehouseIds: parseTestWarehouseIds(request.get("x-warehouse-ids"))
+      };
+    }
   };
 }
 
 export function createApp({ config, logger = console, services, rbacPolicy = createRbacPolicy() }) {
   const app = express();
   const resolvedServices = services ?? createDefaultServices(config);
+  const testHeaderAuthService = config.nodeEnv === "test" ? createTestHeaderAuthService() : null;
+  const authService = resolvedServices.authService && testHeaderAuthService
+    ? { ...resolvedServices.authService, authenticateHeaders: testHeaderAuthService.authenticateHeaders }
+    : (resolvedServices.authService ?? testHeaderAuthService);
 
   app.disable("x-powered-by");
   app.use((request, _response, next) => {
     request.rbacPolicy = rbacPolicy;
+    request.authService = authService;
     next();
   });
   app.use(helmet());
   app.use(
     cors({
-      origin: config.corsOrigin
+      origin: config.corsOrigin,
+      credentials: true
     })
   );
   app.use(express.json({ limit: "1mb" }));
@@ -92,6 +145,14 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
     });
   });
 
+  app.use(
+    "/api/auth",
+    createAuthRoutes({
+      authService,
+      loginRateLimiter: createLoginRateLimiter(),
+      cookieOptions: { secure: config.nodeEnv === "production" }
+    })
+  );
   app.use("/api/idm-01/import", createImportRoutes({ importService: resolvedServices.importService }));
   app.use("/api/idm-02/grns", createGrnRoutes({ grnService: resolvedServices.grnService }));
   app.use("/api/idm-04/srns", createSrnRoutes({ srnService: resolvedServices.srnService }));
@@ -110,6 +171,14 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
     createReconciliationRoutes({ reconciliationService: resolvedServices.reconciliationService })
   );
   app.use("/api/idm-09", createSerialHistoryRoutes({ serialHistoryService: resolvedServices.serialHistoryService }));
+  app.use(
+    "/api/idm-10/exceptions",
+    createExceptionCorrectionRoutes({ exceptionCorrectionService: resolvedServices.exceptionCorrectionService })
+  );
+  app.use(
+    "/api/idm-03",
+    createBatteryPreBillingRoutes({ batteryPreBillingService: resolvedServices.batteryPreBillingService })
+  );
 
   app.use((_request, response) => {
     response.status(404).json({

@@ -1,0 +1,235 @@
+/* ─── Data Table ─── */
+
+.data-table {
+  width: 100%;
+}
+
+.data-table__wrapper {
+  overflow-x: auto;
+}
+
+.data-table__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table__th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.data-table__th-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.data-table__td {
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.8125rem;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.data-table__row:last-child .data-table__td {
+  border-bottom: none;
+}
+
+.data-table__row:hover {
+  background: var(--color-bg-elevated);
+}
+
+.data-table__row--clickable {
+  cursor: pointer;
+}
+
+.data-table__row--clickable:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  background: var(--color-bg-elevated);
+}
+
+.data-table__null {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+/* ─── Skeleton Loading ─── */
+
+.data-table__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.data-table__header-row {
+  display: flex;
+  gap: var(--space-6);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table__skeleton-row {
+  display: flex;
+  gap: var(--space-6);
+  padding: var(--space-3);
+}
+
+.data-table__skeleton-row > .skeleton,
+.data-table__header-row > .skeleton {
+  flex: 1;
+}
+
+/* ─── Column Sort Header ─── */
+
+.col-sort-header {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+
+.col-sort-header:hover {
+  color: var(--color-text-primary);
+}
+
+.col-sort-header:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.col-sort-header__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.col-sort-header__arrows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 0;
+}
+
+.col-sort-header__arrow {
+  transition: opacity var(--transition-fast);
+}
+
+.col-sort-header--active .col-sort-header__arrow {
+  opacity: 1;
+}
+
+/* ─── Pagination ─── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+}
+
+.pagination__btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.pagination__btn:hover:not(:disabled) {
+  border-color: var(--color-border-hover);
+  color: var(--color-text-primary);
+}
+
+.pagination__btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.pagination__btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.pagination__pages {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.pagination__page {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.pagination__page:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
+.pagination__page--active {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+.pagination__page:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .data-table__wrapper {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .data-table__table {
+    min-width: 560px;
+  }
+
+  .data-table__td,
+  .data-table__th {
+    padding: var(--space-3);
+  }
+
+  .pagination {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: var(--space-2);
+  }
+}

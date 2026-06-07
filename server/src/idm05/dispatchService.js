@@ -1,9 +1,9 @@
 function requiredQuantity(lines) {
-  return lines.reduce((total, line) => total + line.quantity, 0);
+  return lines.reduce((total, line) => total + Number(line.quantity), 0);
 }
 
 function findLine(dispatch, invoiceLineId) {
-  return dispatch.lines.find((line) => line.invoiceLineId === invoiceLineId) ?? null;
+  return dispatch.lines.find((line) => String(line.invoiceLineId) === String(invoiceLineId)) ?? null;
 }
 
 function invalidScan(ruleCode, message) {
@@ -55,8 +55,8 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
     async startDispatch({ invoiceId, warehouseId, userId }) {
       const invoice = await repositories.invoices.findById(invoiceId);
 
-      if (!invoice || invoice.warehouseId !== warehouseId) {
-        throw new Error("Invoice not found");
+      if (!invoice || String(invoice.warehouseId) !== String(warehouseId)) {
+        throw Object.assign(new Error("Invoice not found"), { status: 404 });
       }
 
       return repositories.dispatches.createDispatch({
