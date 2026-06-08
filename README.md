@@ -121,7 +121,7 @@ npm run build --workspace client
 
 ## Manual Testing
 
-Use [docs/manual-testing-guide.md](docs/manual-testing-guide.md) for API and portal smoke tests. Use [docs/IMPLEMENTATION_REFERENCE.md](docs/IMPLEMENTATION_REFERENCE.md) as the primary developer feature reference. CSV field formats are documented in [docs/CSV_FIELD_REFERENCE.md](docs/CSV_FIELD_REFERENCE.md).
+Use [docs/manual-testing-guide.md](docs/manual-testing-guide.md) for frontend portal manual testing of IDM-01 through IDM-10. Use [docs/IMPLEMENTATION_REFERENCE.md](docs/IMPLEMENTATION_REFERENCE.md) as the primary developer feature reference. CSV field formats are documented in [docs/CSV_FIELD_REFERENCE.md](docs/CSV_FIELD_REFERENCE.md).
 
 ## Operator Workflow Fallbacks
 
