@@ -5,19 +5,22 @@
   --font-body: "Figtree", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
 
-  --color-bg-primary: #0b0d0e;
-  --color-bg-surface: #16181a;
-  --color-bg-elevated: #1e2025;
-  --color-bg-input: #1a1c20;
-  --color-border: #26292d;
-  --color-border-hover: #363a40;
-  --color-text-primary: #e8e6e1;
-  --color-text-secondary: #8a8a8a;
-  --color-text-muted: #5c5c5c;
+  /* Light theme is the default palette. Dark overrides live in
+     :root[data-theme="dark"] below. Theme is toggled by setting the
+     data-theme attribute on <html> (see ThemeProvider). */
+  --color-bg-primary: #f4f5f7;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #eef0f3;
+  --color-bg-input: #ffffff;
+  --color-border: #e1e4e8;
+  --color-border-hover: #c8cdd4;
+  --color-text-primary: #1a1d21;
+  --color-text-secondary: #5c636b;
+  --color-text-muted: #8b929b;
   --color-accent: #d97706;
-  --color-accent-hover: #f59e0b;
+  --color-accent-hover: #b45309;
   --color-accent-subtle: rgba(217, 119, 6, 0.12);
-  --color-accent-text: #fbbf24;
+  --color-accent-text: #b45309;
   --color-info: #0891b2;
   --color-info-subtle: rgba(8, 145, 178, 0.12);
   --color-success: #16a34a;
@@ -26,6 +29,10 @@
   --color-warning-subtle: rgba(234, 88, 12, 0.12);
   --color-error: #dc2626;
   --color-error-subtle: rgba(220, 38, 38, 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 4px 6px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.12);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -41,14 +48,31 @@
   --radius-md: 6px;
   --radius-lg: 8px;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-
   --transition-fast: 150ms ease;
   --transition-base: 200ms ease;
   --transition-slow: 300ms ease;
 
   --sidebar-width: 240px;
   --topbar-height: 56px;
+}
+
+/* Dark theme — original warehouse-oriented palette. */
+:root[data-theme="dark"] {
+  --color-bg-primary: #0b0d0e;
+  --color-bg-surface: #16181a;
+  --color-bg-elevated: #1e2025;
+  --color-bg-input: #1a1c20;
+  --color-border: #26292d;
+  --color-border-hover: #363a40;
+  --color-text-primary: #e8e6e1;
+  --color-text-secondary: #8a8a8a;
+  --color-text-muted: #5c5c5c;
+  --color-accent: #d97706;
+  --color-accent-hover: #f59e0b;
+  --color-accent-subtle: rgba(217, 119, 6, 0.12);
+  --color-accent-text: #fbbf24;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
 }

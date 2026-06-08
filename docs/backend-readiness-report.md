@@ -50,6 +50,16 @@
 - Docker + CI: done.
 - Basic observability: done.
 
+## SAP Integration Readiness (Post-Gap Analysis)
+
+- **Inbound import endpoint:** Hardened with optional HMAC-SHA256 webhook signature verification (`X-IDM-Signature` header), source labelling (`X-Import-Source` header), and full rejection detail with `batchId`, `importedAt`, `sourceLabel`, and `rejectedRows` array in the response. Ready to receive from any SAP adapter.
+- **Ageing export:** `GET /api/idm-08/ageing/export/sap` endpoint ready with SAP-conventional field names (`SERIAL_NO`, `MATNR`, `LGORT`, `WADAT`, `AGE_DAYS`, `BUCKET`) and `X-IDM-Export-Timestamp` / `X-IDM-Record-Count` response headers. SAP field mapping is provisional pending OI-7 closure.
+- **Ageing export (JSON/CSV):** `GET /api/idm-08/ageing/export` supports `format=json` and `format=csv` with pagination (limit/offset, max 5000).
+- **Ageing summary:** `GET /api/idm-08/ageing/summary` provides per-warehouse bucket counts for the Import Monitor dashboard widget.
+- **Outbound confirmed serials:** `GET /api/idm-05/dispatches/:dispatchId/confirmed-serials`, `GET /api/idm-05/dispatches/export/pending-sap-sync`, and `PATCH /api/idm-05/dispatches/:dispatchId/sap-synced` endpoints are ready. Adapter build blocked on OI-7.
+- **Import Monitor UI:** Operational at `/imports` with three tabs: Import History (batch listing + rejection drill-down), Manual Import (CSV/JSON input), and Ageing Summary (per-warehouse bucket table with refresh).
+- **Remaining:** Actual SAP adapter/transport build (blocked on OI-7).
+
 ## Pilot Readiness
 
 The backend is suitable for controlled development/demo pilot workflows using migrations and refreshed seed data. Core infrastructure hardening is complete for the current pilot code paths. Remaining pilot blockers are business/open-item driven: scanner hardware certification (OI-1), offline sync architecture (OI-2), SAP integration contract (OI-7), production auth hierarchy/MFA/user administration (OI-9), pilot warehouse selection (OI-11), and an external observability stack.

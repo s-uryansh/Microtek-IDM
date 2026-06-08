@@ -46,6 +46,14 @@ function invalidScanWithException(ruleCode, message, exception) {
   };
 }
 
+function formatCompletedSerialRow(row) {
+  return {
+    serialNo: row.serialNo,
+    productCode: row.productCode,
+    warehouseId: Number(row.warehouseId)
+  };
+}
+
 export function createDispatchService({ repositories, fulfilmentStatusService }) {
   return {
     async getDispatchWarehouseId(dispatchId) {
@@ -224,6 +232,38 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
           reason: null
         };
       });
+    },
+
+    async getConfirmedSerials(dispatchId) {
+      const dispatch = await repositories.dispatches.findConfirmedSerials(dispatchId);
+
+      if (!dispatch) {
+        throw Object.assign(new Error("Dispatch not found"), { status: 404 });
+      }
+
+      if (dispatch.status !== "DISPATCHED") {
+        throw Object.assign(new Error("Dispatch not yet completed"), { status: 409 });
+      }
+
+      const serials = await repositories.dispatches.findSerialsForDispatch(dispatchId);
+
+      return {
+        dispatchId: Number(dispatch.dispatchId),
+        invoiceId: Number(dispatch.invoiceId),
+        completedAt: dispatch.completedAt ? dispatch.completedAt.toISOString() : null,
+        serials: serials.map(formatCompletedSerialRow)
+      };
+    },
+
+    async getPendingSapSyncDispatches() {
+      // SAP outbound adapter will call this, POST confirmed serials
+      // to SAP, then PATCH /api/idm-05/dispatches/:id/sap-synced to mark complete
+      return repositories.dispatches.findPendingSapSyncDispatches(100);
+    },
+
+    async markSapSynced(dispatchId, sapBatchId) {
+      // Called by SAP outbound adapter after successful SAP posting
+      return repositories.dispatches.markSapSynced(dispatchId, sapBatchId);
     }
   };
 }

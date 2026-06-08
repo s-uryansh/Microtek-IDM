@@ -8,6 +8,7 @@ import { createLoginRateLimiter } from "./auth/loginRateLimiter.js";
 import { createPool } from "./db/pool.js";
 import { createRepositories } from "./db/repositories.js";
 import { createDispatchRoutes } from "./idm05/dispatchRoutes.js";
+import { createDispatchExportRoutes } from "./idm05/dispatchExportRoutes.js";
 import { createDispatchService } from "./idm05/dispatchService.js";
 import { createGrnRoutes } from "./idm02/grnRoutes.js";
 import { createGrnService } from "./idm02/grnService.js";
@@ -148,7 +149,12 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
       credentials: true
     })
   );
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({
+    limit: "1mb",
+    verify: (request, _response, buf) => {
+      request.rawBody = buf;
+    }
+  }));
 
   app.get("/health", (_request, response) => {
     response.status(200).json({
@@ -173,11 +179,12 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
       cookieOptions: { secure: config.nodeEnv === "production" }
     })
   );
-  app.use("/api/idm-01/import", createImportRoutes({ importService: resolvedServices.importService }));
+  app.use("/api/idm-01/import", createImportRoutes({ importService: resolvedServices.importService, importWebhookSecret: config.importWebhookSecret }));
   app.use("/api/idm-02/grns", createGrnRoutes({ grnService: resolvedServices.grnService }));
   app.use("/api/idm-04/srns", createSrnRoutes({ srnService: resolvedServices.srnService }));
   app.use("/api/idm-06/validate", createValidationRoutes({ validationService: resolvedServices.validationService }));
   app.use("/api/idm-05/dispatches", createDispatchRoutes({ dispatchService: resolvedServices.dispatchService }));
+  app.use("/api/idm-05/dispatches", createDispatchExportRoutes({ dispatchService: resolvedServices.dispatchService }));
   app.use(
     "/api/idm-07",
     createFulfilmentStatusRoutes({

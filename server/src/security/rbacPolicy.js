@@ -15,7 +15,8 @@ const foundationPermissionsByRole = new Map([
       "exception:read",
       "exception:correct",
       "battery:write",
-      "battery:read"
+      "battery:read",
+      "admin:access"
     ])
   ],
   [

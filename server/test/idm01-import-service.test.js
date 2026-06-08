@@ -42,6 +42,9 @@ function createRepositories({ productsByCode = new Map(), existingBatch = null, 
       },
       async markFailed(batchId, errorDetail) {
         calls.markFailed.push({ batchId, errorDetail });
+      },
+      async storeRejections(batchId, rejections) {
+        calls.storeRejections = { batchId, rejections };
       }
     },
     serials: {
@@ -90,12 +93,13 @@ describe("IDM-01 production import service", () => {
       ]
     });
 
-    expect(result).toEqual({
-      status: "PROCESSED",
-      importedCount: 1,
-      rejectedCount: 0,
-      rejections: []
-    });
+    expect(result.status).toBe("PROCESSED");
+    expect(result.importedCount).toBe(1);
+    expect(result.rejectedCount).toBe(0);
+    expect(result.rejectedRows).toEqual([]);
+    expect(result.batchId).toBe(101);
+    expect(result.sourceLabel).toBe("unknown");
+    expect(typeof result.importedAt).toBe("string");
     expect(repositories.calls.createBatch).toHaveLength(1);
     expect(repositories.calls.insertSerial[0]).toMatchObject({
       serialNo: "MTK1234567890",
@@ -130,7 +134,7 @@ describe("IDM-01 production import service", () => {
     expect(result.status).toBe("PROCESSED_WITH_REJECTIONS");
     expect(result.importedCount).toBe(1);
     expect(result.rejectedCount).toBe(1);
-    expect(result.rejections).toEqual([
+    expect(result.rejectedRows).toEqual([
       {
         index: 1,
         serialNo: "MTK1234567892",
@@ -159,12 +163,12 @@ describe("IDM-01 production import service", () => {
       records: [{ serialNo: "MTK1234567893", productCode: "SKU-VALID" }]
     });
 
-    expect(result).toEqual({
-      status: "DUPLICATE_IGNORED",
-      importedCount: 0,
-      rejectedCount: 0,
-      rejections: []
-    });
+    expect(result.status).toBe("DUPLICATE_IGNORED");
+    expect(result.importedCount).toBe(0);
+    expect(result.rejectedCount).toBe(0);
+    expect(result.rejectedRows).toEqual([]);
+    expect(result.sourceLabel).toBe("unknown");
+    expect(typeof result.importedAt).toBe("string");
     expect(repositories.calls.createBatch).toHaveLength(0);
     expect(repositories.calls.insertSerial).toHaveLength(0);
   });
@@ -190,12 +194,12 @@ describe("IDM-01 production import service", () => {
       records: [{ serialNo: "MTK1234567895", productCode: "SKU-VALID" }]
     });
 
-    expect(result).toEqual({
-      status: "DUPLICATE_IGNORED",
-      importedCount: 0,
-      rejectedCount: 0,
-      rejections: []
-    });
+    expect(result.status).toBe("DUPLICATE_IGNORED");
+    expect(result.importedCount).toBe(0);
+    expect(result.rejectedCount).toBe(0);
+    expect(result.rejectedRows).toEqual([]);
+    expect(result.sourceLabel).toBe("unknown");
+    expect(typeof result.importedAt).toBe("string");
     expect(repositories.calls.transaction).toHaveLength(0);
     expect(repositories.calls.insertSerial).toHaveLength(0);
   });

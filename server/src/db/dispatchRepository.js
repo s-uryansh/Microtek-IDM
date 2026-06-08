@@ -168,6 +168,72 @@ export function createDispatchRepository(pool) {
       );
 
       return result.rows[0].count;
+    },
+
+    async findConfirmedSerials(dispatchId) {
+      const dispatchResult = await pool.query(
+        `SELECT
+           d.dispatch_id AS "dispatchId",
+           d.invoice_id AS "invoiceId",
+           d.completed_at AS "completedAt",
+           d.status
+         FROM dispatch d
+         WHERE d.dispatch_id = $1`,
+        [dispatchId]
+      );
+
+      return dispatchResult.rows[0] ?? null;
+    },
+
+    async findSerialsForDispatch(dispatchId) {
+      const result = await pool.query(
+        `SELECT
+           s.serial_no AS "serialNo",
+           p.product_code AS "productCode",
+           d.warehouse_id AS "warehouseId"
+         FROM dispatch_scan ds
+         JOIN serial_master s ON s.serial_id = ds.serial_id
+         JOIN product p ON p.product_id = s.product_id
+         JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
+         WHERE ds.dispatch_id = $1
+         ORDER BY s.serial_no`,
+        [dispatchId]
+      );
+
+      return result.rows;
+    },
+
+    async findPendingSapSyncDispatches(limit = 100) {
+      const result = await pool.query(
+        `SELECT
+           d.dispatch_id AS "dispatchId",
+           d.invoice_id AS "invoiceId",
+           d.completed_at AS "completedAt",
+           d.status
+         FROM dispatch d
+         WHERE d.status = 'DISPATCHED'
+           AND d.sap_outbound_batch_id IS NULL
+         ORDER BY d.completed_at ASC NULLS LAST
+         LIMIT $1`,
+        [limit]
+      );
+
+      return result.rows;
+    },
+
+    async markSapSynced(dispatchId, sapBatchId) {
+      const result = await pool.query(
+        `UPDATE dispatch
+         SET sap_outbound_batch_id = COALESCE($2, sap_outbound_batch_id),
+             updated_at = now()
+         WHERE dispatch_id = $1
+         RETURNING
+           dispatch_id AS "dispatchId",
+           sap_outbound_batch_id AS "sapOutboundBatchId"`,
+        [dispatchId, sapBatchId]
+      );
+
+      return result.rows[0] ?? null;
     }
   };
 }

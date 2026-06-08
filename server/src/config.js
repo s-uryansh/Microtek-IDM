@@ -12,7 +12,8 @@ const envSchema = z.object({
   AUTH_TOKEN_SECRET: z.string().min(32).default(DEVELOPMENT_AUTH_SECRET),
   AUTH_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(28800),
   REDIS_URL: z.string().url().optional().default("redis://localhost:6379"),
-  AGEING_REFRESH_INTERVAL_MS: z.coerce.number().int().positive().default(3600000)
+  AGEING_REFRESH_INTERVAL_MS: z.coerce.number().int().positive().default(3600000),
+  IMPORT_WEBHOOK_SECRET: z.string().min(32).optional()
 });
 
 export function loadConfig(env = process.env) {
@@ -42,6 +43,7 @@ export function loadConfig(env = process.env) {
     authTokenSecret: result.data.AUTH_TOKEN_SECRET,
     authSessionTtlSeconds: result.data.AUTH_SESSION_TTL_SECONDS,
     redisUrl: result.data.REDIS_URL,
-    ageingRefreshIntervalMs: result.data.AGEING_REFRESH_INTERVAL_MS
+    ageingRefreshIntervalMs: result.data.AGEING_REFRESH_INTERVAL_MS,
+    importWebhookSecret: result.data.IMPORT_WEBHOOK_SECRET
   };
 }

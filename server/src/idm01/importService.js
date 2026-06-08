@@ -27,6 +27,7 @@ const productionRecordSchema = z.object({
 const productionBatchSchema = z.object({
   externalRef: z.string().trim().min(1).max(80),
   source: z.string().trim().min(1).max(60),
+  sourceLabel: z.string().trim().max(60).optional(),
   receivedBy: z.string().trim().min(1).max(60),
   records: z.array(productionRecordSchema).min(1).max(10000)
 });
@@ -62,6 +63,16 @@ function dedupeRecords(records) {
 
 
 export function createImportService({ repositories }) {
+  function mapBatchRow(batch) {
+    return {
+      batchId: batch.batchId,
+      sourceLabel: batch.sourceLabel,
+      importedAt: batch.finishedAt || batch.createdAt,
+      importedCount: batch.recordCount,
+      rejectedCount: 0,
+      status: batch.status
+    };
+  }
   return {
     async importProductionBatch(input) {
       const parsed = productionBatchSchema.safeParse(input);
@@ -69,6 +80,8 @@ export function createImportService({ repositories }) {
       if (!parsed.success) {
         throw new Error("Invalid production import payload");
       }
+
+      const sourceLabel = parsed.data.sourceLabel || "unknown";
 
       const batchKey = {
         direction: "INBOUND",
@@ -80,37 +93,50 @@ export function createImportService({ repositories }) {
       if (existingBatch?.status === "PROCESSED" || existingBatch?.status === "REPLAYED") {
         return {
           status: "DUPLICATE_IGNORED",
+          batchId: existingBatch.batchId,
+          importedAt: new Date().toISOString(),
+          sourceLabel,
           importedCount: 0,
           rejectedCount: 0,
-          rejections: []
+          rejectedRows: []
         };
       }
 
       const batch = await repositories.integrationBatches.createPending({
         ...batchKey,
         sourceSystem: parsed.data.source,
-        createdBy: parsed.data.receivedBy
+        createdBy: parsed.data.receivedBy,
+        sourceLabel
       });
 
       if (batch.status === "PROCESSED" || batch.status === "REPLAYED") {
         return {
           status: "DUPLICATE_IGNORED",
+          batchId: batch.batchId,
+          importedAt: new Date().toISOString(),
+          sourceLabel,
           importedCount: 0,
           rejectedCount: 0,
-          rejections: []
+          rejectedRows: []
         };
       }
 
       try {
-        const { importedCount, rejections } = await repositories.withTransaction(async (txRepositories) => {
+        const result = await repositories.withTransaction(async (txRepositories) => {
           const { accepted, duplicateRejections } = dedupeRecords(parsed.data.records);
           const txRejections = [...duplicateRejections];
           let txImportedCount = 0;
+          const txRejectedRows = [];
 
           for (const { index, record } of accepted) {
             const product = await txRepositories.serials.findProductByCode(record.productCode);
 
             if (!product) {
+              txRejectedRows.push({
+                index,
+                serialNo: record.serialNo,
+                reason: "UNKNOWN_PRODUCT"
+              });
               txRejections.push({
                 index,
                 serialNo: record.serialNo,
@@ -143,17 +169,25 @@ export function createImportService({ repositories }) {
 
           return {
             importedCount: txImportedCount,
-            rejections: txRejections.sort((left, right) => left.index - right.index)
+            rejections: txRejections.sort((left, right) => left.index - right.index),
+            rejectedRows: txRejectedRows.sort((left, right) => left.index - right.index)
           };
         });
 
-        await repositories.integrationBatches.markProcessed(batch.batchId, importedCount);
+        await repositories.integrationBatches.markProcessed(batch.batchId, result.importedCount);
+
+        if (result.rejectedRows.length > 0) {
+          await repositories.integrationBatches.storeRejections(batch.batchId, result.rejectedRows);
+        }
 
         return {
-          status: rejections.length > 0 ? "PROCESSED_WITH_REJECTIONS" : "PROCESSED",
-          importedCount,
-          rejectedCount: rejections.length,
-          rejections
+          status: result.rejectedRows.length > 0 ? "PROCESSED_WITH_REJECTIONS" : "PROCESSED",
+          batchId: batch.batchId,
+          importedAt: new Date().toISOString(),
+          sourceLabel,
+          importedCount: result.importedCount,
+          rejectedCount: result.rejectedRows.length,
+          rejectedRows: result.rejectedRows
         };
       } catch (error) {
         await repositories.integrationBatches.markFailed(batch.batchId, error.message);
@@ -169,6 +203,32 @@ export function createImportService({ repositories }) {
       }
 
       return { valid: false, reason: mapValidationError(parsed.error) };
+    },
+
+    async listBatches({ limit = 20, offset = 0, sourceLabel }) {
+      const result = await repositories.integrationBatches.listBatches({ limit, offset, sourceLabel });
+
+      return {
+        batches: result.batches.map(mapBatchRow),
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset
+      };
+    },
+
+    async getBatch(batchId) {
+      const batch = await repositories.integrationBatches.getBatch(batchId);
+
+      if (!batch) return null;
+
+      return {
+        ...mapBatchRow(batch),
+        rejections: batch.rejections.map((r) => ({
+          index: r.rowIndex,
+          serialNo: r.serialNo,
+          reason: r.reason
+        }))
+      };
     }
   };
 }

@@ -1,6 +1,10 @@
 import { Icon } from "../ui/Icon.jsx";
+import { useTheme } from "../../theme/useTheme.js";
 
 export function TopBar({ onMenuToggle }) {
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
     <header className="top-bar">
       <button
@@ -25,6 +29,15 @@ export function TopBar({ onMenuToggle }) {
       </div>
 
       <div className="top-bar__actions">
+        <button
+          className="top-bar__action-btn"
+          type="button"
+          onClick={toggleTheme}
+          aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+          title={isDark ? "Switch to light theme" : "Switch to dark theme"}
+        >
+          <Icon name={isDark ? "sun" : "moon"} size={18} />
+        </button>
         <button className="top-bar__action-btn" type="button" aria-label="Notifications">
           <Icon name="bell" size={18} />
           <span className="top-bar__action-badge" />
