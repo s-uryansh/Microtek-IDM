@@ -4,8 +4,10 @@ import { MemoryRouter } from "react-router-dom";
 import { AgeingPage } from "../../src/features/ageing/AgeingPage.jsx";
 
 const mockFetch = vi.fn();
+const mockFetchVariance = vi.fn();
 vi.mock("../../src/api/modules/ageing.js", () => ({
-  fetchAgeingReport: (...args) => mockFetch(...args)
+  fetchAgeingReport: (...args) => mockFetch(...args),
+  fetchReconciliationVariance: (...args) => mockFetchVariance(...args)
 }));
 
 function renderPage() {
@@ -18,6 +20,8 @@ function renderPage() {
 
 beforeEach(() => {
   mockFetch.mockReset();
+  mockFetchVariance.mockReset();
+  mockFetchVariance.mockResolvedValue({ rows: [] });
 });
 
 describe("AgeingPage", () => {

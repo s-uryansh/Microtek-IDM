@@ -10,7 +10,9 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().url().default("http://localhost:5173"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   AUTH_TOKEN_SECRET: z.string().min(32).default(DEVELOPMENT_AUTH_SECRET),
-  AUTH_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(28800)
+  AUTH_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(28800),
+  REDIS_URL: z.string().url().optional().default("redis://localhost:6379"),
+  AGEING_REFRESH_INTERVAL_MS: z.coerce.number().int().positive().default(3600000)
 });
 
 export function loadConfig(env = process.env) {
@@ -26,6 +28,11 @@ export function loadConfig(env = process.env) {
     throw new Error("Invalid environment configuration");
   }
 
+  if (result.data.NODE_ENV === "production" && !env.REDIS_URL) {
+    console.error("REDIS_URL must be set in production");
+    throw new Error("Invalid environment configuration");
+  }
+
   return {
     nodeEnv: result.data.NODE_ENV,
     port: result.data.PORT,
@@ -33,6 +40,8 @@ export function loadConfig(env = process.env) {
     corsOrigin: result.data.CORS_ORIGIN,
     logLevel: result.data.LOG_LEVEL,
     authTokenSecret: result.data.AUTH_TOKEN_SECRET,
-    authSessionTtlSeconds: result.data.AUTH_SESSION_TTL_SECONDS
+    authSessionTtlSeconds: result.data.AUTH_SESSION_TTL_SECONDS,
+    redisUrl: result.data.REDIS_URL,
+    ageingRefreshIntervalMs: result.data.AGEING_REFRESH_INTERVAL_MS
   };
 }

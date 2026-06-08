@@ -36,7 +36,8 @@ describe("ScanCamera", () => {
 
     render(<ScanCamera scanner={scanner} />);
 
-    expect(screen.getAllByText("Camera scanning is not supported in this browser")).toHaveLength(2);
+    expect(screen.getAllByText("Unsupported browser capability. Use hardware scanner or manual entry.")).toHaveLength(2);
+    expect(screen.getByLabelText("Camera diagnostics")).toBeVisible();
   });
 
   test("shows permission denied state", () => {

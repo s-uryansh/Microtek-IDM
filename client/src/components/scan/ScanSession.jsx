@@ -14,13 +14,16 @@ export function ScanSession({
   scanCount = 0,
   title = "Scan Session",
   placeholder = "Scan or enter serial number",
-  className = ""
+  scannerLabel = "Scan Serial",
+  className = "",
+  disabled: externallyDisabled = false,
+  disabledMessage = ""
 }) {
   const [inputValue, setInputValue] = useState("");
   const scanSession = useScanSession({ module, onScan, completed });
   const scanner = useScanner({ onScan: scanSession.submitScan });
   const effectiveScanCount = Math.max(scanCount, scanSession.scans.length);
-  const disabled = scanSession.pending || completed || scanSession.paused;
+  const disabled = externallyDisabled || scanSession.pending || completed || scanSession.paused;
 
   const handleSubmit = useCallback(async (serialNo) => {
     const result = await scanner.submitHardwareScan(serialNo);
@@ -58,12 +61,19 @@ export function ScanSession({
 
       <ScanCamera scanner={scanner} disabled={disabled} />
 
+      {externallyDisabled && disabledMessage && (
+        <p className="scan-session__disabled" role="status">
+          {disabledMessage}
+        </p>
+      )}
+
       <ScanScanner
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleSubmit}
         disabled={disabled}
         placeholder={placeholder}
+        label={scannerLabel}
         feedbackState={scanSession.feedbackState}
       />
 

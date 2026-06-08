@@ -6,6 +6,7 @@ import { createDispatchRepository } from "./dispatchRepository.js";
 import { createGrnRepository } from "./grnRepository.js";
 import { createIntegrationBatchRepository } from "./integrationBatchRepository.js";
 import { createInvoiceRepository } from "./invoiceRepository.js";
+import { createLookupRepository } from "./lookupRepository.js";
 import { createReconciliationRepository } from "./reconciliationRepository.js";
 import { createSerialRepository } from "./serialRepository.js";
 import { createSerialHistoryRepository } from "./serialHistoryRepository.js";
@@ -14,6 +15,7 @@ import { createSrnRepository } from "./srnRepository.js";
 export function createRepositories(pool) {
   const repositories = {
     integrationBatches: createIntegrationBatchRepository(pool),
+    lookups: createLookupRepository(pool),
     serials: createSerialRepository(pool),
     exceptionsRepo: createExceptionRepository(pool),
     invoices: createInvoiceRepository(pool),

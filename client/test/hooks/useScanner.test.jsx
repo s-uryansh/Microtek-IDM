@@ -175,6 +175,38 @@ describe("useScanner", () => {
     globalThis.BarcodeDetector = originalBarcodeDetector;
   });
 
+  test("reports secure context diagnostics instead of generic unsupported browser", async () => {
+    const originalMediaDevices = navigator.mediaDevices;
+    const originalSecureContext = globalThis.isSecureContext;
+
+    Object.defineProperty(globalThis, "isSecureContext", {
+      value: false,
+      configurable: true
+    });
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: undefined,
+      configurable: true
+    });
+
+    render(<ScannerHarness onScan={() => {}} />);
+
+    await act(async () => {
+      screen.getByText("Start").click();
+    });
+
+    expect(screen.getByTestId("status")).toHaveTextContent("unsupported");
+    expect(screen.getByTestId("error")).toHaveTextContent("Secure context required");
+
+    Object.defineProperty(globalThis, "isSecureContext", {
+      value: originalSecureContext,
+      configurable: true
+    });
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: originalMediaDevices,
+      configurable: true
+    });
+  });
+
   test("stops camera tracks during cleanup", async () => {
     const originalMediaDevices = navigator.mediaDevices;
     const originalBarcodeDetector = globalThis.BarcodeDetector;

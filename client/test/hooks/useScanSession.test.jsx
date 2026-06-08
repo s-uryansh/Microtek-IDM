@@ -70,6 +70,30 @@ describe("useScanSession", () => {
     expect(screen.getByTestId("state")).toHaveTextContent("warning");
   });
 
+  test("suppresses repeated duplicate warnings during cooldown", async () => {
+    const onScan = vi.fn().mockResolvedValue({ status: "MATCHED", state: "success" });
+
+    render(<SessionHarness onScan={onScan} />);
+
+    await act(async () => {
+      screen.getByText("Scan A").click();
+    });
+    await waitFor(() => expect(screen.getByTestId("count")).toHaveTextContent("1"));
+
+    await act(async () => {
+      screen.getByText("Scan Duplicate").click();
+    });
+    await waitFor(() => expect(screen.getByTestId("count")).toHaveTextContent("2"));
+
+    await act(async () => {
+      screen.getByText("Scan Duplicate").click();
+      screen.getByText("Scan Duplicate").click();
+    });
+
+    expect(screen.getByTestId("count")).toHaveTextContent("2");
+    expect(onScan).toHaveBeenCalledTimes(1);
+  });
+
   test("does not submit scans while paused", async () => {
     const onScan = vi.fn();
 

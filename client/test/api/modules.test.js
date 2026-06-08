@@ -8,6 +8,7 @@ import { fetchFulfilmentStatus } from "../../src/api/modules/fulfilment.js";
 import { createGrn, scanGrnSerial, completeGrn } from "../../src/api/modules/grn.js";
 import { fetchSerialHistory } from "../../src/api/modules/history.js";
 import { importProduction } from "../../src/api/modules/imports.js";
+import { searchDispatchDocs, searchDispatches, searchInvoices, searchWarehouses } from "../../src/api/modules/lookups.js";
 import * as srnModule from "../../src/api/modules/srn.js";
 import { createSrn, scanSrnSerial } from "../../src/api/modules/srn.js";
 import { validateSerial } from "../../src/api/modules/validation.js";
@@ -171,6 +172,44 @@ describe("API modules", () => {
       expect(mockClient.__mockPost).toHaveBeenCalledWith(
         "/idm-01/import/production",
         { externalRef: "REF-1", source: "SAP", records: [{ serialNo: "S-001", productCode: "P-1" }] },
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe("lookups", () => {
+    test("searchInvoices calls scoped lookup endpoint", async () => {
+      mockClient.__mockGet.mockResolvedValue({ items: [] });
+      await searchInvoices({ query: "INV", warehouseId: 3, batteryOnly: true });
+      expect(mockClient.__mockGet).toHaveBeenCalledWith(
+        "/lookups/invoices?query=INV&warehouseId=3&batteryOnly=true",
+        expect.any(Object)
+      );
+    });
+
+    test("searchDispatchDocs calls dispatch document lookup endpoint", async () => {
+      mockClient.__mockGet.mockResolvedValue({ items: [] });
+      await searchDispatchDocs({ query: "DOC" });
+      expect(mockClient.__mockGet).toHaveBeenCalledWith(
+        "/lookups/dispatch-docs?query=DOC",
+        expect.any(Object)
+      );
+    });
+
+    test("searchDispatches calls dispatch lookup endpoint", async () => {
+      mockClient.__mockGet.mockResolvedValue({ items: [] });
+      await searchDispatches({ query: "INV" });
+      expect(mockClient.__mockGet).toHaveBeenCalledWith(
+        "/lookups/dispatches?query=INV",
+        expect.any(Object)
+      );
+    });
+
+    test("searchWarehouses calls warehouse lookup endpoint", async () => {
+      mockClient.__mockGet.mockResolvedValue({ items: [] });
+      await searchWarehouses({ query: "RW" });
+      expect(mockClient.__mockGet).toHaveBeenCalledWith(
+        "/lookups/warehouses?query=RW",
         expect.any(Object)
       );
     });

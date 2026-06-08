@@ -4,6 +4,8 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { StatusBadge } from "../../components/ui/StatusBadge.jsx";
+import { BulkCsvTools } from "../../components/operations/BulkCsvTools.jsx";
+import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { fetchSerialHistory } from "../../api/modules/history.js";
 
 function toArray(value) {
@@ -32,6 +34,26 @@ export function SerialHistoryPage() {
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [historyRows, setHistoryRows] = useState([]);
+
+  async function loadHistory(value) {
+    const lookupSerial = String(value || "").trim();
+    if (!lookupSerial) return null;
+    const result = await fetchSerialHistory({ serialNo: lookupSerial });
+    const rows = toArray(result?.timeline).map((item) => ({
+      serial_no: result?.serial?.serialNo || lookupSerial,
+      type: item.type,
+      at: item.at,
+      eventType: item.eventType,
+      ruleCode: item.ruleCode,
+      referenceType: item.referenceType,
+      referenceId: item.referenceId,
+      warehouseId: item.warehouseId,
+      status: item.status
+    }));
+    setHistoryRows((prev) => [...prev, ...rows]);
+    return result;
+  }
 
   async function handleSearch() {
     if (!serialNo.trim()) return;
@@ -39,7 +61,7 @@ export function SerialHistoryPage() {
     setHistory(null);
     setLoading(true);
     try {
-      const result = await fetchSerialHistory({ serialNo: serialNo.trim() });
+      const result = await loadHistory(serialNo);
       setHistory(result);
     } catch (err) {
       if (err?.status === 404) {
@@ -49,6 +71,20 @@ export function SerialHistoryPage() {
       setError(err?.message || "Search failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleScanSerial(value) {
+    try {
+      const result = await loadHistory(value);
+      setSerialNo(String(value || "").trim());
+      setHistory(result);
+      return { status: "FOUND", message: "Serial timeline loaded", state: "success" };
+    } catch (err) {
+      if (err?.status === 404) {
+        return { status: "NOT_FOUND", message: "Serial not found", state: "error" };
+      }
+      throw err;
     }
   }
 
@@ -69,11 +105,38 @@ export function SerialHistoryPage() {
           <Button onClick={handleSearch} disabled={!serialNo.trim() || loading}>
             {loading ? "Searching..." : "Search"}
           </Button>
+          <ScanSession
+            module="HISTORY"
+            title="Serial scanner"
+            scannerLabel="Scan Serial"
+            placeholder="Scan or enter serial number"
+            onScan={handleScanSerial}
+          />
+          <BulkCsvTools
+            title="Serial History CSV"
+            templateFilename="serial-history-import-template.csv"
+            templateHeaders={["serial_no"]}
+            importLabel="Import Serials"
+            exportLabel="Export Timeline Results"
+            exportFilename="serial-history-results.csv"
+            exportHeaders={["serial_no", "type", "at", "eventType", "ruleCode", "referenceType", "referenceId", "warehouseId", "status"]}
+            exportRows={historyRows}
+            onImportRow={(row) => handleScanSerial(row.serial_no)}
+          />
         </div>
       </Card>
 
       {history?.found && (
         <Card title={`Serial: ${history?.serial?.serialNo ?? serialNo}`} style={{ marginTop: "var(--space-4)" }}>
+          <BulkCsvTools
+            title="Serial Timeline Export"
+            templateFilename="serial-history-template.csv"
+            templateHeaders={["type", "at", "eventType", "ruleCode", "referenceType", "referenceId", "warehouseId", "status"]}
+            exportLabel="Export Timeline"
+            exportFilename={`serial-${history?.serial?.serialNo ?? serialNo}-timeline.csv`}
+            exportHeaders={["serial_no", "type", "at", "eventType", "ruleCode", "referenceType", "referenceId", "warehouseId", "status"]}
+            exportRows={timeline.map((item) => ({ serial_no: history?.serial?.serialNo ?? serialNo, ...item }))}
+          />
           <p style={{ marginBottom: "var(--space-4)", color: "var(--color-text-secondary)" }}>
             Current Status: <StatusBadge status={history?.serial?.currentStatus ?? "UNKNOWN"} />
           </p>

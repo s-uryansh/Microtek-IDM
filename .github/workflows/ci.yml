@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: microtek_idm_test
+          POSTGRES_USER: microtek
+          POSTGRES_PASSWORD: microtek
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U microtek -d microtek_idm_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://microtek:microtek@localhost:5432/microtek_idm_test
+      CORS_ORIGIN: http://localhost:5173
+      LOG_LEVEL: silent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run migrate --workspace server
+      - run: npm test --workspace server
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f server/Dockerfile .
+      - run: docker build -f client/Dockerfile .

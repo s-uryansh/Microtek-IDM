@@ -4,6 +4,7 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { StatusBadge } from "../../components/ui/StatusBadge.jsx";
+import { BulkCsvTools } from "../../components/operations/BulkCsvTools.jsx";
 import { importProduction } from "../../api/modules/imports.js";
 
 function toArray(value) {
@@ -102,6 +103,15 @@ export function ImportMonitorPage() {
           <Button onClick={handleImport} disabled={!externalRef || !serialInput.trim() || importing}>
             {importing ? "Importing..." : "Import Production Serials"}
           </Button>
+          <BulkCsvTools
+            title="Production Import CSV"
+            templateFilename="production-import-template.csv"
+            templateHeaders={["serialNo", "productCode", "batchNo", "warehouseId"]}
+            exportLabel="Export Rejections"
+            exportFilename="production-import-rejections.csv"
+            exportHeaders={["index", "serialNo", "reason"]}
+            exportRows={rejections}
+          />
 
           {result && (
             <div

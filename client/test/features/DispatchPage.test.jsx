@@ -44,16 +44,15 @@ describe("DispatchPage — scan flows", () => {
     createMock.mockResolvedValue({ dispatchId: 1, invoiceId: 1, warehouseId: 3, status: "PENDING" });
   });
 
-  test("returns an error when invoice line id is missing", async () => {
+  test("requires invoice line context before scanning", async () => {
     renderPage();
     fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
     fireEvent.click(screen.getByText("Start Dispatch"));
     await waitFor(() => expect(screen.getByText(/Dispatch #1/)).toBeVisible());
     const input = screen.getByLabelText("Scan Serial");
-    fireEvent.change(input, { target: { value: "S-1" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    await waitFor(() => expect(screen.getByText("Invoice line ID is required")).toBeVisible());
+    expect(input).toBeDisabled();
+    expect(screen.getByText("Select an invoice line or enter Invoice Line ID before scanning dispatch serials.")).toBeVisible();
     expect(scanMock).not.toHaveBeenCalled();
   });
 

@@ -1,0 +1,14 @@
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY client/package.json ./client/package.json
+RUN npm ci --workspace client
+
+COPY client/ ./client/
+RUN npm run build --workspace client
+
+FROM nginx:alpine
+
+COPY --from=build /app/client/dist/ /usr/share/nginx/html/

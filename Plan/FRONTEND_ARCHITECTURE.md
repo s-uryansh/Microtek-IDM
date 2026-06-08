@@ -58,8 +58,17 @@ Implemented component groups:
 
 Shared scan hooks:
 
-- `client/src/hooks/useScanner.js`: serial normalization, hardware scanner submission, camera stream lifecycle, native `BarcodeDetector`, `@zxing/browser` fallback, support detection, and camera pause/resume/stop state.
-- `client/src/hooks/useScanSession.js`: shared scan submission state, duplicate detection, success/warning/error feedback, pause/resume, and scan history.
+- `client/src/hooks/useScanner.js`: scan value normalization, hardware scanner submission, camera stream lifecycle, native `BarcodeDetector`, `@zxing/browser` fallback, support detection, actionable diagnostics, and camera pause/resume/stop state.
+- `client/src/hooks/useScanSession.js`: shared scan submission state, duplicate detection, duplicate cooldown, success/warning/error feedback, pause/resume, and scan history.
+
+Wave 5 workflow completion:
+
+- GRN, Battery, SRN, and Dispatch support QR/barcode scan, manual serial entry, CSV serial import, and CSV result export.
+- Fulfilment supports invoice QR/barcode lookup, manual invoice ID lookup, CSV invoice ID import, and CSV status export.
+- Serial History supports serial QR/barcode lookup, manual serial lookup, CSV serial import, and CSV timeline export.
+- Exceptions support exception ID QR/barcode lookup, manual exception ID lookup, CSV exception ID import for review/export, and CSV list/detail export. Bulk correction is intentionally not implemented.
+- Manual ID fields remain visible as permanent operational fallbacks.
+- CSV fields are documented in `docs/CSV_FIELD_REFERENCE.md`.
 
 ## 5. API Client
 
@@ -98,14 +107,14 @@ Wave 4 responsive changes:
 
 ## 7. Current Limitations
 
-- Many workflows require manual numeric IDs for warehouses, invoices, invoice lines, dispatch docs, and exceptions.
+- Many workflows preserve manual numeric IDs for warehouses, invoices, invoice lines, dispatch docs, and exceptions as required operational fallbacks.
 - Dashboard ageing calls use warehouse ID `3`.
 - Top-bar search and notifications are visual only.
 - Import Monitor submits production import payloads but does not list historical integration batches.
 - IDM-06 has an API module but no standalone validation page.
 - No native mobile app exists; scan components are web components only.
-- Camera scanning requires secure context plus browser `MediaDevices`; native `BarcodeDetector` is preferred and `@zxing/browser` is the fallback decoder.
-- Dispatch and Battery still require invoice line ID entry before continuous scanning.
+- Camera scanning requires secure context plus browser `MediaDevices`; native `BarcodeDetector` is preferred and `@zxing/browser` is the fallback decoder. Diagnostics distinguish secure-context, permission, camera availability, MediaDevices, camera access, and decoder initialization failures.
+- Dispatch and Battery require invoice line context before serial scanning. The operator can select invoice/line or manually enter Invoice Line ID.
 - No offline queue/sync UI exists.
 - No admin/configuration screens exist beyond the implemented feature pages.
 

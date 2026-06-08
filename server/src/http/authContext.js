@@ -1,5 +1,7 @@
 import cookie from "cookie";
 
+import { sendError } from "./errorResponse.js";
+
 const AUTH_COOKIE_NAME = "idm_auth";
 
 function getToken(request) {
@@ -25,25 +27,17 @@ export async function requireAuthContext(request, response, next) {
   }
 
   if (!token || !request.authService?.authenticateToken) {
-    response.status(401).json({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Authentication required"
-      }
-    });
+    sendError(response, 401, "UNAUTHORIZED", "Authentication required");
     return;
   }
 
   try {
+    // Security boundary: authenticateToken re-fetches the user and warehouse scope from DB.
+    // JWT warehouse claims are not authoritative because assignments can change after token issue.
     request.auth = await request.authService.authenticateToken(token);
     next();
   } catch {
-    response.status(401).json({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Authentication required"
-      }
-    });
+    sendError(response, 401, "UNAUTHORIZED", "Authentication required");
   }
 }
 
@@ -62,12 +56,7 @@ export function requirePermission(permission, { warehouseIdFromBody = false, war
     });
 
     if (!allowed) {
-      response.status(403).json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Insufficient permission"
-        }
-      });
+      sendError(response, 403, "FORBIDDEN", "Insufficient permission");
       return;
     }
 

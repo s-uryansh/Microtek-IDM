@@ -4,7 +4,10 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
+import { LookupSelector } from "../../components/operations/LookupSelector.jsx";
+import { BulkCsvTools } from "../../components/operations/BulkCsvTools.jsx";
 import { commitBatterySerial, fetchBatteryCommitStatus } from "../../api/modules/battery.js";
+import { searchInvoices } from "../../api/modules/lookups.js";
 
 function safeNumber(value, fallback = 0) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -15,6 +18,8 @@ export function BatteryPage() {
   const [invoiceId, setInvoiceId] = useState("");
   const [commitStatus, setCommitStatus] = useState(null);
   const [error, setError] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [commitRows, setCommitRows] = useState([]);
 
   async function handleScan(serialNo) {
     if (!invoiceLineId) {
@@ -25,6 +30,12 @@ export function BatteryPage() {
       invoiceLineId: Number(invoiceLineId),
       serialNo
     });
+    setCommitRows((rows) => [...rows, {
+      serial_no: serialNo,
+      invoice_line_id: invoiceLineId,
+      status: res?.status || res?.alert?.ruleCode || "REJECTED",
+      message: res?.alert?.message || (res?.valid ? "Battery serial committed" : "Commit failed")
+    }]);
 
     if (res?.valid) {
       return {
@@ -59,6 +70,47 @@ export function BatteryPage() {
       <div className="warehouse-grid warehouse-grid--two">
         <Card title="Commit Battery Serial">
           <div className="scan-workflow-form">
+            <LookupSelector
+              title="Search Battery Invoice"
+              placeholder="Invoice reference or invoice ID"
+              search={(query) => searchInvoices({ query, batteryOnly: true })}
+              onSelect={(invoice) => {
+                setSelectedInvoice(invoice);
+                setInvoiceId(String(invoice.invoiceId));
+                const batteryLine = invoice.lines?.find((line) => line.isBattery);
+                if (batteryLine) setInvoiceLineId(String(batteryLine.invoiceLineId));
+              }}
+              renderItem={(invoice) => (
+                <>
+                  <span className="operation-panel__result-title">{invoice.sapInvoiceRef}</span>
+                  <span className="operation-panel__result-meta">
+                    Invoice #{invoice.invoiceId} · Warehouse {invoice.warehouseCode || invoice.warehouseId}
+                  </span>
+                </>
+              )}
+            />
+            {selectedInvoice?.lines?.length > 0 && (
+              <div className="operation-panel" aria-label="Battery invoice lines">
+                <h3 className="operation-panel__title">Select Battery Line</h3>
+                <div className="operation-panel__results">
+                  {selectedInvoice.lines.filter((line) => line.isBattery).map((line) => (
+                    <button
+                      key={line.invoiceLineId}
+                      type="button"
+                      className="operation-panel__result"
+                      onClick={() => setInvoiceLineId(String(line.invoiceLineId))}
+                    >
+                      <span className="operation-panel__result-title">
+                        Line {line.lineNo} · {line.productCode}
+                      </span>
+                      <span className="operation-panel__result-meta">
+                        Line ID {line.invoiceLineId} · Qty {line.quantity}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <Input
               label="Invoice Line ID"
               value={invoiceLineId}
@@ -67,11 +119,25 @@ export function BatteryPage() {
               inputMode="numeric"
               placeholder="Enter invoice line ID"
             />
+            <BulkCsvTools
+              title="Battery Bulk Commit Fallback"
+              templateFilename="battery-serial-import-template.csv"
+              templateHeaders={["serial_no"]}
+              importLabel="Import Serials"
+              exportLabel="Export Committed Serials"
+              exportFilename="battery-committed-serials.csv"
+              exportHeaders={["serial_no", "invoice_line_id", "status", "message"]}
+              exportRows={commitRows}
+              disabled={!invoiceLineId}
+              onImportRow={(row) => handleScan(row.serial_no)}
+            />
             <ScanSession
               module="BATTERY"
               title="Battery commit scanning"
               onScan={handleScan}
               placeholder="Scan battery serial number"
+              disabled={!invoiceLineId}
+              disabledMessage="Select an invoice line or enter Invoice Line ID before scanning battery serials."
             />
             {error && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</p>}
           </div>

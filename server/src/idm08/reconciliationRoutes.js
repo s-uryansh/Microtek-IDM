@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { requireAuthContext, requirePermission } from "../http/authContext.js";
+import { sendError } from "../http/errorResponse.js";
 
 function parsePositiveInt(value) {
   const parsed = Number.parseInt(value, 10);
@@ -20,12 +21,7 @@ export function createReconciliationRoutes({ reconciliationService }) {
         const productId = request.query.productId ? parsePositiveInt(request.query.productId) : undefined;
 
         if (!warehouseId || (request.query.productId && !productId)) {
-          response.status(400).json({
-            error: {
-              code: "BAD_REQUEST",
-              message: "Invalid reconciliation filter"
-            }
-          });
+          sendError(response, 400, "BAD_REQUEST", "Invalid reconciliation filter");
           return;
         }
 

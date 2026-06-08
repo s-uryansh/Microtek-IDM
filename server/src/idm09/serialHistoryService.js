@@ -35,10 +35,15 @@ export function createSerialHistoryService({ repositories }) {
         correctedAt: exception.correctedAt,
         correctedBy: exception.correctedBy
       }));
+      const warehouseIds = [
+        history.serial.currentWarehouseId,
+        ...history.events.map((event) => event.warehouseId)
+      ].filter((warehouseId, index, values) => warehouseId && values.indexOf(warehouseId) === index);
 
       return {
         found: true,
         serial: history.serial,
+        warehouseIds,
         timeline: [...events, ...exceptions].sort((left, right) => toTime(left.at) - toTime(right.at))
       };
     }

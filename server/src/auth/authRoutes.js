@@ -2,6 +2,8 @@ import { Router } from "express";
 import cookie from "cookie";
 import { z } from "zod";
 
+import { sendError } from "../http/errorResponse.js";
+
 const AUTH_COOKIE_NAME = "idm_auth";
 
 const loginSchema = z.object({
@@ -34,22 +36,45 @@ function clearAuthCookie(response, { secure = false } = {}) {
 }
 
 function sendAuthError(response, error) {
-  response.status(error.status || 500).json({
-    error: {
-      code: error.code || "AUTH_ERROR",
-      message: error.message || "Authentication failed"
-    }
-  });
+  sendError(response, error.status || 500, error.code || "AUTH_ERROR", error.message || "Authentication failed");
+}
+
+function getClientIp(request) {
+  return request.ip || request.socket?.remoteAddress || "unknown";
 }
 
 export function createAuthRoutes({ authService, loginRateLimiter, cookieOptions = {} }) {
   const router = Router();
 
-  router.post("/login", loginRateLimiter, async (request, response, next) => {
+  const limiterMiddleware = async (request, response, next) => {
+    if (!loginRateLimiter?.check) {
+      if (typeof loginRateLimiter === "function") {
+        loginRateLimiter(request, response, next);
+        return;
+      }
+
+      next();
+      return;
+    }
+
+    try {
+      const result = await loginRateLimiter.check(getClientIp(request));
+      if (!result.allowed) {
+        sendError(response, 429, "RATE_LIMITED", "Too many login attempts. Try again later.");
+        return;
+      }
+
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  router.post("/login", limiterMiddleware, async (request, response, next) => {
     try {
       const parsed = loginSchema.safeParse(request.body);
       if (!parsed.success) {
-        response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Username and password are required" } });
+        sendError(response, 400, "INVALID_REQUEST", "Username and password are required");
         return;
       }
 
@@ -59,6 +84,7 @@ export function createAuthRoutes({ authService, loginRateLimiter, cookieOptions 
         ipAddress: request.ip,
         userAgent: request.get("user-agent")
       });
+      await loginRateLimiter?.reset?.(getClientIp(request));
       setAuthCookie(response, result.token, { ...cookieOptions, expires: result.expiresAt });
       response.status(200).json({ user: result.user });
     } catch (error) {

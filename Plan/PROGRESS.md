@@ -4,7 +4,7 @@
 **Client:** Microtek  
 **Tracker owner:** Project Manager (Basiq360)  
 **Status legend:** `Not Started` · `Partially Implemented` · `Backend Complete` · `Frontend Complete` · `Integrated` · `Tested` · `Blocked`  
-**Last reviewed:** 2026-06-07
+**Last reviewed:** 2026-06-08
 
 This tracker was updated after reading the repository implementation on 2026-06-07. Statuses below describe actual code present in the repo, not the original sprint plan.
 
@@ -19,7 +19,7 @@ This tracker was updated after reading the repository implementation on 2026-06-
 | IDM-05 | Warehouse Dispatch with Serial Scan | Agreed | Integrated / Tested | 2026-06-07 | IDM-06, V003/V005, invoice data, TEC-INT for SAP outbound | Backend service/route tests; frontend Dispatch page tests; API module tests | Create/scan/complete APIs and Dispatch page exist. Serial validation, dispatch locking, duplicate protection, serial status/event writes, and invoice/dispatch status updates exist. SAP outbound transport is absent. |
 | IDM-06 | Real-Time Serial Validation + Exception Logging | Agreed | Backend Complete / Tested | 2026-06-07 | V002, serial master, exception log, RBAC | Backend service/route tests; frontend API module tests | `POST /api/idm-06/validate` exists and is reused by backend scan workflows. Frontend has an API module but no standalone validation page. Rules: MALFORMED_SERIAL, NOT_FOUND, WRONG_WAREHOUSE, ALREADY_DISPATCHED, PRODUCT_INVOICE_MISMATCH. |
 | IDM-07 | Order Fulfilment Status Marking | Agreed | Integrated / Tested | 2026-06-07 | IDM-05, invoice/dispatch data, OI-4 final partial dispatch rule | Backend service/route tests; frontend Fulfilment page tests; API module tests | `GET /api/idm-07/orders/:invoiceId/status` and Fulfilment page exist. Statuses are PENDING, IN_PROGRESS, DISPATCHED. `committedQuantity` from battery pre-billing is included. PARTIAL is not encoded. |
-| IDM-08 | Inventory Ageing Report + Opening Stock Variance | Agreed (customisation) | Integrated / Tested for portal report and variance read | 2026-06-07 | V004 materialized view, serial receipt dates, OI-8/OI-10, TEC-INT for SAP ageing feed | Backend service/route tests; frontend Ageing page and dashboard tests; API module tests | Ageing API, dashboard widgets, Ageing page, bucket service, missing receipt-date count, and opening-stock variance read endpoint exist. SAP custom ageing feed and materialized-view refresh scheduling are absent. |
+| IDM-08 | Inventory Ageing Report + Opening Stock Variance | Agreed (customisation) | Integrated / Tested for portal report and variance read | 2026-06-08 | V004 materialized view, serial receipt dates, OI-8/OI-10, TEC-INT for SAP ageing feed | Backend service/route tests; frontend Ageing page and dashboard tests; API module tests | Ageing API, dashboard widgets, Ageing page, bucket service, missing receipt-date count, opening-stock variance read endpoint, paginated ageing API response, and materialized-view refresh scheduling exist. SAP custom ageing feed is absent. Materialized view refresh is scheduled via `startAgeingRefreshSchedule`; interval configurable via `AGEING_REFRESH_INTERVAL_MS`. |
 | IDM-09 | Serial Number Transaction History Report | New | Integrated / Tested | 2026-06-07 | `serial_event`, `exception_log`, V006 indexes | Backend service/route tests; frontend Serial History page tests; API module tests | Serial history API and page exist. Timeline merges serial events and exception rows chronologically. |
 | IDM-10 | Exception Correction via Web Portal | Agreed | Integrated / Tested | 2026-06-07 | `exception_log`, `serial_event`, RBAC, warehouse-scope resolution | Backend service/route tests; frontend Exceptions page tests; API module tests | List/get/correct APIs and Exception Portal page exist. Correction requires reason, is transaction-wrapped, returns conflict on concurrent correction, and appends CORRECTION serial events when a serial can be resolved. |
 | IDM-11 | SFA / DMS Integration | Out of Scope / Future | Not Started | 2026-06-07 | Stable IDM APIs and external integration contract | No tests | No backend route/service/repository, migration, frontend API module, or UI exists. |
@@ -30,10 +30,10 @@ This tracker was updated after reading the repository implementation on 2026-06-
 | --- | --- | --- | --- | --- | --- |
 | TEC-DB | PostgreSQL schema and migrations | Integrated / Tested | 2026-06-07 | Migration contract tests for V001-V008 and paired rollback scripts | Versioned SQL migrations exist through V008. Database includes serial, dispatch, GRN, SRN, ageing/reconciliation, battery pre-billing, auth session, RBAC, and audit structures. |
 | TEC-INT | SAP / external integration layer | Partially Implemented | 2026-06-07 | IDM-01 import service tests and integration batch repository tests | Inbound production import batch architecture exists. No real SAP transport, no factory-dispatch/invoice inbound adapter, no confirmed-serial outbound transport, and no SAP ageing feed. |
-| TEC-AUTH | Authentication and authorization | Integrated / Tested for pilot | 2026-06-07 | Auth service/routes/token/password/rate-limit/middleware tests; RBAC tests; frontend auth tests; API auth-expiry tests | Cookie-backed login, persistent cookie expiry aligned to server session expiry, bcrypt hashes, JWT session token, server-side session table, logout revocation, in-memory login rate limiting, protected frontend routes, auth-expired handling, and RBAC compatibility exist. Final production hierarchy/MFA/SSO/user admin remains open under OI-9. |
+| TEC-AUTH | Authentication and authorization | Integrated / Tested for pilot | 2026-06-08 | Auth service/routes/token/password/rate-limit/middleware tests; RBAC tests; frontend auth tests; API auth-expiry tests | Cookie-backed login, persistent cookie expiry aligned to server session expiry, bcrypt hashes, JWT session token, server-side session table, logout revocation, Redis-backed login rate limiter; multi-instance safe, DB-authoritative warehouse scope, protected frontend routes, auth-expired handling, and RBAC compatibility exist. Final production hierarchy/MFA/SSO/user admin remains open under OI-9. |
 | TEC-WEB | IDM Web Portal | Integrated / Tested | 2026-06-07 | Frontend API/component/auth/feature tests; scanner hook/component tests | React/Vite portal has protected router, dashboard, all implemented feature pages, shared components, API modules, error boundaries, persistent session restore, mobile-responsive scan workflows, browser camera scanning, ZXing fallback, and keyboard-wedge scanner support. It still relies on numeric ID entry for several workflows; top-bar search/notifications are visual only. |
 | TEC-APP | Mobile scanning/operator experience | Partially Implemented / Tested for web portal | 2026-06-07 | `useScanner`, `useScanSession`, `ScanCamera`, ScanInput, GRN/Dispatch/SRN/Battery feature tests | No native mobile app exists. React web portal supports mobile-responsive warehouse scan flows, browser camera scanning via `MediaDevices`, native `BarcodeDetector`, `@zxing/browser` fallback, and hardware keyboard-wedge scanning. Offline queue/sync and native device integration are absent. |
-| TEC-OBS | Logging, audit, monitoring | Partially Implemented | 2026-06-07 | Covered indirectly through service/repository tests | `pino` logger exists; exception log and serial event audit trail are implemented. No monitoring/metrics/tracing stack, alerting, dashboards, or log shipping configuration exists. |
+| TEC-OBS | Logging, audit, monitoring | Implemented (basic) | 2026-06-08 | Covered indirectly through service/repository tests | `pino` logger exists; exception log and serial event audit trail are implemented. Basic request logger, `/api/health`, and in-process `/api/metrics` counters exist. External metrics export, alerting, tracing dashboards, and log shipping remain absent. |
 
 ## 3. Project Phases
 
@@ -70,6 +70,10 @@ This tracker was updated after reading the repository implementation on 2026-06-
 | 2026-06-07 | Reclassified pilot as partially ready rather than complete because business open items, real SAP integration, mobile/offline support, load testing, materialized-view scheduling, and production auth decisions remain unresolved. |
 | 2026-06-07 | Wave 4 implemented mobile-responsive web scan workflows for GRN, Dispatch, SRN, and Battery; added shared scanner/session hooks, browser camera scanner support, keyboard-wedge scanner support, duplicate detection, scan pause/resume, and scanner tests. Offline sync remains assessment-only. |
 | 2026-06-07 | Post-Wave 4 auth/scanner upgrade added persistent cookie expiry, frontend auth-expired handling on 401, ZXing camera scanner fallback when native BarcodeDetector is absent, permission/unavailable scanner states, and restricted CORS to configured origin. |
+| 2026-06-08 | Wave 5 workflow completion preserved manual ID fields and added/verified operator fallback paths: QR/barcode scan, manual entry, CSV import, and CSV export for active scanner/lookup workflows. Added `docs/CSV_FIELD_REFERENCE.md`. Battery and Dispatch now disable scan controls until required invoice line context is selected or manually entered. Fulfilment, Serial History, and Exceptions now support scan/manual/CSV lookup inputs and CSV result export. |
+| 2026-06-08 | Android testing update: HTTPS/ngrok resolved secure-context camera blocking and QR scanning starts. Battery QR scans require invoice line context before serial commit. Duplicate same-code camera frames are suppressed by scan-session duplicate cooldown. Scanner diagnostics now distinguish secure context, permission denial, missing camera, MediaDevices support, camera access blocking, and decoder initialization failures. |
+| 2026-06-08 | Security/workflow fixes retained: IDM-03 battery status, IDM-07 fulfilment status, and IDM-09 serial history enforce warehouse scope; SRN validation allows legitimately DISPATCHED serials only for SRN return context. |
+| 2026-06-08 | Production hardening pass: Redis-backed rate limiter (Task 1), ageing view scheduler (Task 2), standardized error shapes (Task 3), CSV formula injection sanitization (Task 4), DB-authoritative warehouse scope (Task 5), pagination on exceptions and ageing endpoints (Task 6), Dockerfile + docker-compose + GitHub Actions CI (Task 7), request logger + in-process metrics + /api/health endpoint (Task 8). |
 
 ## 6. Remaining Backlog
 
@@ -83,16 +87,16 @@ This tracker was updated after reading the repository implementation on 2026-06-
 
 ### Medium Priority
 
-- Add materialized-view refresh scheduling for `ageing_serial_snapshot`.
 - Add live PostgreSQL load/concurrency test harness once OI-5/OI-6 are closed.
-- Standardize API error response shape across remaining routes.
 - Add lookup/list UX for invoices, invoice lines, warehouses, dispatch docs, GRNs, SRNs, and import batches.
-- Add observability stack: metrics, tracing, log shipping, alerts.
+- Add external metrics export (Prometheus/Datadog), log shipping, and alerting (in-process metrics now exist; external stack absent).
+- Replace in-process metrics with Prometheus exporter before multi-instance deploy.
+- Restrict `/api/metrics` to internal network / authenticated access before production.
 
 ### Future Scope
 
 - Native mobile scanner application, if the web portal is insufficient after pilot.
 - Offline scan queue and sync engine.
 - IDM-11 SFA/DMS integration.
-- CI/CD pipeline and deployment automation.
+- Deployment automation beyond the basic Docker/GitHub Actions CI scaffold.
 - Training materials, runbook, and admin guide.

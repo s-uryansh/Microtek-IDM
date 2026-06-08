@@ -1,22 +1,42 @@
+import { z } from "zod";
+
+const listExceptionsSchema = z.object({
+  status: z.string().nullable().optional(),
+  contextType: z.string().nullable().optional(),
+  warehouseIds: z.array(z.number().int().positive()).nullable().optional(),
+  page: z.number().int().positive().optional(),
+  pageSize: z.number().int().positive().optional(),
+  limit: z.number().int().nonnegative().max(200).optional(),
+  offset: z.number().int().nonnegative().optional()
+});
+
 export function createExceptionCorrectionService({ repositories }) {
   return {
-    async listExceptions({ status, contextType, warehouseIds, page = 1, pageSize = 50 }) {
-      const safeLimit = Math.min(pageSize, 200);
-      const offset = (page - 1) * safeLimit;
+    async listExceptions(input = {}) {
+      const parsed = listExceptionsSchema.parse(input);
+      const safeLimit = parsed.limit ?? Math.min(parsed.pageSize ?? 50, 200);
+      const offset = parsed.offset ?? ((parsed.page ?? 1) - 1) * safeLimit;
+      const page = parsed.page ?? Math.floor(offset / safeLimit) + 1;
 
       const { rows, total } = await repositories.exceptionsRepo.findAll({
-        status: status || null,
-        contextType: contextType || null,
-        warehouseIds: warehouseIds || null,
+        status: parsed.status || null,
+        contextType: parsed.contextType || null,
+        warehouseIds: parsed.warehouseIds || null,
         limit: safeLimit,
         offset
       });
 
       return {
+        data: rows,
         exceptions: rows,
         total,
         page,
-        pageSize: safeLimit
+        pageSize: safeLimit,
+        pagination: {
+          limit: safeLimit,
+          offset,
+          total
+        }
       };
     },
 

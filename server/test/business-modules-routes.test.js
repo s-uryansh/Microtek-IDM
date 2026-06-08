@@ -145,7 +145,12 @@ describe("IDM-02, IDM-04, and IDM-09 route authorization", () => {
       services: {
         serialHistoryService: {
           async getSerialHistory({ serialNo }) {
-            return { found: true, serial: { serialNo }, timeline: [{ type: "EVENT", eventType: "PRODUCTION" }] };
+            return {
+              found: true,
+              serial: { serialNo },
+              warehouseIds: [5],
+              timeline: [{ type: "EVENT", eventType: "PRODUCTION" }]
+            };
           }
         }
       }

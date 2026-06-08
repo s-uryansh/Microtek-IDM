@@ -11,11 +11,21 @@ function getStatusText(status, error) {
   if (status === "scanning") return "Camera scanning active";
   if (status === "starting") return "Starting camera...";
   if (status === "paused") return "Camera paused";
-  if (status === "unsupported") return "Camera scanning is not supported in this browser";
+  if (status === "unsupported") return error || "Unsupported browser capability. Use hardware scanner or manual entry.";
   if (status === "permission-denied") return error || "Camera permission denied";
   if (status === "unavailable") return error || "Camera unavailable";
   if (status === "error") return error || "Camera unavailable";
   return "Camera ready";
+}
+
+function diagnostics(details = {}) {
+  return [
+    ["Secure context", details.secureContext],
+    ["MediaDevices", details.hasMediaDevices],
+    ["Camera capture", details.hasGetUserMedia],
+    ["Native BarcodeDetector", details.nativeBarcodeSupported],
+    ["ZXing fallback", details.fallbackScannerSupported]
+  ];
 }
 
 export function ScanCamera({
@@ -77,6 +87,15 @@ export function ScanCamera({
       <p className="scan-camera__formats">
         {activeFormats.map((format) => FORMAT_LABELS[format] || format).join(" / ")}
       </p>
+      {scanner.cameraStatus === "unsupported" && (
+        <ul className="scan-camera__diagnostics" aria-label="Camera diagnostics">
+          {diagnostics(scanner.cameraSupportDetails).map(([label, value]) => (
+            <li key={label}>
+              {label}: {value ? "available" : "unavailable"}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

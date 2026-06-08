@@ -109,13 +109,23 @@ describe("IDM-03 battery pre-billing routes", () => {
   });
 
   test("GET /api/idm-03/battery/invoices/:invoiceId/status returns 200", async () => {
-    mockStatus.mockResolvedValue({ invoiceId: 100, committedQuantity: 2 });
+    mockStatus.mockResolvedValue({ invoiceId: 100, warehouseId: 3, committedQuantity: 2 });
     const app = makeApp();
 
     const res = await request(app).get("/api/idm-03/battery/invoices/100/status");
 
     expect(res.status).toBe(200);
     expect(res.body.committedQuantity).toBe(2);
+    expect(mockStatus).toHaveBeenCalledWith({ invoiceId: 100 });
+  });
+
+  test("GET /api/idm-03/battery/invoices/:invoiceId/status returns 403 when warehouse not in scope", async () => {
+    mockStatus.mockResolvedValue({ invoiceId: 100, warehouseId: 5, committedQuantity: 2 });
+    const app = makeApp();
+
+    const res = await request(app).get("/api/idm-03/battery/invoices/100/status");
+
+    expect(res.status).toBe(403);
     expect(mockStatus).toHaveBeenCalledWith({ invoiceId: 100 });
   });
 

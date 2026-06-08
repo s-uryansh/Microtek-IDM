@@ -15,6 +15,34 @@ function canUseCamera() {
   return Boolean(globalThis.navigator?.mediaDevices?.getUserMedia);
 }
 
+function getCameraSupportDetails({ nativeBarcodeSupported, fallbackScannerSupported }) {
+  const secureContext = globalThis.isSecureContext !== false;
+  const hasNavigator = Boolean(globalThis.navigator);
+  const hasMediaDevices = Boolean(globalThis.navigator?.mediaDevices);
+  const hasGetUserMedia = Boolean(globalThis.navigator?.mediaDevices?.getUserMedia);
+
+  return {
+    secureContext,
+    hasNavigator,
+    hasMediaDevices,
+    hasGetUserMedia,
+    nativeBarcodeSupported,
+    fallbackScannerSupported,
+    supported: secureContext && hasGetUserMedia && (nativeBarcodeSupported || fallbackScannerSupported)
+  };
+}
+
+function unsupportedMessage(details) {
+  if (!details.secureContext) return "Secure context required. Open the portal over HTTPS or localhost.";
+  if (!details.hasNavigator) return "Browser navigator API unavailable.";
+  if (!details.hasMediaDevices) return "Camera API unavailable. This browser may block mediaDevices outside HTTPS.";
+  if (!details.hasGetUserMedia) return "Camera capture API unavailable in this browser.";
+  if (!details.nativeBarcodeSupported && !details.fallbackScannerSupported) {
+    return "Barcode decoders unavailable. Hardware scanner/manual entry remains available.";
+  }
+  return "Unsupported browser capability. Use Android Chrome, Edge Mobile, Samsung Internet, or a hardware scanner/manual entry fallback.";
+}
+
 function canUseBarcodeDetector() {
   return typeof globalThis.BarcodeDetector === "function";
 }
@@ -33,6 +61,7 @@ export function useScanner({ onScan, formats = DEFAULT_FORMATS } = {}) {
   const cameraSupported = canUseCamera();
   const nativeBarcodeSupported = canUseBarcodeDetector();
   const fallbackScannerSupported = typeof BrowserMultiFormatReader === "function";
+  const cameraSupportDetails = getCameraSupportDetails({ nativeBarcodeSupported, fallbackScannerSupported });
 
   const requestedFormats = useMemo(() => formats, [formats]);
 
@@ -126,7 +155,8 @@ export function useScanner({ onScan, formats = DEFAULT_FORMATS } = {}) {
   const startCamera = useCallback(async () => {
     setCameraError("");
 
-    if (!cameraSupported || (!nativeBarcodeSupported && !fallbackScannerSupported)) {
+    if (!cameraSupportDetails.supported) {
+      setCameraError(unsupportedMessage(cameraSupportDetails));
       setCameraStatus("unsupported");
       return;
     }
@@ -137,7 +167,13 @@ export function useScanner({ onScan, formats = DEFAULT_FORMATS } = {}) {
         const formatsToUse = supportedFormats.length > 0
           ? requestedFormats.filter((format) => supportedFormats.includes(format))
           : requestedFormats;
-        detectorRef.current = new globalThis.BarcodeDetector({ formats: formatsToUse });
+        try {
+          detectorRef.current = new globalThis.BarcodeDetector({ formats: formatsToUse });
+        } catch (err) {
+          throw Object.assign(new Error(err?.message || "Native barcode decoder initialization failed"), {
+            name: "DecoderInitializationError"
+          });
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: "environment" },
@@ -164,12 +200,18 @@ export function useScanner({ onScan, formats = DEFAULT_FORMATS } = {}) {
       } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
         setCameraError("No camera was found on this device");
         setCameraStatus("unavailable");
+      } else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") {
+        setCameraError("Camera access blocked. Close other apps using the camera and retry.");
+        setCameraStatus("unavailable");
+      } else if (err?.name === "DecoderInitializationError") {
+        setCameraError(`Barcode decoder initialization failed: ${err?.message || "Decoder unavailable"}`);
+        setCameraStatus("error");
       } else {
-        setCameraError(err?.message || "Camera unavailable");
+        setCameraError(`Decoder initialization or camera startup failed: ${err?.message || "Camera unavailable"}`);
         setCameraStatus("error");
       }
     }
-  }, [cameraSupported, detectFrame, fallbackScannerSupported, nativeBarcodeSupported, requestedFormats, startFallbackScanner, supportedFormats]);
+  }, [cameraSupportDetails, detectFrame, fallbackScannerSupported, nativeBarcodeSupported, requestedFormats, startFallbackScanner, supportedFormats]);
 
   const pauseCamera = useCallback(() => {
     pausedRef.current = true;
@@ -214,6 +256,7 @@ export function useScanner({ onScan, formats = DEFAULT_FORMATS } = {}) {
     cameraSupported,
     nativeBarcodeSupported,
     fallbackScannerSupported,
+    cameraSupportDetails,
     supportedFormats,
     cameraStatus,
     cameraError,

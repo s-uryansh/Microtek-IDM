@@ -237,6 +237,15 @@
   min-height: 48px;
 }
 
+.scan-session__disabled {
+  padding: var(--space-3);
+  color: var(--color-warning);
+  background: var(--color-warning-subtle, rgba(245, 158, 11, 0.12));
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+}
+
 /* ─── Camera Scanner ─── */
 
 .scan-camera,
@@ -287,9 +296,16 @@
 
 .scan-camera__status,
 .scan-camera__formats,
+.scan-camera__diagnostics,
 .scan-scanner__mode {
   color: var(--color-text-muted);
   font-size: 0.8125rem;
+}
+
+.scan-camera__diagnostics {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--space-4);
 }
 
 .scan-scanner__mode {

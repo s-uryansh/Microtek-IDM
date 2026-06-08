@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { requireAuthContext, requirePermission } from "../http/authContext.js";
+import { sendError } from "../http/errorResponse.js";
 
 function parseDispatchId(request) {
   return Number.parseInt(request.params.dispatchId, 10);
@@ -19,22 +20,12 @@ export function createDispatchRoutes({ dispatchService }) {
       const warehouseId = await dispatchService.getDispatchWarehouseId(dispatchId);
 
       if (!warehouseId) {
-        response.status(404).json({
-          error: {
-            code: "NOT_FOUND",
-            message: "Dispatch not found"
-          }
-        });
+        sendError(response, 404, "NOT_FOUND", "Dispatch not found");
         return;
       }
 
       if (!hasWarehouseScope(request, warehouseId)) {
-        response.status(403).json({
-          error: {
-            code: "FORBIDDEN",
-            message: "Insufficient permission"
-          }
-        });
+        sendError(response, 403, "FORBIDDEN", "Insufficient permission");
         return;
       }
 
@@ -58,12 +49,7 @@ export function createDispatchRoutes({ dispatchService }) {
         response.status(201).json(result);
       } catch (error) {
         if (error.status === 404) {
-          response.status(404).json({
-            error: {
-              code: "NOT_FOUND",
-              message: "Invoice not found"
-            }
-          });
+          sendError(response, 404, "NOT_FOUND", "Invoice not found");
           return;
         }
         next(error);

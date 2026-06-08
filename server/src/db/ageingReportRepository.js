@@ -1,12 +1,23 @@
 export function createAgeingReportRepository(pool) {
   return {
-    async findOnHandSerials({ warehouseIds, productId }) {
+    async findOnHandSerials({ warehouseIds, productId, limit = 50, offset = 0 }) {
       const values = [warehouseIds];
       const productFilter = productId ? "AND product_id = $2" : "";
 
       if (productId) {
         values.push(productId);
       }
+
+      const countResult = await pool.query(
+        `SELECT COUNT(*)::int AS total
+         FROM ageing_serial_snapshot
+         WHERE warehouse_id = ANY($1::bigint[])
+         ${productFilter}`,
+        values
+      );
+
+      const limitIndex = values.length + 1;
+      const offsetIndex = values.length + 2;
 
       const result = await pool.query(
         `SELECT
@@ -19,11 +30,12 @@ export function createAgeingReportRepository(pool) {
          FROM ageing_serial_snapshot
          WHERE warehouse_id = ANY($1::bigint[])
          ${productFilter}
-         ORDER BY warehouse_id, product_id, age_days NULLS LAST`,
-        values
+         ORDER BY warehouse_id, product_id, age_days NULLS LAST
+         LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+        [...values, limit, offset]
       );
 
-      return result.rows;
+      return { rows: result.rows, total: countResult.rows[0].total };
     }
   };
 }

@@ -31,7 +31,11 @@ import { createExceptionCorrectionRoutes } from "./idm10/exceptionCorrectionRout
 import { createExceptionCorrectionService } from "./idm10/exceptionCorrectionService.js";
 import { createSerialHistoryRoutes } from "./idm09/serialHistoryRoutes.js";
 import { createSerialHistoryService } from "./idm09/serialHistoryService.js";
+import { createLookupRoutes } from "./lookups/lookupRoutes.js";
+import { createLookupService } from "./lookups/lookupService.js";
 import { createRbacPolicy } from "./security/rbacPolicy.js";
+import { sendError } from "./http/errorResponse.js";
+import { createMetricsMiddleware, createRequestLogger, healthHandler } from "./http/observability.js";
 
 function createDefaultServices(config) {
   const pool = createPool(config);
@@ -45,6 +49,7 @@ function createDefaultServices(config) {
   });
 
   return {
+    pool,
     repositories,
     importService: createImportService({ repositories }),
     validationService,
@@ -72,6 +77,7 @@ function createDefaultServices(config) {
     ageingReportService,
     reconciliationService: createReconciliationService({ repositories }),
     serialHistoryService: createSerialHistoryService({ repositories }),
+    lookupService: createLookupService({ repositories }),
     exceptionCorrectionService: createExceptionCorrectionService({ repositories }),
     batteryPreBillingService: createBatteryPreBillingService({
       repositories: {
@@ -122,6 +128,10 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
   const authService = resolvedServices.authService && testHeaderAuthService
     ? { ...resolvedServices.authService, authenticateHeaders: testHeaderAuthService.authenticateHeaders }
     : (resolvedServices.authService ?? testHeaderAuthService);
+  const metricsMiddleware = createMetricsMiddleware();
+
+  app.locals.pool = resolvedServices.pool;
+  app.locals.metrics = metricsMiddleware;
 
   app.disable("x-powered-by");
   app.use((request, _response, next) => {
@@ -130,6 +140,8 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
     next();
   });
   app.use(helmet());
+  app.use(createRequestLogger({ logger }));
+  app.use(metricsMiddleware);
   app.use(
     cors({
       origin: config.corsOrigin,
@@ -144,12 +156,20 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
       service: "microtek-idm-api"
     });
   });
+  app.get("/api/health", healthHandler);
+  // Internal endpoint for pilot diagnostics. Restrict by IP or move to an internal port before production.
+  app.get("/api/metrics", (_request, response) => {
+    response.status(200).json(metricsMiddleware.snapshot());
+  });
 
   app.use(
     "/api/auth",
     createAuthRoutes({
       authService,
-      loginRateLimiter: createLoginRateLimiter(),
+      loginRateLimiter: createLoginRateLimiter({
+        redisUrl: config.redisUrl,
+        nodeEnv: config.nodeEnv
+      }),
       cookieOptions: { secure: config.nodeEnv === "production" }
     })
   );
@@ -179,24 +199,15 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
     "/api/idm-03",
     createBatteryPreBillingRoutes({ batteryPreBillingService: resolvedServices.batteryPreBillingService })
   );
+  app.use("/api/lookups", createLookupRoutes({ lookupService: resolvedServices.lookupService }));
 
   app.use((_request, response) => {
-    response.status(404).json({
-      error: {
-        code: "NOT_FOUND",
-        message: "Resource not found"
-      }
-    });
+    sendError(response, 404, "NOT_FOUND", "Resource not found");
   });
 
   app.use((error, _request, response, _next) => {
     logger.error?.({ error }, "Unhandled request error");
-    response.status(500).json({
-      error: {
-        code: "INTERNAL_SERVER_ERROR",
-        message: "An internal error occurred"
-      }
-    });
+    sendError(response, 500, "INTERNAL_SERVER_ERROR", "An internal error occurred");
   });
 
   return app;

@@ -48,7 +48,7 @@ describe("IDM-08 ageing report service", () => {
       { bucketCode: "B31_60", label: "31-60", quantity: 1 },
       { bucketCode: "B61_PLUS", label: "61+", quantity: 1 }
     ]);
-    expect(repositories.calls).toEqual([{ warehouseIds: [5], productId: 10 }]);
+    expect(repositories.calls).toEqual([{ warehouseIds: [5], productId: 10, limit: 50, offset: 0 }]);
   });
 
   test("reports missing received_at as data quality issue", async () => {

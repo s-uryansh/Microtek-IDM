@@ -5,7 +5,8 @@ import { BarChart } from "../../components/charts/BarChart.jsx";
 import { DataTable } from "../../components/data/DataTable.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { ErrorState } from "../../components/ui/ErrorState.jsx";
-import { fetchAgeingReport } from "../../api/modules/ageing.js";
+import { BulkCsvTools } from "../../components/operations/BulkCsvTools.jsx";
+import { fetchAgeingReport, fetchReconciliationVariance } from "../../api/modules/ageing.js";
 
 const columns = [
   { key: "label", label: "Age Bucket" },
@@ -25,6 +26,7 @@ function toChartData(summary) {
 export function AgeingPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [report, setReport] = useState(null);
+  const [variance, setVariance] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -38,12 +40,15 @@ export function AgeingPage() {
       setError(null);
       try {
         const data = await fetchAgeingReport({ warehouseId: Number(id), signal });
+        const varianceData = await fetchReconciliationVariance({ warehouseId: Number(id), signal });
         if (signal?.aborted) return;
         setReport(data);
+        setVariance(varianceData);
       } catch (err) {
         if (signal?.aborted || err?.name === "AbortError") return;
         setError(err?.message || "Failed to load ageing report");
         setReport(null);
+        setVariance(null);
       } finally {
         if (!signal?.aborted) setLoading(false);
       }
@@ -62,6 +67,7 @@ export function AgeingPage() {
 
   const chartData = toChartData(report?.summary);
   const summaryRows = toArray(report?.summary);
+  const varianceRows = toArray(variance?.rows);
   const missingCount = report?.dataQuality?.missingReceivedAtCount ?? 0;
   const showReport = warehouseId && (loading || error || report);
 
@@ -113,6 +119,28 @@ export function AgeingPage() {
       )}
       {showReport && !error && (
         <div className="warehouse-grid warehouse-grid--two">
+          <Card title="CSV Export">
+            <BulkCsvTools
+              title="Ageing Report Export"
+              templateFilename="ageing-export-template.csv"
+              templateHeaders={["label", "quantity"]}
+              exportLabel="Export Ageing Report"
+              exportFilename={`ageing-warehouse-${warehouseId || "selected"}.csv`}
+              exportHeaders={["label", "quantity"]}
+              exportRows={summaryRows}
+            />
+            <div style={{ marginTop: "var(--space-4)" }}>
+              <BulkCsvTools
+                title="Variance Report Export"
+                templateFilename="variance-export-template.csv"
+                templateHeaders={["reconciliationRunId", "warehouseId", "productId", "sapQuantity", "idmQuantity", "varianceQuantity"]}
+                exportLabel="Export Variance Report"
+                exportFilename={`variance-warehouse-${warehouseId || "selected"}.csv`}
+                exportHeaders={["reconciliationRunId", "warehouseId", "productId", "sapQuantity", "idmQuantity", "varianceQuantity"]}
+                exportRows={varianceRows}
+              />
+            </div>
+          </Card>
           <Card title="Ageing Distribution">
             <BarChart
               data={chartData}

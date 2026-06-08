@@ -80,7 +80,7 @@ export function createValidationService({ repositories }) {
         return fail({ request, ruleCode: "NOT_FOUND" });
       }
 
-      if (serial.currentStatus === "DISPATCHED") {
+      if (serial.currentStatus === "DISPATCHED" && request.contextType !== "SRN") {
         return fail({ request, ruleCode: "ALREADY_DISPATCHED" });
       }
 

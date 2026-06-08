@@ -121,7 +121,32 @@ npm run build --workspace client
 
 ## Manual Testing
 
-Use [docs/manual-testing-guide.md](docs/manual-testing-guide.md) for API and portal smoke tests. Use [docs/IMPLEMENTATION_REFERENCE.md](docs/IMPLEMENTATION_REFERENCE.md) as the primary developer feature reference.
+Use [docs/manual-testing-guide.md](docs/manual-testing-guide.md) for API and portal smoke tests. Use [docs/IMPLEMENTATION_REFERENCE.md](docs/IMPLEMENTATION_REFERENCE.md) as the primary developer feature reference. CSV field formats are documented in [docs/CSV_FIELD_REFERENCE.md](docs/CSV_FIELD_REFERENCE.md).
+
+## Operator Workflow Fallbacks
+
+The web portal preserves multiple operator input paths:
+
+- QR/barcode scan through browser camera or hardware scanner.
+- Manual entry through visible fallback fields.
+- CSV import for bulk fallback where operationally useful.
+- CSV export for results, reports, timelines, and reviewed records.
+
+Context required before scanning:
+
+- Battery and Dispatch serial scans require invoice line context. Operators can select invoice/line or manually enter Invoice Line ID.
+- GRN requires an active GRN created from SAP dispatch document and receiving warehouse.
+- SRN requires receiving warehouse and condition tag.
+- Fulfilment scans invoice IDs, not serials.
+- Serial History scans serial numbers.
+- Exceptions scans exception IDs for review; bulk correction is not implemented.
+
+Scanner support:
+
+- Supported barcode targets include QR, Code128, Code39, EAN13, UPC-A, UPC-E, and generic serial/invoice/exception codes where the active decoder supports them.
+- Android HTTPS/ngrok testing resolved the secure-context blocker and QR camera scans can start.
+- Camera diagnostics identify secure context, permission, camera availability, MediaDevices support, camera access blocking, and decoder initialization failures.
+- Hardware scanner and manual entry remain available fallbacks.
 
 ## Known Limitations
 
@@ -129,6 +154,6 @@ Use [docs/manual-testing-guide.md](docs/manual-testing-guide.md) for API and por
 - Real SAP inbound/outbound transports are not implemented.
 - Offline scan queue/sync is not implemented.
 - Native mobile app is not implemented.
-- Dispatch and Battery still require invoice line ID entry before continuous scanning.
+- Dispatch and Battery require invoice line context before continuous scanning.
 - Materialized-view refresh scheduling is not implemented.
 - Production MFA/SSO/user-management UI is not implemented.

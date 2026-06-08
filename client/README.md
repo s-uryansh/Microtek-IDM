@@ -51,10 +51,10 @@ No token is stored in localStorage or sessionStorage.
 
 ## Scanner Architecture
 
-Scanner code is shared across GRN, Dispatch, SRN, and Battery:
+Scanner code is shared across GRN, Dispatch, SRN, Battery, Fulfilment invoice lookup, Serial History lookup, and Exception review lookup:
 
-- `useScanner`: camera lifecycle, native `BarcodeDetector`, ZXing fallback, hardware scanner submission, cleanup.
-- `useScanSession`: duplicate detection, pause/resume, scan state, success/warning/error feedback, history.
+- `useScanner`: camera lifecycle, native `BarcodeDetector`, ZXing fallback, hardware scanner submission, cleanup, and actionable diagnostics.
+- `useScanSession`: duplicate detection, duplicate cooldown, pause/resume, scan state, success/warning/error feedback, history.
 - `ScanCamera`: camera preview, permission/error/unsupported/retry states.
 - `ScanScanner`: keyboard-wedge/manual scanner input.
 - `ScanSession`: workflow-level orchestration.
@@ -64,6 +64,32 @@ Camera scanning priority:
 1. Native `BarcodeDetector`
 2. `@zxing/browser`
 3. Hardware/manual scanner input
+
+Camera diagnostics identify:
+
+- Secure context required.
+- Camera permission denied.
+- No camera device detected.
+- Browser lacks MediaDevices support.
+- Decoder initialization failure.
+- Camera access blocked.
+- Unsupported browser capability.
+
+Android testing update: HTTPS/ngrok resolved the secure-context blocker and QR camera scans can start. Battery/Dispatch QR serial scanning still requires invoice line context before submitting serials.
+
+## Workflow Fallbacks
+
+Manual fields must remain visible as permanent fallbacks. The completed operator screens support these input paths:
+
+- IDM-02 GRN: scan/manual/CSV import serials and CSV export GRN results after GRN session creation.
+- IDM-03 Battery: select or manually enter Invoice Line ID, then scan/manual/CSV import battery serials and CSV export commit results.
+- IDM-04 SRN: scan/manual/CSV import returned serials and CSV export processed returns.
+- IDM-05 Dispatch: select or manually enter Invoice Line ID, then scan/manual/CSV import dispatch serials and CSV export dispatch results.
+- IDM-07 Fulfilment: scan/manual/CSV import invoice IDs and CSV export fulfilment status.
+- IDM-09 Serial History: scan/manual/CSV import serials and CSV export timelines.
+- IDM-10 Exceptions: scan/manual/CSV import exception IDs for review and CSV export lists/details. Bulk correction is intentionally not implemented.
+
+CSV formats are documented in `../docs/CSV_FIELD_REFERENCE.md`.
 
 ## Design System And Mobile Support
 

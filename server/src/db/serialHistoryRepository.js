@@ -2,7 +2,11 @@ export function createSerialHistoryRepository(pool) {
   return {
     async findBySerialNo(serialNo) {
       const serialResult = await pool.query(
-        `SELECT serial_id AS "serialId", serial_no AS "serialNo", current_status AS "currentStatus"
+        `SELECT
+           serial_id AS "serialId",
+           serial_no AS "serialNo",
+           current_status AS "currentStatus",
+           current_warehouse_id AS "currentWarehouseId"
          FROM serial_master
          WHERE serial_no = $1`,
         [serialNo]

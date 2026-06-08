@@ -147,4 +147,32 @@ describe("IDM-06 validation service", () => {
       ruleCode: "ALREADY_DISPATCHED"
     });
   });
+
+  test("allows dispatched serials when validating for SRN return", async () => {
+    const repositories = createRepositories(
+      new Map([
+        [
+          "MTK1234567895",
+          {
+            serialId: 5,
+            serialNo: "MTK1234567895",
+            currentStatus: "DISPATCHED",
+            currentWarehouseId: 5,
+            productId: 3
+          }
+        ]
+      ])
+    );
+    const service = createValidationService({ repositories });
+
+    const result = await service.validateSerial({
+      serialNo: "MTK1234567895",
+      contextType: "SRN",
+      userId: "operator_1"
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.serial.currentStatus).toBe("DISPATCHED");
+    expect(repositories.exceptions).toHaveLength(0);
+  });
 });

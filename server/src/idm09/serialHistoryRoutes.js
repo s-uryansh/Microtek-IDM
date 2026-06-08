@@ -1,6 +1,13 @@
 import { Router } from "express";
 
 import { requireAuthContext, requirePermission } from "../http/authContext.js";
+import { sendError } from "../http/errorResponse.js";
+
+function canReadHistory(request, warehouseIds = []) {
+  if (request.auth.role === "admin") return true;
+  if (!warehouseIds.length) return false;
+  return warehouseIds.some((warehouseId) => request.auth.warehouseIds.includes(warehouseId));
+}
 
 export function createSerialHistoryRoutes({ serialHistoryService }) {
   const router = Router();
@@ -14,7 +21,12 @@ export function createSerialHistoryRoutes({ serialHistoryService }) {
         const result = await serialHistoryService.getSerialHistory({ serialNo: request.params.serialNo });
 
         if (!result.found) {
-          response.status(404).json({ error: { code: "NOT_FOUND", message: "Serial not found" } });
+          sendError(response, 404, "NOT_FOUND", "Serial not found");
+          return;
+        }
+
+        if (!canReadHistory(request, result.warehouseIds)) {
+          sendError(response, 403, "FORBIDDEN", "Insufficient permission");
           return;
         }
 

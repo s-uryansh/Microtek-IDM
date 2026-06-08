@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { requireAuthContext, requirePermission } from "../http/authContext.js";
+import { sendError } from "../http/errorResponse.js";
 
 function parseId(value) {
   const parsed = Number.parseInt(value, 10);
@@ -20,12 +21,12 @@ export function createGrnRoutes({ grnService }) {
       const warehouseId = grnId ? await grnService.getGrnWarehouseId(grnId) : null;
 
       if (!warehouseId) {
-        response.status(404).json({ error: { code: "NOT_FOUND", message: "GRN not found" } });
+        sendError(response, 404, "NOT_FOUND", "GRN not found");
         return;
       }
 
       if (!hasWarehouseScope(request, warehouseId)) {
-        response.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient permission" } });
+        sendError(response, 403, "FORBIDDEN", "Insufficient permission");
         return;
       }
 

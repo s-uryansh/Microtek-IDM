@@ -6,6 +6,7 @@ export function ScanScanner({
   onSubmit,
   disabled,
   placeholder,
+  label,
   feedbackState,
   autoSubmit = true
 }) {
@@ -17,6 +18,7 @@ export function ScanScanner({
         onSubmit={onSubmit}
         disabled={disabled}
         placeholder={placeholder}
+        label={label}
         feedbackState={feedbackState}
         autoSubmit={autoSubmit}
       />

@@ -6,6 +6,7 @@ export function ScanInput({
   onSubmit,
   disabled,
   placeholder = "Scan or enter serial number",
+  label = "Scan Serial",
   className = "",
   feedbackState = "idle",
   autoSubmit = true
@@ -37,7 +38,7 @@ export function ScanInput({
   return (
     <div className={`scan-input ${feedbackClass} ${className}`.trim()}>
       <label className="scan-input__label" htmlFor={inputId}>
-        Scan Serial
+        {label}
       </label>
       <div className="scan-input__wrapper">
         <input

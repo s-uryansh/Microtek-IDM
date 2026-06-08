@@ -4,6 +4,8 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { StatusBadge } from "../../components/ui/StatusBadge.jsx";
+import { ScanSession } from "../../components/scan/ScanSession.jsx";
+import { BulkCsvTools } from "../../components/operations/BulkCsvTools.jsx";
 import { fetchFulfilmentStatus } from "../../api/modules/fulfilment.js";
 
 function safeNumber(value, fallback = 0) {
@@ -15,13 +17,28 @@ export function FulfilmentPage() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [statusRows, setStatusRows] = useState([]);
+
+  async function loadStatus(id) {
+    const result = await fetchFulfilmentStatus({ invoiceId: Number(id) });
+    if (result) {
+      setStatusRows((rows) => [...rows, {
+        invoice_id: result.invoiceId,
+        status: result.status,
+        required_quantity: result.requiredQuantity,
+        scanned_quantity: result.scannedQuantity,
+        committed_quantity: result.committedQuantity
+      }]);
+    }
+    return result;
+  }
 
   async function handleSearch() {
     setError(null);
     setStatus(null);
     setLoading(true);
     try {
-      const result = await fetchFulfilmentStatus({ invoiceId: Number(invoiceId) });
+      const result = await loadStatus(invoiceId);
       if (!result) {
         setError("No fulfilment data found for this invoice.");
       } else {
@@ -32,6 +49,16 @@ export function FulfilmentPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleScanInvoice(value) {
+    const result = await loadStatus(value);
+    if (!result) {
+      return { status: "NOT_FOUND", message: "No fulfilment data found", state: "error" };
+    }
+    setInvoiceId(String(result.invoiceId ?? value));
+    setStatus(result);
+    return { status: result.status || "FOUND", message: "Fulfilment status loaded", state: "success" };
   }
 
   return (
@@ -51,6 +78,24 @@ export function FulfilmentPage() {
           <Button onClick={handleSearch} disabled={!invoiceId || loading}>
             {loading ? "Searching..." : "Search"}
           </Button>
+          <ScanSession
+            module="FULFILMENT"
+            title="Invoice scanner"
+            scannerLabel="Scan Invoice"
+            placeholder="Scan or enter invoice ID"
+            onScan={handleScanInvoice}
+          />
+          <BulkCsvTools
+            title="Fulfilment CSV"
+            templateFilename="fulfilment-import-template.csv"
+            templateHeaders={["invoice_id"]}
+            importLabel="Import Invoice IDs"
+            exportLabel="Export Fulfilment Results"
+            exportFilename="fulfilment-results.csv"
+            exportHeaders={["invoice_id", "status", "required_quantity", "scanned_quantity", "committed_quantity"]}
+            exportRows={statusRows}
+            onImportRow={(row) => handleScanInvoice(row.invoice_id)}
+          />
 
           {status && (
             <div

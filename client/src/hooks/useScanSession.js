@@ -14,8 +14,15 @@ function buildScan({ serialNo, status, message, state, module }) {
   };
 }
 
-export function useScanSession({ module, onScan, completed = false, duplicateDetection = true } = {}) {
+export function useScanSession({
+  module,
+  onScan,
+  completed = false,
+  duplicateDetection = true,
+  duplicateCooldownMs = 5000
+} = {}) {
   const scannedSerialsRef = useRef(new Set());
+  const lastDuplicateRef = useRef({ serialNo: "", at: 0 });
   const pausedRef = useRef(false);
   const [scans, setScans] = useState([]);
   const [feedbackState, setFeedbackState] = useState("idle");
@@ -42,6 +49,14 @@ export function useScanSession({ module, onScan, completed = false, duplicateDet
     if (!serialNo || pending || completed || pausedRef.current) return null;
 
     if (duplicateDetection && scannedSerialsRef.current.has(serialNo)) {
+      const now = Date.now();
+      const repeatedDuplicate =
+        lastDuplicateRef.current.serialNo === serialNo &&
+        now - lastDuplicateRef.current.at < duplicateCooldownMs;
+
+      if (repeatedDuplicate) return null;
+
+      lastDuplicateRef.current = { serialNo, at: now };
       const duplicateScan = buildScan({
         serialNo,
         status: "DUPLICATE_SCAN",
@@ -84,7 +99,7 @@ export function useScanSession({ module, onScan, completed = false, duplicateDet
     } finally {
       setPending(false);
     }
-  }, [completed, duplicateDetection, module, onScan, pending, resetFeedback]);
+  }, [completed, duplicateCooldownMs, duplicateDetection, module, onScan, pending, resetFeedback]);
 
   return {
     scans,

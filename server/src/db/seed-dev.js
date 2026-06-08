@@ -178,6 +178,9 @@ async function seedProductionAndHistory(client, { warehouses, products }) {
     ["DEMO-WRONG-0001", "SKU-INV-1", "IN_TRANSIT", warehouses["PLNT-01"], null],
     ["DEMO-EXCESS-0001", "SKU-INV-2", "IN_STOCK", warehouses["RW-01"], "2026-05-15T00:00:00.000Z"],
     ["DEMO-DISP-0001", "SKU-INV-1", "IN_STOCK", warehouses["RW-01"], "2026-04-15T00:00:00.000Z"],
+    ["DEMO-DISP-0002", "SKU-INV-1", "IN_STOCK", warehouses["RW-01"], "2026-04-16T00:00:00.000Z"],
+    ["DEMO-BAT-0001", "SKU-BAT-1", "IN_STOCK", warehouses["RW-01"], "2026-04-20T00:00:00.000Z"],
+    ["DEMO-BAT-0002", "SKU-BAT-1", "IN_STOCK", warehouses["RW-01"], "2026-04-21T00:00:00.000Z"],
     ["DEMO-SRN-0001", "SKU-INV-1", "DISPATCHED", warehouses["RW-01"], "2026-03-15T00:00:00.000Z"],
     ["DEMO-HERO-0001", "SKU-INV-1", "IN_STOCK", warehouses["RW-01"], "2026-02-15T00:00:00.000Z"],
     ["DEMO-AGE-OLD", "SKU-INV-2", "IN_STOCK", warehouses["RW-02"], "2026-01-01T00:00:00.000Z"],
@@ -268,7 +271,7 @@ async function seedInvoicesAndDispatch(client, { warehouses, products, serials }
   const invoiceLine = await upsertOne(
     client,
     `INSERT INTO invoice_line (invoice_id, product_id, line_no, required_quantity, sap_suggested_serial_no, created_by)
-     VALUES ($1, $2, 1, 1, 'SAP-SUGGESTED-001', $3)
+     VALUES ($1, $2, 1, 2, 'DEMO-DISP-0001', $3)
      ON CONFLICT (invoice_id, line_no) DO UPDATE
      SET product_id = EXCLUDED.product_id,
          required_quantity = EXCLUDED.required_quantity,
@@ -276,6 +279,31 @@ async function seedInvoicesAndDispatch(client, { warehouses, products, serials }
          updated_by = EXCLUDED.created_by
      RETURNING invoice_line_id AS "invoiceLineId"`,
     [invoice.invoiceId, products["SKU-INV-1"], createdBy]
+  );
+
+  const batteryInvoice = await upsertOne(
+    client,
+    `INSERT INTO invoice (sap_invoice_ref, warehouse_id, created_by)
+     VALUES ('DEMO-INV-BATTERY', $1, $2)
+     ON CONFLICT (sap_invoice_ref) DO UPDATE
+     SET warehouse_id = EXCLUDED.warehouse_id,
+         status = 'PENDING',
+         updated_at = now(),
+         updated_by = EXCLUDED.created_by
+     RETURNING invoice_id AS "invoiceId"`,
+    [warehouses["RW-01"], createdBy]
+  );
+  const batteryLine = await upsertOne(
+    client,
+    `INSERT INTO invoice_line (invoice_id, product_id, line_no, required_quantity, sap_suggested_serial_no, created_by)
+     VALUES ($1, $2, 1, 2, 'DEMO-BAT-0001', $3)
+     ON CONFLICT (invoice_id, line_no) DO UPDATE
+     SET product_id = EXCLUDED.product_id,
+         required_quantity = EXCLUDED.required_quantity,
+         updated_at = now(),
+         updated_by = EXCLUDED.created_by
+     RETURNING invoice_line_id AS "invoiceLineId"`,
+    [batteryInvoice.invoiceId, products["SKU-BAT-1"], createdBy]
   );
 
   const returnInvoice = await upsertOne(
@@ -327,7 +355,15 @@ async function seedInvoicesAndDispatch(client, { warehouses, products, serials }
     referenceId: dispatch.dispatchId
   });
 
-  return { invoiceId: invoice.invoiceId, invoiceLineId: invoiceLine.invoiceLineId };
+  return {
+    invoiceId: invoice.invoiceId,
+    invoiceLineId: invoiceLine.invoiceLineId,
+    batteryInvoiceId: batteryInvoice.invoiceId,
+    batteryInvoiceLineId: batteryLine.invoiceLineId,
+    returnInvoiceId: returnInvoice.invoiceId,
+    returnInvoiceLineId: returnLine.invoiceLineId,
+    returnDispatchId: dispatch.dispatchId
+  };
 }
 
 async function seedReportsAndExceptions(client, { warehouses, products, serials }) {
@@ -368,6 +404,21 @@ async function seedReportsAndExceptions(client, { warehouses, products, serials 
      VALUES ('DEMO-HERO-0001', 'WRONG_SERIAL', 'GRN', NULL, 'CORRECTED', 'seed_operator', $1, now(), 'seed_supervisor', 'Demo correction-ready history row', 'DEMO-CORR-001')`,
     [createdBy]
   );
+  const openException = await upsertOne(
+    client,
+    `INSERT INTO exception_log (
+       serial_no,
+       rule_code,
+       context_type,
+       context_id,
+       status,
+       raised_by,
+       created_by
+     )
+     VALUES ('DEMO-DISP-0002', 'PRODUCT_INVOICE_MISMATCH', 'DISPATCH', NULL, 'OPEN', 'seed_operator', $1)
+     RETURNING exception_id AS "exceptionId"`,
+    [createdBy]
+  );
   await appendEventOnce(client, {
     serialId: serials["DEMO-HERO-0001"],
     eventType: "CORRECTION",
@@ -375,6 +426,8 @@ async function seedReportsAndExceptions(client, { warehouses, products, serials 
     referenceType: "EXCEPTION",
     referenceId: null
   });
+
+  return { openExceptionId: openException.exceptionId };
 }
 
 async function refreshAgeingSnapshot(client) {
@@ -382,12 +435,13 @@ async function refreshAgeingSnapshot(client) {
 }
 
 async function seed(client) {
+  await teardown(client);
   const refs = await seedReferences(client);
   await seedDefaultAdmin(client, refs);
   const serials = await seedProductionAndHistory(client, refs);
   const dispatchDocs = await seedDispatchDocs(client, { ...refs, serials });
   const invoice = await seedInvoicesAndDispatch(client, { ...refs, serials });
-  await seedReportsAndExceptions(client, { ...refs, serials });
+  const reports = await seedReportsAndExceptions(client, { ...refs, serials });
   await refreshAgeingSnapshot(client);
 
   return {
@@ -396,7 +450,17 @@ async function seed(client) {
     serials,
     cleanSapDispatchDocId: dispatchDocs.cleanDocId,
     dispatchInvoiceId: invoice.invoiceId,
-    dispatchInvoiceLineId: invoice.invoiceLineId
+    dispatchInvoiceLineId: invoice.invoiceLineId,
+    batteryInvoiceId: invoice.batteryInvoiceId,
+    batteryInvoiceLineId: invoice.batteryInvoiceLineId,
+    returnInvoiceId: invoice.returnInvoiceId,
+    returnInvoiceLineId: invoice.returnInvoiceLineId,
+    returnDispatchId: invoice.returnDispatchId,
+    openExceptionId: reports.openExceptionId,
+    admin: {
+      username: "admin",
+      password: "admin123"
+    }
   };
 }
 

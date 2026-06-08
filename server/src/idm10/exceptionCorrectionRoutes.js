@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { requireAuthContext, requirePermission } from "../http/authContext.js";
+import { sendError } from "../http/errorResponse.js";
 
 function parseId(value) {
   const parsed = Number.parseInt(value, 10);
@@ -32,6 +33,20 @@ export function createExceptionCorrectionRoutes({ exceptionCorrectionService }) 
         const contextType = request.query.contextType || null;
         const page = Math.max(1, Number.parseInt(request.query.page, 10) || 1);
         const pageSize = Math.min(Math.max(1, Number.parseInt(request.query.pageSize, 10) || 50), 200);
+        const limit = request.query.limit === undefined
+          ? undefined
+          : Math.min(Number.parseInt(request.query.limit, 10), 200);
+        const offset = request.query.offset === undefined
+          ? undefined
+          : Number.parseInt(request.query.offset, 10);
+
+        if (
+          (request.query.limit !== undefined && (!Number.isInteger(limit) || limit < 0)) ||
+          (request.query.offset !== undefined && (!Number.isInteger(offset) || offset < 0))
+        ) {
+          sendError(response, 400, "BAD_REQUEST", "Invalid pagination filter");
+          return;
+        }
 
         const warehouseIds = request.auth.role === "admin" ? null : request.auth.warehouseIds;
 
@@ -40,7 +55,9 @@ export function createExceptionCorrectionRoutes({ exceptionCorrectionService }) 
           contextType,
           warehouseIds,
           page,
-          pageSize
+          pageSize,
+          ...(limit !== undefined ? { limit } : {}),
+          ...(offset !== undefined ? { offset } : {})
         });
 
         response.status(200).json(result);
@@ -59,19 +76,19 @@ export function createExceptionCorrectionRoutes({ exceptionCorrectionService }) 
         const exceptionId = parseId(request.params.exceptionId);
 
         if (!exceptionId) {
-          response.status(404).json({ error: { code: "NOT_FOUND", message: "Exception not found" } });
+          sendError(response, 404, "NOT_FOUND", "Exception not found");
           return;
         }
 
         const result = await exceptionCorrectionService.getException({ exceptionId });
 
         if (!result) {
-          response.status(404).json({ error: { code: "NOT_FOUND", message: "Exception not found" } });
+          sendError(response, 404, "NOT_FOUND", "Exception not found");
           return;
         }
 
         if (!hasWarehouseScope(request, result.warehouseId)) {
-          response.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient permission" } });
+          sendError(response, 403, "FORBIDDEN", "Insufficient permission");
           return;
         }
 
@@ -91,31 +108,26 @@ export function createExceptionCorrectionRoutes({ exceptionCorrectionService }) 
         const exceptionId = parseId(request.params.exceptionId);
 
         if (!exceptionId) {
-          response.status(404).json({ error: { code: "NOT_FOUND", message: "Exception not found" } });
+          sendError(response, 404, "NOT_FOUND", "Exception not found");
           return;
         }
 
         const correctionReason = request.body.correctionReason;
 
         if (!correctionReason || correctionReason.trim().length === 0) {
-          response.status(400).json({
-            error: {
-              code: "VALIDATION_ERROR",
-              message: "Correction reason is required"
-            }
-          });
+          sendError(response, 400, "VALIDATION_ERROR", "Correction reason is required");
           return;
         }
 
         const exception = await exceptionCorrectionService.getException({ exceptionId });
 
         if (!exception) {
-          response.status(404).json({ error: { code: "NOT_FOUND", message: "Exception not found" } });
+          sendError(response, 404, "NOT_FOUND", "Exception not found");
           return;
         }
 
         if (!hasWarehouseScope(request, exception.warehouseId)) {
-          response.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient permission" } });
+          sendError(response, 403, "FORBIDDEN", "Insufficient permission");
           return;
         }
 
@@ -128,7 +140,7 @@ export function createExceptionCorrectionRoutes({ exceptionCorrectionService }) 
         response.status(200).json(result);
       } catch (error) {
         if (error.message === "Exception not found") {
-          response.status(404).json({ error: { code: "NOT_FOUND", message: "Exception not found" } });
+          sendError(response, 404, "NOT_FOUND", "Exception not found");
           return;
         }
 
@@ -136,7 +148,7 @@ export function createExceptionCorrectionRoutes({ exceptionCorrectionService }) 
           error.message === "Exception is already resolved" ||
           error.message === "Exception was already corrected by another user"
         ) {
-          response.status(409).json({ error: { code: "CONFLICT", message: error.message } });
+          sendError(response, 409, "CONFLICT", error.message);
           return;
         }
 

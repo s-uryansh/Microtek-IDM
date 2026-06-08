@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { requireAuthContext, requirePermission } from "../http/authContext.js";
+import { sendError } from "../http/errorResponse.js";
 
 function parseId(value) {
   const parsed = Number.parseInt(value, 10);
@@ -26,19 +27,52 @@ export function createBatteryPreBillingRoutes({ batteryPreBillingService }) {
       const warehouseId = await batteryPreBillingService.getInvoiceWarehouseByLineId(invoiceLineId);
 
       if (!warehouseId) {
-        response.status(404).json({ error: { code: "NOT_FOUND", message: "Invoice line not found" } });
+        sendError(response, 404, "NOT_FOUND", "Invoice line not found");
         return;
       }
 
       if (!hasWarehouseScope(request, warehouseId)) {
-        response.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient permission" } });
+        sendError(response, 403, "FORBIDDEN", "Insufficient permission");
         return;
       }
 
       next();
     } catch (error) {
       if (error.status === 404) {
-        response.status(404).json({ error: { code: "NOT_FOUND", message: "Invoice line not found" } });
+        sendError(response, 404, "NOT_FOUND", "Invoice line not found");
+        return;
+      }
+
+      next(error);
+    }
+  }
+
+  async function requireBatteryInvoiceWarehouseScope(request, response, next) {
+    try {
+      const invoiceId = parseId(request.params.invoiceId);
+
+      if (!invoiceId) {
+        sendError(response, 400, "BAD_REQUEST", "invoiceId must be a positive integer");
+        return;
+      }
+
+      const status = await batteryPreBillingService.getCommitStatus({ invoiceId });
+
+      if (!status?.warehouseId) {
+        sendError(response, 404, "NOT_FOUND", "Invoice not found");
+        return;
+      }
+
+      if (!hasWarehouseScope(request, status.warehouseId)) {
+        sendError(response, 403, "FORBIDDEN", "Insufficient permission");
+        return;
+      }
+
+      response.locals.batteryCommitStatus = status;
+      next();
+    } catch (error) {
+      if (error.status === 404) {
+        sendError(response, 404, "NOT_FOUND", error.message);
         return;
       }
 
@@ -56,17 +90,17 @@ export function createBatteryPreBillingRoutes({ batteryPreBillingService }) {
         const { invoiceLineId, serialNo } = request.body;
 
         if (!invoiceLineId || !serialNo) {
-          response.status(400).json({ error: "invoiceLineId and serialNo are required" });
+          sendError(response, 400, "BAD_REQUEST", "invoiceLineId and serialNo are required");
           return;
         }
 
         if (typeof invoiceLineId !== "number" || !Number.isInteger(invoiceLineId) || invoiceLineId < 1) {
-          response.status(400).json({ error: "invoiceLineId must be a positive integer" });
+          sendError(response, 400, "BAD_REQUEST", "invoiceLineId must be a positive integer");
           return;
         }
 
         if (typeof serialNo !== "string" || serialNo.trim().length === 0) {
-          response.status(400).json({ error: "serialNo must be a non-empty string" });
+          sendError(response, 400, "BAD_REQUEST", "serialNo must be a non-empty string");
           return;
         }
 
@@ -79,7 +113,7 @@ export function createBatteryPreBillingRoutes({ batteryPreBillingService }) {
         response.status(200).json(result);
       } catch (error) {
         if (error.status === 404) {
-          response.status(404).json({ error: error.message });
+          sendError(response, 404, "NOT_FOUND", error.message);
           return;
         }
 
@@ -92,21 +126,15 @@ export function createBatteryPreBillingRoutes({ batteryPreBillingService }) {
     "/battery/invoices/:invoiceId/status",
     requireAuthContext,
     requirePermission("battery:read"),
+    requireBatteryInvoiceWarehouseScope,
     async (request, response, next) => {
       try {
-        const invoiceId = parseId(request.params.invoiceId);
-
-        if (!invoiceId) {
-          response.status(400).json({ error: "invoiceId must be a positive integer" });
-          return;
-        }
-
-        const result = await batteryPreBillingService.getCommitStatus({ invoiceId });
+        const result = response.locals.batteryCommitStatus;
 
         response.status(200).json(result);
       } catch (error) {
         if (error.status === 404) {
-          response.status(404).json({ error: error.message });
+          sendError(response, 404, "NOT_FOUND", error.message);
           return;
         }
 

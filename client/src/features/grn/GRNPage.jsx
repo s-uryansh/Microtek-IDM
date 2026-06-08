@@ -4,7 +4,10 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
+import { LookupSelector } from "../../components/operations/LookupSelector.jsx";
+import { BulkCsvTools } from "../../components/operations/BulkCsvTools.jsx";
 import { createGrn, scanGrnSerial, completeGrn } from "../../api/modules/grn.js";
+import { searchDispatchDocs } from "../../api/modules/lookups.js";
 
 function safeNumber(value, fallback = 0) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -16,6 +19,7 @@ export function GRNPage() {
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [scanRows, setScanRows] = useState([]);
 
   async function handleCreate() {
     setError(null);
@@ -35,6 +39,11 @@ export function GRNPage() {
 
   async function handleScan(serialNo) {
     const result = (await scanGrnSerial({ grnId: session?.grnId, serialNo })) || {};
+    setScanRows((rows) => [...rows, {
+      serial_no: serialNo,
+      match_status: result.matchStatus || result.alert?.ruleCode || "REJECTED",
+      message: result.alert?.message || (result.valid ? "Serial matched" : "Scan rejected")
+    }]);
     if (result.valid) {
       return { status: result.matchStatus || "MATCHED", message: "Serial matched", state: "success" };
     }
@@ -59,6 +68,17 @@ export function GRNPage() {
       <div>
         <PageHeader title="Goods Receipt Note" subtitle="Scan and verify incoming stock" />
         <Card title={`GRN #${session.grnId ?? "—"}`}>
+          <BulkCsvTools
+            title="GRN Bulk Serial Fallback"
+            templateFilename="grn-serial-import-template.csv"
+            templateHeaders={["serial_no"]}
+            importLabel="Import Serials"
+            exportLabel="Export GRN Results"
+            exportFilename={`grn-${session.grnId ?? "session"}-results.csv`}
+            exportHeaders={["serial_no", "match_status", "message"]}
+            exportRows={scanRows}
+            onImportRow={(row) => handleScan(row.serial_no)}
+          />
           <ScanSession
             module="GRN"
             title={`GRN ${session.grnId ?? "—"} — ${session.status ?? "PENDING"}`}
@@ -77,6 +97,23 @@ export function GRNPage() {
       <PageHeader title="Goods Receipt Note" subtitle="Scan and verify incoming stock" />
       <Card title="Start GRN Session">
         <div className="scan-workflow-form">
+          <LookupSelector
+            title="Search Dispatch Document"
+            placeholder="SAP dispatch reference or document ID"
+            search={(query) => searchDispatchDocs({ query, warehouseId })}
+            onSelect={(doc) => {
+              setSapDispatchDocId(String(doc.sapDispatchDocId));
+              setWarehouseId(String(doc.destinationWarehouseId));
+            }}
+            renderItem={(doc) => (
+              <>
+                <span className="operation-panel__result-title">{doc.externalRef}</span>
+                <span className="operation-panel__result-meta">
+                  Doc #{doc.sapDispatchDocId} · Destination {doc.destinationWarehouseCode || doc.destinationWarehouseId}
+                </span>
+              </>
+            )}
+          />
           <Input
             label="SAP Dispatch Document ID"
             value={sapDispatchDocId}

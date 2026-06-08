@@ -86,7 +86,7 @@ export function createBatteryPreBillingService({ repositories }) {
 
       const committedQuantity = await repositories.batteryPreBilling.countCommitsForInvoice(invoiceId);
 
-      return { invoiceId, committedQuantity };
+      return { invoiceId, warehouseId: invoice.warehouseId, committedQuantity };
     }
   };
 }
