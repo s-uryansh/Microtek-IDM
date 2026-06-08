@@ -79,12 +79,12 @@ function Bar({ label, value, heightPercent, index }) {
           onBlur={() => setTooltipVisible(false)}
           tabIndex={0}
           role="img"
-          aria-label={`${label}: ${value.toLocaleString()}`}
+          aria-label={`${label}: ${value.toLocaleString("en-US")}`}
         />
         {tooltipVisible && (
           <div className="bar-chart__tooltip" role="tooltip">
             <span className="bar-chart__tooltip-label">{label}</span>
-            <span className="bar-chart__tooltip-value">{value.toLocaleString()}</span>
+            <span className="bar-chart__tooltip-value">{value.toLocaleString("en-US")}</span>
           </div>
         )}
     </div>
