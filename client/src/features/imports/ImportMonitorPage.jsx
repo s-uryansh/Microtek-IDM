@@ -31,7 +31,7 @@ function formatTimestamp(iso) {
   }
 }
 
-function ImportHistoryTab({ onNavigateToManual }) {
+function ImportHistoryTab() {
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
