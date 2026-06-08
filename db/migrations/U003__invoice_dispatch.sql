@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS dispatch_scan;
+DROP TABLE IF EXISTS dispatch;
+DROP TABLE IF EXISTS invoice_line;
+DROP TABLE IF EXISTS invoice;

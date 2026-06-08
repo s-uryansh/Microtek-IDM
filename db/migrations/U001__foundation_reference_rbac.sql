@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS app_user_warehouse;
+DROP TABLE IF EXISTS app_user;
+DROP TABLE IF EXISTS role_permission;
+DROP TABLE IF EXISTS role;
+DROP TABLE IF EXISTS product;
+DROP TABLE IF EXISTS warehouse;
