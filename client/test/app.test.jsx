@@ -38,6 +38,7 @@ describe("Sidebar", () => {
     renderSidebar();
 
     expect(screen.getByText("Microtek IDM")).toBeVisible();
+    expect(screen.getByRole("img", { name: "Microtek logo" })).toBeVisible();
     expect(screen.getByText("Dashboard")).toBeVisible();
     expect(screen.getByText("GRN")).toBeVisible();
     expect(screen.getByText("Dispatch")).toBeVisible();

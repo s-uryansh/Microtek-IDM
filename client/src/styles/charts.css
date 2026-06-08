@@ -2,12 +2,13 @@
 
 .kpi-card {
   background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(0, 51, 102, 0.06);
   border-radius: var(--radius-lg);
   padding: var(--space-5) var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  box-shadow: var(--shadow-md);
 }
 
 .kpi-card__header {
@@ -80,6 +81,8 @@
 .bar-chart {
   width: 100%;
   min-height: 0;
+  position: relative;
+  overflow: visible;
 }
 
 .bar-chart__skeleton {
@@ -102,7 +105,7 @@
   grid-template-rows: minmax(8rem, 1fr) auto;
   gap: var(--space-2);
   min-height: clamp(12rem, 28vw, 16rem);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .bar-chart__plot {
@@ -113,6 +116,7 @@
   gap: var(--space-6);
   min-height: 0;
   padding-top: var(--space-3);
+  overflow: visible;
 }
 
 .bar-chart__bar-wrapper {
@@ -124,6 +128,11 @@
   height: 100%;
   min-width: 0;
   overflow: visible;
+}
+
+.bar-chart__bar-wrapper:hover,
+.bar-chart__bar-wrapper:focus-within {
+  z-index: 1000;
 }
 
 .bar-chart__bar {
@@ -179,7 +188,7 @@
   align-items: center;
   gap: 2px;
   white-space: nowrap;
-  z-index: 10;
+  z-index: 1000;
   pointer-events: none;
 }
 

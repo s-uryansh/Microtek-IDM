@@ -16,8 +16,9 @@
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-surface);
-  border-right: 1px solid var(--color-border);
+  background: var(--microtek-blue);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 8px 0 24px rgba(0, 51, 102, 0.14);
   overflow-y: auto;
   position: fixed;
   top: 0;
@@ -33,32 +34,36 @@
   align-items: center;
   gap: var(--space-3);
   height: var(--topbar-height);
-  padding: 0 var(--space-5);
-  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-4);
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 51, 102, 0.12);
   flex-shrink: 0;
 }
 
-.sidebar__brand-icon {
-  width: 28px;
-  height: 28px;
-  background: var(--color-accent);
+.sidebar__brand-logo {
+  width: 120px;
+  min-height: 40px;
+  padding: var(--space-1);
+  background: #ffffff;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 0.75rem;
-  color: #0b0d0e;
   flex-shrink: 0;
+}
+
+.sidebar__brand-logo img {
+  width: 100%;
+  max-height: 36px;
+  object-fit: contain;
 }
 
 .sidebar__brand-name {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 0.9375rem;
-  letter-spacing: -0.01em;
-  color: var(--color-text-primary);
+  letter-spacing: 0;
+  color: var(--microtek-blue);
 }
 
 .sidebar__nav {
@@ -76,7 +81,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--color-text-muted);
+  color: rgba(255, 255, 255, 0.55);
   padding: var(--space-2) var(--space-2);
   margin-bottom: var(--space-1);
 }
@@ -88,7 +93,7 @@
   min-height: 44px;
   padding: var(--space-2) var(--space-2);
   border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 0.875rem;
   font-weight: 400;
   transition: all var(--transition-fast);
@@ -96,13 +101,14 @@
 }
 
 .sidebar__link:hover {
-  color: var(--color-text-primary);
-  background: var(--color-bg-elevated);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .sidebar__link--active {
-  color: var(--color-accent-text);
-  background: var(--color-accent-subtle);
+  color: #ffffff;
+  background: rgba(227, 29, 36, 0.96);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
 }
 
 .sidebar__link-icon {
@@ -122,7 +128,7 @@
 
 .sidebar__footer {
   padding: var(--space-3) var(--space-5);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   flex-shrink: 0;
 }
 
@@ -137,28 +143,29 @@
   margin-top: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-  background: var(--color-bg-elevated);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
   font-size: 0.8125rem;
   text-align: left;
 }
 
 .sidebar__logout:hover {
-  color: var(--color-text-primary);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .sidebar__user-avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--color-bg-elevated);
+  background: rgba(255, 255, 255, 0.14);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 0.75rem;
-  color: var(--color-text-secondary);
+  color: #ffffff;
   flex-shrink: 0;
 }
 
@@ -170,7 +177,7 @@
 .sidebar__user-name {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--color-text-primary);
+  color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -178,7 +185,7 @@
 
 .sidebar__user-role {
   font-size: 0.6875rem;
-  color: var(--color-text-muted);
+  color: rgba(255, 255, 255, 0.6);
   text-transform: capitalize;
 }
 
@@ -193,6 +200,7 @@
   padding: 0 var(--space-6);
   background: var(--color-bg-surface);
   border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
   z-index: 50;
@@ -335,7 +343,7 @@
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.5rem;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--color-text-primary);
 }
 

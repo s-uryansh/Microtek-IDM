@@ -41,7 +41,9 @@ export function Sidebar({ open, onClose, user }) {
       {open && <div className="sidebar-overlay" onClick={onClose} aria-hidden="true" />}
       <aside className={`sidebar ${open ? "sidebar--open" : ""}`} aria-label="Main navigation">
         <div className="sidebar__brand">
-          <div className="sidebar__brand-icon">M</div>
+          <div className="sidebar__brand-logo">
+            <img src="/logo/microtek_logo.png" alt="Microtek logo" />
+          </div>
           <span className="sidebar__brand-name">Microtek IDM</span>
         </div>
 

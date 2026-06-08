@@ -43,8 +43,8 @@
 
 .scan-input__field:focus {
   outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+  border-color: var(--microtek-blue-700);
+  box-shadow: 0 0 0 3px var(--microtek-scan-glow), 0 0 18px rgba(0, 93, 158, 0.16);
 }
 
 .scan-input--success .scan-input__field {

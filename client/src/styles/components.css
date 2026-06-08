@@ -15,6 +15,7 @@
   transition: all var(--transition-fast);
   white-space: nowrap;
   user-select: none;
+  box-shadow: none;
 }
 
 .button:focus-visible {
@@ -29,7 +30,8 @@
 
 .button--primary {
   background: var(--color-accent);
-  color: #0b0d0e;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(227, 29, 36, 0.2);
 }
 
 .button--primary:hover:not(:disabled) {
@@ -44,7 +46,7 @@
 
 .button--secondary:hover:not(:disabled) {
   border-color: var(--color-border-hover);
-  background: var(--color-bg-surface);
+  background: #ffffff;
 }
 
 .button--ghost {
@@ -81,9 +83,10 @@
 
 .card {
   background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(0, 51, 102, 0.06);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
+  box-shadow: var(--shadow-md);
   min-width: 0;
 }
 
@@ -140,8 +143,8 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+  border-color: var(--microtek-blue-700);
+  box-shadow: 0 0 0 3px var(--microtek-scan-glow);
 }
 
 .input--error {
@@ -189,7 +192,7 @@
   padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-bg-elevated);
+  background: #f4f8fc;
 }
 
 .operation-panel__header {
@@ -244,8 +247,9 @@
 
 .operation-panel__result:hover,
 .operation-panel__result:focus-visible {
-  border-color: var(--color-accent);
+  border-color: var(--microtek-blue-700);
   outline: none;
+  box-shadow: 0 0 0 3px var(--microtek-scan-glow);
 }
 
 .operation-panel__result-title {
@@ -297,6 +301,19 @@
     width: 100%;
     white-space: normal;
   }
+}
+
+:root[data-theme="dark"] .button--secondary:hover:not(:disabled) {
+  background: var(--color-bg-surface);
+}
+
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .kpi-card {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="dark"] .operation-panel {
+  background: var(--color-bg-elevated);
 }
 
 /* ─── Badge ─── */

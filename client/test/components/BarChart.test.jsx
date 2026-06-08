@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 
 import { BarChart } from "../../src/components/charts/BarChart.jsx";
 
@@ -60,5 +61,12 @@ describe("BarChart", () => {
     );
 
     expect(screen.getByRole("img", { name: "B: 1,000,000,000" })).toHaveStyle({ "--bar-height": "100%" });
+  });
+
+  test("allows tooltips to render outside the chart viewport", () => {
+    const css = readFileSync("src/styles/charts.css", "utf8");
+
+    expect(css).toMatch(/\.bar-chart__viewport\s*{[^}]*overflow:\s*visible;/s);
+    expect(css).toMatch(/\.bar-chart__tooltip\s*{[^}]*z-index:\s*1000;/s);
   });
 });

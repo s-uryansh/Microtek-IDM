@@ -1,9 +1,10 @@
 import { Icon } from "../ui/Icon.jsx";
 import { useTheme } from "../../theme/useTheme.js";
 
-export function TopBar({ onMenuToggle }) {
+export function TopBar({ onMenuToggle, notificationCount = 0 }) {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === "dark";
+  const hasNotifications = notificationCount > 0;
 
   return (
     <header className="top-bar">
@@ -40,7 +41,7 @@ export function TopBar({ onMenuToggle }) {
         </button>
         <button className="top-bar__action-btn" type="button" aria-label="Notifications">
           <Icon name="bell" size={18} />
-          <span className="top-bar__action-badge" />
+          {hasNotifications && <span className="top-bar__action-badge" />}
         </button>
       </div>
     </header>
