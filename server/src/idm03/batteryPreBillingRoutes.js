@@ -9,7 +9,7 @@ function parseId(value) {
 }
 
 function hasWarehouseScope(request, warehouseId) {
-  return request.auth.warehouseIds.includes(warehouseId);
+  return request.auth.warehouseIds.some((authWarehouseId) => String(authWarehouseId) === String(warehouseId));
 }
 
 export function createBatteryPreBillingRoutes({ batteryPreBillingService }) {

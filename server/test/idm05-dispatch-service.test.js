@@ -41,6 +41,9 @@ function createRepositories({ dispatch, invoice, validationResult, insertScanRes
         calls.createDispatch.push(input);
         return { dispatchId: 10, status: "PENDING", ...input };
       },
+      async findByInvoiceId(invoiceId) {
+        return dispatch?.invoiceId === invoiceId ? dispatch : null;
+      },
       async findById(dispatchId) {
         return dispatch?.dispatchId === dispatchId ? dispatch : null;
       },
@@ -163,6 +166,35 @@ describe("IDM-05 dispatch service", () => {
       message: "Invoice not found",
       status: 404
     });
+  });
+
+  test("rejects duplicate dispatch creation for an invoice as a conflict", async () => {
+    const repositories = createRepositories({
+      invoice,
+      dispatch: {
+        dispatchId: 10,
+        invoiceId: 100,
+        warehouseId: 5,
+        status: "PENDING",
+        lines: invoice.lines,
+        scans: []
+      }
+    });
+    const service = createDispatchService({
+      repositories,
+      fulfilmentStatusService: createFulfilmentStatusService()
+    });
+
+    await expect(service.startDispatch({
+      invoiceId: 100,
+      warehouseId: 5,
+      userId: "operator_1"
+    })).rejects.toMatchObject({
+      message: "A dispatch already exists for this invoice.",
+      status: 409,
+      code: "DISPATCH_ALREADY_EXISTS"
+    });
+    expect(repositories.calls.createDispatch).toEqual([]);
   });
 
   test("accepts a valid scan, dispatches the serial, and writes a CUSTOMER_DISPATCH event", async () => {

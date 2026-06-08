@@ -1,4 +1,43 @@
 export function createDispatchRepository(pool) {
+  function toNumber(value) {
+    return value === null || value === undefined ? value : Number(value);
+  }
+
+  function mapLine(row) {
+    if (!row) return null;
+    return {
+      ...row,
+      invoiceLineId: toNumber(row.invoiceLineId),
+      productId: toNumber(row.productId),
+      quantity: toNumber(row.quantity)
+    };
+  }
+
+  function mapScan(row) {
+    if (!row) return null;
+    return {
+      ...row,
+      dispatchScanId: toNumber(row.dispatchScanId),
+      invoiceLineId: toNumber(row.invoiceLineId),
+      serialId: toNumber(row.serialId)
+    };
+  }
+
+  function mapDispatch(row, { lines, scans } = {}) {
+    if (!row) return null;
+    const mapped = {
+      ...row,
+      dispatchId: toNumber(row.dispatchId),
+      invoiceId: toNumber(row.invoiceId),
+      warehouseId: toNumber(row.warehouseId)
+    };
+
+    if (lines) mapped.lines = lines;
+    if (scans) mapped.scans = scans;
+
+    return mapped;
+  }
+
   async function findLines(invoiceId) {
     const result = await pool.query(
       `SELECT
@@ -11,7 +50,7 @@ export function createDispatchRepository(pool) {
       [invoiceId]
     );
 
-    return result.rows;
+    return result.rows.map(mapLine);
   }
 
   async function findScans(dispatchId) {
@@ -25,7 +64,7 @@ export function createDispatchRepository(pool) {
       [dispatchId]
     );
 
-    return result.rows;
+    return result.rows.map(mapScan);
   }
 
   return {
@@ -45,7 +84,22 @@ export function createDispatchRepository(pool) {
         [invoiceId, warehouseId, createdBy]
       );
 
-      return result.rows[0];
+      return mapDispatch(result.rows[0]);
+    },
+
+    async findByInvoiceId(invoiceId) {
+      const result = await pool.query(
+        `SELECT
+           dispatch_id AS "dispatchId",
+           invoice_id AS "invoiceId",
+           warehouse_id AS "warehouseId",
+           status
+         FROM dispatch
+         WHERE invoice_id = $1`,
+        [invoiceId]
+      );
+
+      return mapDispatch(result.rows[0]);
     },
 
     async findById(dispatchId) {
@@ -66,11 +120,10 @@ export function createDispatchRepository(pool) {
         return null;
       }
 
-      return {
-        ...dispatch,
+      return mapDispatch(dispatch, {
         lines: await findLines(dispatch.invoiceId),
         scans: await findScans(dispatchId)
-      };
+      });
     },
 
     async lockById(dispatchId) {
@@ -92,11 +145,10 @@ export function createDispatchRepository(pool) {
         return null;
       }
 
-      return {
-        ...dispatch,
+      return mapDispatch(dispatch, {
         lines: await findLines(dispatch.invoiceId),
         scans: await findScans(dispatchId)
-      };
+      });
     },
 
     async getWarehouseId(dispatchId) {
@@ -104,7 +156,7 @@ export function createDispatchRepository(pool) {
         dispatchId
       ]);
 
-      return result.rows[0]?.warehouseId ?? null;
+      return toNumber(result.rows[0]?.warehouseId);
     },
 
     async insertScan({ dispatchId, invoiceLineId, serialId, scannedBy, createdBy }) {
@@ -123,7 +175,7 @@ export function createDispatchRepository(pool) {
         [dispatchId, invoiceLineId, serialId, scannedBy, createdBy]
       );
 
-      return result.rows[0];
+      return result.rows[0] ? { dispatchScanId: toNumber(result.rows[0].dispatchScanId) } : undefined;
     },
 
     async updateStatus(dispatchId, status) {
@@ -182,7 +234,7 @@ export function createDispatchRepository(pool) {
         [dispatchId]
       );
 
-      return dispatchResult.rows[0] ?? null;
+      return mapDispatch(dispatchResult.rows[0]);
     },
 
     async findSerialsForDispatch(dispatchId) {

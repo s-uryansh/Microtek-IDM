@@ -85,6 +85,23 @@ describe("IDM-03 battery pre-billing routes", () => {
     expect(res.body.alert.ruleCode).toBe("ALREADY_COMMITTED");
   });
 
+  test("POST /api/idm-03/battery/commit allows numeric user warehouse scope with string resolved warehouse", async () => {
+    mockWarehouse.mockResolvedValue("3");
+    mockCommit.mockResolvedValue({ valid: true, status: "COMMITTED" });
+    const app = makeApp();
+
+    const res = await request(app)
+      .post("/api/idm-03/battery/commit")
+      .send({ invoiceLineId: 10, serialNo: "MTK-BAT-001" });
+
+    expect(res.status).toBe(200);
+    expect(mockCommit).toHaveBeenCalledWith({
+      invoiceLineId: 10,
+      serialNo: "MTK-BAT-001",
+      userId: "test_user"
+    });
+  });
+
   test("POST /api/idm-03/battery/commit returns 403 when warehouse not in scope", async () => {
     mockWarehouse.mockResolvedValue(5);
     const app = makeApp();
@@ -110,6 +127,17 @@ describe("IDM-03 battery pre-billing routes", () => {
 
   test("GET /api/idm-03/battery/invoices/:invoiceId/status returns 200", async () => {
     mockStatus.mockResolvedValue({ invoiceId: 100, warehouseId: 3, committedQuantity: 2 });
+    const app = makeApp();
+
+    const res = await request(app).get("/api/idm-03/battery/invoices/100/status");
+
+    expect(res.status).toBe(200);
+    expect(res.body.committedQuantity).toBe(2);
+    expect(mockStatus).toHaveBeenCalledWith({ invoiceId: 100 });
+  });
+
+  test("GET /api/idm-03/battery/invoices/:invoiceId/status allows numeric user warehouse scope with string resolved warehouse", async () => {
+    mockStatus.mockResolvedValue({ invoiceId: 100, warehouseId: "3", committedQuantity: 2 });
     const app = makeApp();
 
     const res = await request(app).get("/api/idm-03/battery/invoices/100/status");

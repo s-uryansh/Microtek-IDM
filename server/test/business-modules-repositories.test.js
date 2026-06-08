@@ -3,6 +3,10 @@ import { resolve } from "node:path";
 
 import { describe, expect, test } from "vitest";
 
+import { createInvoiceRepository } from "../src/db/invoiceRepository.js";
+import { createSerialRepository } from "../src/db/serialRepository.js";
+import { createDispatchRepository } from "../src/db/dispatchRepository.js";
+
 function readRepository(fileName) {
   return readFileSync(resolve(`src/db/${fileName}`), "utf8");
 }
@@ -37,5 +41,99 @@ describe("business module repository SQL contracts", () => {
     expect(sql).toContain("ORDER BY event_at, event_id");
     expect(sql).toContain("ORDER BY raised_at, exception_id");
     expect(sql).toContain("WHERE serial_no = $1");
+  });
+
+  test("invoice repository normalizes numeric IDs returned from PostgreSQL", async () => {
+    const repository = createInvoiceRepository({
+      async query() {
+        return {
+          rows: [{
+            invoiceLineId: "2",
+            invoiceId: "2",
+            productId: "3",
+            quantity: "2",
+            isBattery: true,
+            warehouseId: "3"
+          }]
+        };
+      }
+    });
+
+    const line = await repository.findLineById(2);
+
+    expect(line).toMatchObject({
+      invoiceLineId: 2,
+      invoiceId: 2,
+      productId: 3,
+      quantity: 2,
+      warehouseId: 3
+    });
+  });
+
+  test("serial repository normalizes numeric IDs returned from PostgreSQL", async () => {
+    const repository = createSerialRepository({
+      async query() {
+        return {
+          rows: [{
+            serialId: "7",
+            serialNo: "DEMO-BAT-0001",
+            productId: "3",
+            currentStatus: "IN_STOCK",
+            currentWarehouseId: "3"
+          }]
+        };
+      }
+    });
+
+    const serial = await repository.findBySerialNo("DEMO-BAT-0001");
+
+    expect(serial).toMatchObject({
+      serialId: 7,
+      productId: 3,
+      currentWarehouseId: 3
+    });
+  });
+
+  test("dispatch repository normalizes numeric IDs returned from PostgreSQL", async () => {
+    const repository = createDispatchRepository({
+      async query(sql) {
+        if (sql.includes("FROM dispatch_scan")) {
+          return {
+            rows: [{
+              dispatchScanId: "8",
+              invoiceLineId: "1",
+              serialId: "6"
+            }]
+          };
+        }
+        if (sql.includes("FROM invoice_line")) {
+          return {
+            rows: [{
+              invoiceLineId: "1",
+              productId: "1",
+              quantity: "2"
+            }]
+          };
+        }
+        return {
+          rows: [{
+            dispatchId: "2",
+            invoiceId: "1",
+            warehouseId: "3",
+            status: "PENDING"
+          }]
+        };
+      }
+    });
+
+    const dispatch = await repository.findById(2);
+
+    expect(dispatch).toMatchObject({
+      dispatchId: 2,
+      invoiceId: 1,
+      warehouseId: 3,
+      lines: [{ invoiceLineId: 1, productId: 1, quantity: 2 }],
+      scans: [{ dispatchScanId: 8, invoiceLineId: 1, serialId: 6 }]
+    });
   });
 });

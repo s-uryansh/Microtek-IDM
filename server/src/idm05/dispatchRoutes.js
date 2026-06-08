@@ -52,6 +52,10 @@ export function createDispatchRoutes({ dispatchService }) {
           sendError(response, 404, "NOT_FOUND", "Invoice not found");
           return;
         }
+        if (error.status === 409) {
+          sendError(response, 409, error.code || "CONFLICT", error.message);
+          return;
+        }
         next(error);
       }
     }

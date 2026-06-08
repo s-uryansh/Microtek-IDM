@@ -1,4 +1,33 @@
 export function createInvoiceRepository(pool) {
+  function toNumber(value) {
+    return value === null || value === undefined ? value : Number(value);
+  }
+
+  function mapLine(row) {
+    if (!row) return null;
+    const mapped = {
+      ...row,
+      invoiceLineId: toNumber(row.invoiceLineId),
+      productId: toNumber(row.productId),
+      quantity: toNumber(row.quantity)
+    };
+
+    if (row.invoiceId !== undefined) mapped.invoiceId = toNumber(row.invoiceId);
+    if (row.warehouseId !== undefined) mapped.warehouseId = toNumber(row.warehouseId);
+
+    return mapped;
+  }
+
+  function mapInvoice(row, lines = []) {
+    if (!row) return null;
+    return {
+      ...row,
+      invoiceId: toNumber(row.invoiceId),
+      warehouseId: toNumber(row.warehouseId),
+      lines
+    };
+  }
+
   async function findLines(invoiceId) {
     const result = await pool.query(
       `SELECT
@@ -11,7 +40,7 @@ export function createInvoiceRepository(pool) {
       [invoiceId]
     );
 
-    return result.rows;
+    return result.rows.map(mapLine);
   }
 
   return {
@@ -31,7 +60,7 @@ export function createInvoiceRepository(pool) {
         [invoiceLineId]
       );
 
-      return result.rows[0] || null;
+      return mapLine(result.rows[0]);
     },
 
     async findById(invoiceId) {
@@ -51,10 +80,7 @@ export function createInvoiceRepository(pool) {
         return null;
       }
 
-      return {
-        ...invoice,
-        lines: await findLines(invoiceId)
-      };
+      return mapInvoice(invoice, await findLines(invoiceId));
     },
 
     async updateStatus(invoiceId, status) {

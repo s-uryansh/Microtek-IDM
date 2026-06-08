@@ -386,6 +386,9 @@ Main screen sections:
 
 Screenshot checkpoint: capture the selected invoice line and scan panel.
 
+
+* Serials: DEMO-DISP-0001, then DEMO-DISP-0002
+
 ### TC-DISP-001 - Start Dispatch Session
 
 Purpose:  

@@ -67,11 +67,32 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
         throw Object.assign(new Error("Invoice not found"), { status: 404 });
       }
 
-      return repositories.dispatches.createDispatch({
-        invoiceId,
-        warehouseId,
-        createdBy: userId
-      });
+      const existingDispatch = await repositories.dispatches.findByInvoiceId(invoiceId);
+
+      if (existingDispatch) {
+        throw Object.assign(new Error("A dispatch already exists for this invoice."), {
+          status: 409,
+          code: "DISPATCH_ALREADY_EXISTS",
+          dispatchId: existingDispatch.dispatchId
+        });
+      }
+
+      try {
+        return await repositories.dispatches.createDispatch({
+          invoiceId,
+          warehouseId,
+          createdBy: userId
+        });
+      } catch (error) {
+        if (error.code === "23505" && error.constraint === "ux_dispatch_invoice_once") {
+          throw Object.assign(new Error("A dispatch already exists for this invoice."), {
+            status: 409,
+            code: "DISPATCH_ALREADY_EXISTS"
+          });
+        }
+
+        throw error;
+      }
     },
 
     async scanSerial({ dispatchId, invoiceLineId, serialNo, userId }) {

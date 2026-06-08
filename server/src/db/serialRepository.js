@@ -1,4 +1,18 @@
 export function createSerialRepository(pool) {
+  function toNumber(value) {
+    return value === null || value === undefined ? value : Number(value);
+  }
+
+  function mapSerial(row) {
+    if (!row) return null;
+    return {
+      ...row,
+      serialId: toNumber(row.serialId),
+      productId: toNumber(row.productId),
+      currentWarehouseId: toNumber(row.currentWarehouseId)
+    };
+  }
+
   return {
     async findProductByCode(productCode) {
       const result = await pool.query(
@@ -45,7 +59,7 @@ export function createSerialRepository(pool) {
       }
 
       const existing = await this.findBySerialNo(serialNo);
-      return existing;
+      return mapSerial(existing);
     },
 
     async appendSerialEvent({ serialId, eventType, warehouseId, referenceType, referenceId, batchId, createdBy }) {
@@ -115,7 +129,7 @@ export function createSerialRepository(pool) {
         [serialNo]
       );
 
-      return result.rows[0] ?? null;
+      return mapSerial(result.rows[0]);
     }
   };
 }
