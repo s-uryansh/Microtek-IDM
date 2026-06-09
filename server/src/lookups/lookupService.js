@@ -1,4 +1,4 @@
-function scopedWarehouses({ requestedWarehouseId, userWarehouseIds, role }) {
+export function scopedWarehouses({ requestedWarehouseId, userWarehouseIds, role }) {
   if (role === "admin" && requestedWarehouseId) return [requestedWarehouseId];
   if (role === "admin") return userWarehouseIds;
   if (!requestedWarehouseId) return userWarehouseIds;

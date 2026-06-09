@@ -80,12 +80,28 @@ export function createSapDispatchRepository(pool) {
          FROM sap_dispatch_line sdl
          JOIN sap_dispatch_doc sdd ON sdd.sap_dispatch_doc_id = sdl.sap_dispatch_doc_id
          WHERE sdl.serial_id = $1
-         ORDER BY sdd.created_at DESC, sdd.sap_dispatch_doc_id DESC
-         LIMIT 1`,
+         ORDER BY sdd.created_at DESC, sdd.sap_dispatch_doc_id DESC`,
         [serialId]
       );
 
-      return mapDispatch(result.rows[0]);
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      // A serial mapping to more than one dispatch doc is ambiguous: there is no
+      // agreed policy for which doc "owns" it, so rather than silently picking
+      // the newest we surface the ambiguity. `ambiguous` + `candidateDispatchDocIds`
+      // let the caller raise/return a distinct condition. NOTE: how to RESOLVE
+      // the ambiguity (latest? source-warehouse match? reject?) is an open
+      // design decision — see SCRATCH_receipt_vs_grn_scan.txt / sign-off item B.
+      const candidates = result.rows.map(mapDispatch);
+      const [newest] = candidates;
+
+      return {
+        ...newest,
+        ambiguous: candidates.length > 1,
+        candidateDispatchDocIds: candidates.map((c) => c.sapDispatchDocId)
+      };
     }
   };
 }

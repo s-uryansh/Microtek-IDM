@@ -24,3 +24,15 @@ export const productionBatchSchema = z.object({
   receivedBy: userIdSchema,
   records: z.array(productionRecordSchema).min(1).max(10000)
 });
+
+// Validates only the batch envelope (the fields that must be sound for the
+// whole batch to be processable) while leaving per-record content to be
+// validated row-by-row. A single malformed record must reject only that row,
+// not the entire batch.
+export const productionBatchEnvelopeSchema = z.object({
+  externalRef: z.string().trim().min(1).max(80),
+  source: z.string().trim().min(1).max(60),
+  sourceLabel: z.string().trim().max(60).optional(),
+  receivedBy: userIdSchema,
+  records: z.array(z.unknown()).min(1).max(10000)
+});

@@ -60,13 +60,10 @@ export function createAgeingReportService({ repositories, bucketService }) {
       };
     },
 
-    async getExportRows({ warehouseId, limit = 1000, offset = 0 }) {
-      let result;
-      if (warehouseId) {
-        result = await repositories.ageingReports.findSerialsByWarehouseForExport({ warehouseId, limit, offset });
-      } else {
-        result = await repositories.ageingReports.findSerialsForExport({ warehouseIds: [], limit, offset });
-      }
+    async getExportRows({ warehouseIds = [], limit = 1000, offset = 0 }) {
+      // findSerialsForExport scopes to ANY(warehouseIds); an empty array means
+      // "all warehouses" and is only ever passed for admins (see resolveScope).
+      const result = await repositories.ageingReports.findSerialsForExport({ warehouseIds, limit, offset });
 
       const rows = result.rows.map((row) => {
         const bucket = bucketService.bucketForAgeDays(row.missingReceivedAt ? null : row.ageDays);
@@ -83,13 +80,8 @@ export function createAgeingReportService({ repositories, bucketService }) {
       return { rows, total: result.total };
     },
 
-    async getSapExportRows({ warehouseId, limit = 1000, offset = 0 }) {
-      let result;
-      if (warehouseId) {
-        result = await repositories.ageingReports.findSerialsByWarehouseForExport({ warehouseId, limit, offset });
-      } else {
-        result = await repositories.ageingReports.findSerialsForExport({ warehouseIds: [], limit, offset });
-      }
+    async getSapExportRows({ warehouseIds = [], limit = 1000, offset = 0 }) {
+      const result = await repositories.ageingReports.findSerialsForExport({ warehouseIds, limit, offset });
 
       const rows = result.rows.map((row) => {
         const bucket = bucketService.bucketForAgeDays(row.missingReceivedAt ? null : row.ageDays);
@@ -106,8 +98,8 @@ export function createAgeingReportService({ repositories, bucketService }) {
       return { rows, total: result.total };
     },
 
-    async getCsvExport({ warehouseId, limit = 1000, offset = 0 }) {
-      const { rows } = await this.getExportRows({ warehouseId, limit, offset });
+    async getCsvExport({ warehouseIds = [], limit = 1000, offset = 0 }) {
+      const { rows } = await this.getExportRows({ warehouseIds, limit, offset });
 
       const headers = ["serial_no", "product_code", "warehouse_id", "received_at", "age_days", "bucket"];
       const headerLine = headers.map((h) => sanitizeCsvCell(h)).join(",");
@@ -118,8 +110,10 @@ export function createAgeingReportService({ repositories, bucketService }) {
       return [headerLine, ...bodyLines].join("\n");
     },
 
-    async getSummary() {
-      const rows = await repositories.ageingReports.findSummaryByWarehouse();
+    async getSummary({ warehouseIds = [] } = {}) {
+      // Empty array means "all warehouses" (admins only); non-admins always
+      // arrive here scoped to their assigned warehouses.
+      const rows = await repositories.ageingReports.findSummaryByWarehouse({ warehouseIds });
       const summaryByWarehouse = new Map();
 
       for (const row of rows) {

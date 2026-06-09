@@ -2,10 +2,51 @@ import { Router } from "express";
 
 import { requireAuthContext, requirePermission } from "../http/authContext.js";
 import { sendError } from "../http/errorResponse.js";
+import { scopedWarehouses } from "../lookups/lookupService.js";
 
 function parsePositiveInt(value) {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+// Resolve the warehouse scope for an ageing export/summary request.
+//
+// This mirrors how the lookup routes use scopedWarehouses(): admins keep full
+// cross-warehouse access (an empty `warehouseIds` array means "all warehouses"),
+// while non-admins are confined to their assigned warehouses. An unscoped or
+// empty-scope request from a non-admin is rejected rather than being widened to
+// every warehouse — the gap that let a warehouse-scoped supervisor export data
+// for warehouses they are not assigned to.
+//
+// Note: unlike the GET "/" route we do NOT add requirePermission's
+// warehouseIdFromQuery option here. That option runs hasWarehouseScope against
+// the caller's assigned warehouses, which would (a) reject admins who are not
+// explicitly assigned the requested warehouse and (b) reject every unscoped
+// request (NaN warehouseId) including the admin "all warehouses" export. Doing
+// the scope resolution in-handler via scopedWarehouses preserves admin full
+// access while still closing the gap for non-admins.
+function resolveScope(request) {
+  const role = request.auth.role;
+  const userWarehouseIds = request.auth.warehouseIds ?? [];
+  const hasWarehouseParam = Boolean(request.query.warehouseId);
+  const requestedWarehouseId = hasWarehouseParam ? parsePositiveInt(request.query.warehouseId) : null;
+
+  if (hasWarehouseParam && !requestedWarehouseId) {
+    return { error: { status: 400, code: "BAD_REQUEST", message: "Invalid warehouseId" } };
+  }
+
+  if (role === "admin") {
+    // Empty array => all warehouses; a specific warehouse when requested.
+    return { warehouseIds: requestedWarehouseId ? [requestedWarehouseId] : [] };
+  }
+
+  const scope = scopedWarehouses({ requestedWarehouseId, userWarehouseIds, role });
+
+  if (!scope || scope.length === 0) {
+    return { error: { status: 403, code: "FORBIDDEN", message: "Insufficient permission" } };
+  }
+
+  return { warehouseIds: scope };
 }
 
 function parseNonNegativeInt(value) {
@@ -61,7 +102,12 @@ export function createAgeingRoutes({ ageingReportService }) {
     requirePermission("ageing:read"),
     async (request, response, next) => {
       try {
-        const warehouseId = request.query.warehouseId ? parsePositiveInt(request.query.warehouseId) : undefined;
+        const scope = resolveScope(request);
+        if (scope.error) {
+          sendError(response, scope.error.status, scope.error.code, scope.error.message);
+          return;
+        }
+
         const format = request.query.format || "json";
         const limitInput = request.query.limit ? parseNonNegativeInt(request.query.limit) : 1000;
         const offset = request.query.offset ? parseNonNegativeInt(request.query.offset) : 0;
@@ -74,14 +120,14 @@ export function createAgeingRoutes({ ageingReportService }) {
         const limit = clampLimit(limitInput, 5000);
 
         if (format === "csv") {
-          const csv = await ageingReportService.getCsvExport({ warehouseId, limit, offset });
+          const csv = await ageingReportService.getCsvExport({ warehouseIds: scope.warehouseIds, limit, offset });
           response.setHeader("Content-Type", "text/csv; charset=utf-8");
           response.setHeader("Content-Disposition", `attachment; filename="ageing-export.csv"`);
           response.status(200).send(csv);
           return;
         }
 
-        const result = await ageingReportService.getExportRows({ warehouseId, limit, offset });
+        const result = await ageingReportService.getExportRows({ warehouseIds: scope.warehouseIds, limit, offset });
         response.status(200).json(result);
       } catch (error) {
         next(error);
@@ -97,7 +143,12 @@ export function createAgeingRoutes({ ageingReportService }) {
       try {
         // SAP field mapping is provisional — confirm MATNR/LGORT
         // field names with client SAP team when OI-7 closes
-        const warehouseId = request.query.warehouseId ? parsePositiveInt(request.query.warehouseId) : undefined;
+        const scope = resolveScope(request);
+        if (scope.error) {
+          sendError(response, scope.error.status, scope.error.code, scope.error.message);
+          return;
+        }
+
         const limitInput = request.query.limit ? parseNonNegativeInt(request.query.limit) : 1000;
         const offset = request.query.offset ? parseNonNegativeInt(request.query.offset) : 0;
 
@@ -107,7 +158,7 @@ export function createAgeingRoutes({ ageingReportService }) {
         }
 
         const limit = clampLimit(limitInput, 5000);
-        const result = await ageingReportService.getSapExportRows({ warehouseId, limit, offset });
+        const result = await ageingReportService.getSapExportRows({ warehouseIds: scope.warehouseIds, limit, offset });
 
         response.setHeader("X-IDM-Export-Timestamp", new Date().toISOString());
         response.setHeader("X-IDM-Record-Count", String(result.total));
@@ -124,7 +175,13 @@ export function createAgeingRoutes({ ageingReportService }) {
     requirePermission("ageing:read"),
     async (request, response, next) => {
       try {
-        const result = await ageingReportService.getSummary();
+        const scope = resolveScope(request);
+        if (scope.error) {
+          sendError(response, scope.error.status, scope.error.code, scope.error.message);
+          return;
+        }
+
+        const result = await ageingReportService.getSummary({ warehouseIds: scope.warehouseIds });
         response.status(200).json(result);
       } catch (error) {
         next(error);

@@ -283,6 +283,41 @@ describe("IDM-01 production import service", () => {
     });
   });
 
+  test("surfaces ambiguity when a serial maps to multiple SAP dispatch docs", async () => {
+    const repositories = createRepositories({
+      serialByNo: {
+        serialId: 44,
+        serialNo: "MTK1234567896",
+        productId: 7,
+        currentStatus: "IN_TRANSIT",
+        currentWarehouseId: 1
+      },
+      sapDispatchForSerial: {
+        sapDispatchDocId: 12,
+        serialId: 44,
+        externalRef: "SAP-DISP-002",
+        sourceWarehouseId: 1,
+        destinationWarehouseId: 3,
+        ambiguous: true,
+        candidateDispatchDocIds: [12, 9]
+      }
+    });
+    const service = createImportService({ repositories });
+
+    const result = await service.scanReceipt({
+      serialNo: "MTK1234567896",
+      receivingWarehouseId: 3,
+      userId: "operator_1"
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.matchStatus).toBe("AMBIGUOUS_DISPATCH");
+    expect(result.candidateDispatchDocIds).toEqual([12, 9]);
+    // We must not silently pick a doc and create a GRN/exception.
+    expect(repositories.calls.createGrn).toHaveLength(0);
+    expect(repositories.calls.createException).toHaveLength(0);
+  });
+
   test("blocks a received QR when it arrives at a different warehouse than SAP dispatched", async () => {
     const repositories = createRepositories({
       serialByNo: {
@@ -345,6 +380,69 @@ describe("IDM-01 production import service", () => {
       }
     ]);
     expect(repositories.calls.markProcessed).toEqual([{ batchId: 101, recordCount: 1 }]);
+  });
+
+  test("rejects malformed records per-row instead of failing the whole batch", async () => {
+    const repositories = createRepositories({
+      productsByCode: new Map([["SKU-VALID", { productId: 9 }]])
+    });
+    const service = createImportService({ repositories });
+
+    const result = await service.importProductionBatch({
+      externalRef: "SAP-PROD-005",
+      source: "SAP",
+      receivedBy: "integration_user",
+      records: [
+        { serialNo: "MTK1234567901", productCode: "SKU-VALID" },
+        { serialNo: "", productCode: "SKU-VALID" },
+        { serialNo: "MTK1234567902", productCode: "" }
+      ]
+    });
+
+    expect(result.status).toBe("PROCESSED_WITH_REJECTIONS");
+    expect(result.importedCount).toBe(1);
+    expect(result.rejectedCount).toBe(2);
+    expect(result.rejectedRows).toEqual([
+      { index: 1, serialNo: null, reason: "MALFORMED_SERIAL" },
+      { index: 2, serialNo: "MTK1234567902", reason: "INVALID_RECORD" }
+    ]);
+    expect(repositories.calls.insertSerial).toHaveLength(1);
+    expect(repositories.calls.insertSerial[0]).toMatchObject({ serialNo: "MTK1234567901", productId: 9 });
+    expect(repositories.calls.markProcessed).toEqual([{ batchId: 101, recordCount: 1 }]);
+    expect(repositories.calls.storeRejections.rejections).toEqual(result.rejectedRows);
+  });
+
+  test("processes the batch when every record is malformed without throwing", async () => {
+    const repositories = createRepositories();
+    const service = createImportService({ repositories });
+
+    const result = await service.importProductionBatch({
+      externalRef: "SAP-PROD-006",
+      source: "SAP",
+      receivedBy: "integration_user",
+      records: [{ serialNo: "bad", productCode: "SKU" }, "not-an-object"]
+    });
+
+    expect(result.status).toBe("PROCESSED_WITH_REJECTIONS");
+    expect(result.importedCount).toBe(0);
+    expect(result.rejectedCount).toBe(2);
+    expect(result.rejectedRows.map((r) => r.reason)).toEqual(["MALFORMED_SERIAL", "MALFORMED_SERIAL"]);
+    expect(repositories.calls.insertSerial).toHaveLength(0);
+  });
+
+  test("still fails the whole batch on an envelope error", async () => {
+    const repositories = createRepositories();
+    const service = createImportService({ repositories });
+
+    await expect(
+      service.importProductionBatch({
+        externalRef: "SAP-PROD-007",
+        source: "SAP",
+        records: [{ serialNo: "MTK1234567903", productCode: "SKU-VALID" }]
+      })
+    ).rejects.toThrow("Invalid production import payload");
+
+    expect(repositories.calls.createBatch).toHaveLength(0);
   });
 
   test("treats duplicate processed batches as idempotent no-ops", async () => {

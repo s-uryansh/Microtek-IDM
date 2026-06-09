@@ -35,6 +35,7 @@ import { createSerialHistoryService } from "./idm09/serialHistoryService.js";
 import { createLookupRoutes } from "./lookups/lookupRoutes.js";
 import { createLookupService } from "./lookups/lookupService.js";
 import { createRbacPolicy } from "./security/rbacPolicy.js";
+import { requireAuthContext, requirePermission } from "./http/authContext.js";
 import { sendError } from "./http/errorResponse.js";
 import { createMetricsMiddleware, createRequestLogger, healthHandler } from "./http/observability.js";
 
@@ -163,8 +164,9 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
     });
   });
   app.get("/api/health", healthHandler);
-  // Internal endpoint for pilot diagnostics. Restrict by IP or move to an internal port before production.
-  app.get("/api/metrics", (_request, response) => {
+  // Internal endpoint for pilot diagnostics. Requires an authenticated admin
+  // (admin:access); an IP allowlist or internal port can be layered on later.
+  app.get("/api/metrics", requireAuthContext, requirePermission("admin:access"), (_request, response) => {
     response.status(200).json(metricsMiddleware.snapshot());
   });
 

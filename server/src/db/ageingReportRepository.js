@@ -70,38 +70,12 @@ export function createAgeingReportRepository(pool) {
       return { rows: result.rows, total: countResult.rows[0].total };
     },
 
-    async findSerialsByWarehouseForExport({ warehouseId, limit = 1000, offset = 0 }) {
-      const values = [warehouseId];
-      const limitIndex = values.length + 1;
-      const offsetIndex = values.length + 2;
+    async findSummaryByWarehouse({ warehouseIds = [] } = {}) {
+      // An empty warehouseIds array collapses the filter to TRUE (all
+      // warehouses) and is only passed for admins; non-admins are always
+      // scoped to their assigned warehouses by the route layer.
+      const whFilter = warehouseIds.length > 0 ? "s.warehouse_id = ANY($1::bigint[])" : "TRUE";
 
-      const countResult = await pool.query(
-        `SELECT COUNT(*)::int AS total
-         FROM ageing_serial_snapshot s
-         WHERE s.warehouse_id = $1`,
-        [warehouseId]
-      );
-
-      const result = await pool.query(
-        `SELECT
-           s.serial_no AS "serialNo",
-           p.product_code AS "productCode",
-           s.warehouse_id AS "warehouseId",
-           s.received_at AS "receivedAt",
-           s.age_days AS "ageDays",
-           s.missing_received_at AS "missingReceivedAt"
-         FROM ageing_serial_snapshot s
-         JOIN product p ON p.product_id = s.product_id
-         WHERE s.warehouse_id = $1
-         ORDER BY p.product_code, s.serial_no
-         LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
-        [...values, limit, offset]
-      );
-
-      return { rows: result.rows, total: countResult.rows[0].total };
-    },
-
-    async findSummaryByWarehouse() {
       const result = await pool.query(
         `SELECT
            s.warehouse_id AS "warehouseId",
@@ -109,7 +83,9 @@ export function createAgeingReportRepository(pool) {
            s.age_days
          FROM ageing_serial_snapshot s
          JOIN warehouse w ON w.warehouse_id = s.warehouse_id
-         ORDER BY s.warehouse_id`
+         WHERE ${whFilter}
+         ORDER BY s.warehouse_id`,
+        warehouseIds.length > 0 ? [warehouseIds] : []
       );
 
       return result.rows;

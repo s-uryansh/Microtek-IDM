@@ -52,6 +52,10 @@ export function createGrnService({ repositories }) {
       return repositories.grns.getWarehouseId(grnId);
     },
 
+    // Canonical serial-scan path (recommended). Overlaps with
+    // importService.scanReceipt (POST /api/idm-01/import/receipts/scans); see
+    // SCRATCH_receipt_vs_grn_scan.txt for the comparison and why this path is
+    // preferred (central validation, EXCESS vs WRONG_SERIAL, row locking).
     async scanSerial({ grnId, serialNo, userId }) {
       const grn = await repositories.grns.findById(grnId);
 

@@ -89,6 +89,12 @@ Warehouse reference:
 - `RW-02` usually appears as Warehouse ID `4`.
 - If the displayed ID is different, use the ID shown in the lookup result.
 
+Important UI note:
+
+- SAP receipt scanning and Dispatch do not use CSV import/export in the current workflow.
+- Test by typing/scanning one QR serial at a time in the scan input.
+- SAP registry data is loaded by the backend SAP integration endpoint, not manually by warehouse operators.
+
 ## 4. Dashboard
 
 After login, the tester should see:
@@ -147,7 +153,132 @@ The application returns to the login screen.
 Pass Criteria:  
 Protected pages are no longer visible after logout.
 
-## 5. IDM-02 GRN (Goods Receipt Note)
+## 5. IDM-01 SAP Receipt Scan (Import Monitor)
+
+Purpose:  
+Import Monitor is used by warehouse staff to scan incoming product QR serials when stock physically arrives. The scan is validated against the SAP factory dispatch registry already imported into IDM by backend integration.
+
+UI Location:  
+Administration -> Import Monitor -> `Receipt Scan`
+
+Main screen fields:
+
+| Field | What to enter for testing |
+| --- | --- |
+| `Receiving Warehouse ID` | `3` for `RW-01` in a freshly seeded demo environment |
+| `Scan QR Serial` | `DEMO-GRN-0001` or `DEMO-GRN-0002` |
+
+Negative test data:
+
+| Scenario | Receiving Warehouse ID | QR Serial |
+| --- | ---: | --- |
+| Wrong destination warehouse | `3` | `DEMO-WRONG-0001` |
+| Unknown serial | `3` | `INVALID-SERIAL-9999` |
+
+Screenshot checkpoint: capture the `SAP Receipt Scan` panel before scanning and after a successful scan result.
+
+### TC-IMP-001 - Valid SAP Receipt Scan
+
+Purpose:  
+Confirm that an incoming product QR is validated against the original SAP factory dispatch and received into the selected warehouse.
+
+Preconditions:  
+Tester is logged in as `admin`.
+
+Test Steps:
+
+1. Open Administration -> `Import Monitor`.
+2. Select `Receipt Scan` if it is not already selected.
+3. In `Receiving Warehouse ID`, enter `3`.
+4. In `Scan QR Serial`, enter `DEMO-GRN-0001`.
+5. Submit the scan.
+
+Expected Result:  
+The scan succeeds with `MATCHED` or a successful received message. The result shows the stock was received from the source warehouse into Warehouse ID `3`.
+
+Pass Criteria:  
+The serial is recorded as received, a GRN event is written, and the serial is now tied to the receiving warehouse.
+
+### TC-IMP-002 - Second Valid SAP Receipt Scan
+
+Purpose:  
+Confirm that another serial from the same SAP dispatch can be received.
+
+Preconditions:  
+Tester is on Import Monitor -> `Receipt Scan`.
+
+Test Steps:
+
+1. In `Receiving Warehouse ID`, enter `3`.
+2. In `Scan QR Serial`, enter `DEMO-GRN-0002`.
+3. Submit the scan.
+
+Expected Result:  
+The scan succeeds with `MATCHED` or a successful received message.
+
+Pass Criteria:  
+The second serial is recorded as received into Warehouse ID `3`.
+
+### TC-IMP-003 - Wrong Warehouse Rejection
+
+Purpose:  
+Confirm that IDM blocks a serial whose SAP destination warehouse does not match the receiving warehouse entered by the operator.
+
+Preconditions:  
+Tester is on Import Monitor -> `Receipt Scan`.
+
+Test Steps:
+
+1. In `Receiving Warehouse ID`, enter `3`.
+2. In `Scan QR Serial`, enter `DEMO-WRONG-0001`.
+3. Submit the scan.
+
+Expected Result:  
+The scan is rejected with `WRONG_WAREHOUSE` or an equivalent wrong destination message.
+
+Pass Criteria:  
+The serial is not received into Warehouse ID `3`, and an exception is logged.
+
+### TC-IMP-004 - Unknown Serial Rejection
+
+Purpose:  
+Confirm that a QR serial not found in the SAP dispatch registry is blocked.
+
+Preconditions:  
+Tester is on Import Monitor -> `Receipt Scan`.
+
+Test Steps:
+
+1. In `Receiving Warehouse ID`, enter `3`.
+2. In `Scan QR Serial`, enter `INVALID-SERIAL-9999`.
+3. Submit the scan.
+
+Expected Result:  
+The scan is rejected as not found or invalid.
+
+Pass Criteria:  
+The serial is not received and an exception is logged.
+
+### TC-IMP-005 - Required Warehouse Field
+
+Purpose:  
+Confirm that receipt scanning cannot start without selecting the receiving warehouse.
+
+Preconditions:  
+Tester is on Import Monitor -> `Receipt Scan`.
+
+Test Steps:
+
+1. Leave `Receiving Warehouse ID` empty.
+2. Try to enter `DEMO-GRN-0001` in `Scan QR Serial`.
+
+Expected Result:  
+The scan input is disabled or the screen tells the tester to enter the receiving warehouse ID first.
+
+Pass Criteria:  
+No receipt is recorded until `Receiving Warehouse ID` is filled.
+
+## 6. IDM-02 GRN (Goods Receipt Note)
 
 Purpose:  
 GRN is used when stock arrives at a warehouse. The operator searches the dispatch document, starts a receipt session, scans each incoming serial, and completes the session after the expected stock is verified.
@@ -388,10 +519,10 @@ Both scans are **blocked** (the receipt is not recorded). The unauthorized seria
 Pass Criteria:  
 Neither serial is received into stock, and an exception (NOT_FOUND / WRONG_WAREHOUSE or equivalent) is visible in the Exception Portal for the blocked scan.
 
-## 6. IDM-05 Dispatch
+## 7. IDM-05 Dispatch
 
 Purpose:  
-Dispatch is used when stock is shipped to a customer. The operator searches the customer invoice, starts a dispatch session, selects the invoice line, scans physical serials, and completes dispatch only when the required quantity is fulfilled.
+Dispatch is used when stock is shipped to a customer. The operator selects or enters the SAP invoice, confirms the dispatch warehouse, enters the quantity being dispatched in this session, scans physical product QR serials, and completes dispatch only after all selected quantity has been scanned.
 
 UI Location:  
 Operations -> Dispatch
@@ -401,20 +532,29 @@ Main screen sections:
 - `Search Invoice`
 - `Invoice ID`
 - `Warehouse ID`
+- `Dispatch Quantity`
+- Current stock / remaining invoice quantity summary
 - `Start Dispatch Session`
-- `Select Invoice Line`
-- `Dispatch Bulk Serial Fallback`
 - `Dispatch` scan panel
 
-Screenshot checkpoint: capture the selected invoice line and scan panel.
+There is no CSV import/export for Dispatch in the current workflow. Test by scanning or typing one serial at a time.
 
+Field values for the standard demo test:
 
-* Serials: DEMO-DISP-0001, then DEMO-DISP-0002
+| Field | What to enter for testing |
+| --- | --- |
+| `Search Invoice` | `DEMO-INV-001` |
+| `Invoice ID` | Use the numeric ID filled after selecting `DEMO-INV-001` |
+| `Warehouse ID` | Use the ID filled after selecting the invoice; usually `3` for `RW-01` |
+| `Dispatch Quantity` | `2` for a full demo dispatch, or `1` for partial dispatch testing |
+| `Scan Serial` | `DEMO-DISP-0001`, then `DEMO-DISP-0002` |
+
+Screenshot checkpoint: capture the start form showing invoice, warehouse, dispatch quantity, and current stock; then capture the `Dispatch #...` scan panel after starting.
 
 ### TC-DISP-001 - Start Dispatch Session
 
 Purpose:  
-Confirm that a dispatch session can be started from an invoice.
+Confirm that a dispatch session can be started from an invoice and selected quantity.
 
 Preconditions:  
 Tester is logged in as `admin`.
@@ -425,33 +565,35 @@ Test Steps:
 2. In `Search Invoice`, enter `DEMO-INV-001`.
 3. Select the returned invoice.
 4. Verify `Invoice ID` is filled.
-5. Verify `Warehouse ID` is filled.
-6. Click `Start Dispatch`.
+5. Verify `Warehouse ID` is filled. In a fresh demo environment this is usually `3`.
+6. Verify current stock / remaining invoice quantity appears.
+7. In `Dispatch Quantity`, enter `2`.
+8. Click `Start Dispatch`.
 
 Expected Result:  
 The dispatch scanning screen opens and displays `Dispatch #...`.
 
 Pass Criteria:  
-Tester can see `Select Invoice Line`, `Invoice Line ID`, and the dispatch scan panel.
+Tester can see the dispatch scan panel. No invoice line field is required.
 
-### TC-DISP-002 - Select Invoice Line
+### TC-DISP-002 - Scan Panel Opens Without Invoice Line Entry
 
 Purpose:  
-Confirm that a tester can select the invoice line before scanning.
+Confirm that the operator does not need to enter or select an invoice line. IDM maps each scanned serial to the SAP invoice line by product.
 
 Preconditions:  
 Dispatch session for `DEMO-INV-001` is open.
 
 Test Steps:
 
-1. In `Select Invoice Line`, click the line for `SKU-INV-1`.
-2. Verify `Invoice Line ID` is filled.
+1. Confirm there is no `Invoice Line ID` input on the dispatch scan screen.
+2. Confirm the `Scan Serial` input is enabled.
 
 Expected Result:  
-Invoice Line ID is populated.
+The scan panel is ready for physical QR serial scanning.
 
 Pass Criteria:  
-Scan input becomes enabled.
+The tester can scan serials without manually choosing an invoice line.
 
 ### TC-DISP-003 - Valid Dispatch Scan
 
@@ -459,7 +601,7 @@ Purpose:
 Confirm that an in-stock serial can be dispatched.
 
 Preconditions:  
-Dispatch session is open and invoice line is selected.
+Dispatch session is open with `Dispatch Quantity` set to `2`.
 
 Test Steps:
 
@@ -470,7 +612,7 @@ Expected Result:
 The scan succeeds and shows that the serial was dispatched.
 
 Pass Criteria:  
-The serial is accepted for the selected invoice line.
+The serial is accepted and mapped to the correct SAP invoice line internally.
 
 ### TC-DISP-004 - Duplicate Dispatch Scan
 
@@ -497,7 +639,7 @@ Purpose:
 Confirm that an unknown serial is rejected during dispatch.
 
 Preconditions:  
-Dispatch session is open and invoice line is selected.
+Dispatch session is open.
 
 Test Steps:
 
@@ -513,10 +655,10 @@ Unknown serial is not dispatched.
 ### TC-DISP-006 - Product Mismatch Or Wrong Serial
 
 Purpose:  
-Confirm that a serial not suitable for the selected invoice line is rejected.
+Confirm that a serial not suitable for the invoice is rejected.
 
 Preconditions:  
-Dispatch session is open and invoice line is selected.
+Dispatch session is open for `DEMO-INV-001`.
 
 Test Steps:
 
@@ -527,15 +669,15 @@ Expected Result:
 Application displays a mismatch or rejected message.
 
 Pass Criteria:  
-Battery serial is not accepted for the inverter invoice line.
+Battery serial is not accepted for the inverter invoice.
 
 ### TC-DISP-007 - Complete Dispatch
 
 Purpose:  
-Confirm that dispatch can be completed after required serials are scanned.
+Confirm that dispatch can be completed after the selected dispatch quantity is scanned.
 
 Preconditions:  
-Dispatch session is open and invoice line is selected.
+Dispatch session is open with `Dispatch Quantity` set to `2`.
 
 Test Steps:
 
@@ -547,7 +689,7 @@ Expected Result:
 Dispatch status changes to `DISPATCHED`.
 
 Pass Criteria:  
-The dispatch is completed only after required quantity is satisfied.
+The dispatch is completed only after the selected quantity is satisfied.
 
 ### TC-DISP-008 - Completion Edge Case
 
@@ -559,9 +701,11 @@ Start a fresh dispatch session for an invoice that requires more than one serial
 
 Test Steps:
 
-1. Select the invoice line.
-2. Scan only `DEMO-DISP-0001`.
-3. Click the dispatch completion button.
+1. Search and select `DEMO-INV-001`.
+2. Enter `Dispatch Quantity` as `2`.
+3. Click `Start Dispatch`.
+4. Scan only `DEMO-DISP-0001`.
+5. Click the dispatch completion button.
 
 Expected Result:  
 Application blocks completion or shows the dispatch as incomplete.
@@ -581,13 +725,14 @@ Test Steps:
 
 1. Leave `Invoice ID` empty.
 2. Leave `Warehouse ID` empty.
-3. Observe `Start Dispatch`.
+3. Leave `Dispatch Quantity` empty.
+4. Observe `Start Dispatch`.
 
 Expected Result:  
 `Start Dispatch` remains disabled.
 
 Pass Criteria:  
-Dispatch session cannot start with empty required inputs.
+Dispatch session cannot start with empty invoice, warehouse, or dispatch quantity fields.
 
 ### TC-DISP-010 - Unauthorized Access Negative Test
 
@@ -610,51 +755,53 @@ Dispatch page is not visible to logged-out users.
 ### TC-DISP-011 - Manual Entry Enforcement (Gatekeeper)
 
 Purpose:  
-Confirm that the dispatch scan panel remains locked until the operator manually confirms the Invoice ID, and that the Invoice ID is never taken from a scanned product QR code. See Scope Section 3.5.1.
+Confirm that the dispatch scan panel remains locked until the operator manually confirms the Invoice ID, Warehouse ID, and dispatch quantity, and that the Invoice ID is never taken from a scanned product QR code.
 
 Preconditions:  
 Tester is logged in as `admin` and is on Operations -> `Dispatch`.
 
 Test Steps:
 
-1. On the `Start Dispatch Session` screen, leave `Invoice ID` and `Warehouse ID` empty and confirm `Start Dispatch` is disabled.
-2. Manually enter (or select via `Search Invoice`) the Invoice ID for `DEMO-INV-001` and the warehouse, then click `Start Dispatch`.
-3. On the scan screen, before selecting an invoice line, attempt to use the dispatch scan input.
-4. Observe whether the scan panel is enabled.
-5. Select the invoice line for `SKU-INV-1` so `Invoice Line ID` is filled.
-6. Observe the scan panel again.
+1. On the `Start Dispatch Session` screen, leave `Invoice ID`, `Warehouse ID`, and `Dispatch Quantity` empty and confirm `Start Dispatch` is disabled.
+2. Search and select `DEMO-INV-001`.
+3. Confirm `Invoice ID` and `Warehouse ID` are filled.
+4. In `Dispatch Quantity`, enter `1` or `2`.
+5. Click `Start Dispatch`.
+6. Confirm the scan panel opens only after these fields are complete.
 
 Expected Result:  
-The dispatch session cannot start without a manually supplied Invoice ID. The scan panel stays **locked** (disabled, showing a message to select/enter an invoice line) until the invoice line is confirmed. At no point is the Invoice ID populated from a scanned product serial/QR.
+The dispatch session cannot start without manually supplied invoice and warehouse context plus dispatch quantity. At no point is the Invoice ID populated from a scanned product serial/QR.
 
 Pass Criteria:  
-Scan input is disabled until the operator manually binds the Invoice ID and selects an invoice line; the panel then unlocks.
+Scan input is available only after the operator manually starts a dispatch session with the required fields.
 
 ### TC-DISP-012 - Partial Batch Dispatch (Multi-Stage)
 
 Purpose:  
-Confirm a large order can be dispatched in multiple sub-batches across separate sessions, remains `Partially Dispatched` until the full quantity is scanned, and tracks intermediate progress correctly. See Scope Section 3.5.2.
+Confirm an invoice can be dispatched in multiple sub-batches across separate sessions and tracks cumulative scanned quantity correctly.
 
 Preconditions:  
-A dispatch invoice whose line quantity is greater than one is available (for the demo set, `DEMO-INV-001` requiring `DEMO-DISP-0001` and `DEMO-DISP-0002`). For a representative large-order test, use an invoice line provided for the cycle with a higher quantity and scan it in smaller sub-batches.
+A dispatch invoice whose quantity is greater than one is available. For the demo set, use `DEMO-INV-001` with `DEMO-DISP-0001` and `DEMO-DISP-0002`.
 
 Test Steps:
 
-1. Start a dispatch session for the invoice and select the invoice line.
-2. Scan the first sub-batch only — for the demo set, scan `DEMO-DISP-0001` (one of two required).
-3. Click the dispatch completion button and observe the status.
-4. Note the scanned vs. required quantity shown for the line.
-5. In a later session/visit, reopen the same dispatch and scan the remaining sub-batch — `DEMO-DISP-0002`.
-6. Open Monitoring -> `Fulfilment`, search the invoice, and review Required vs. Scanned counts.
-7. Complete the dispatch once the full quantity is scanned.
+1. Start a dispatch session for `DEMO-INV-001`.
+2. In `Dispatch Quantity`, enter `1`.
+3. Scan `DEMO-DISP-0001`.
+4. Complete the first dispatch session.
+5. Start or resume dispatch for the same invoice later.
+6. In `Dispatch Quantity`, enter `1`.
+7. Scan `DEMO-DISP-0002`.
+8. Open Monitoring -> `Fulfilment`, search the invoice, and review Required vs. Scanned counts.
+9. Complete dispatch once the full invoice quantity is scanned.
 
 Expected Result:  
-After the first sub-batch the order is shown as `Partially Dispatched` (not `Dispatched`), and completion is blocked while short. The remaining sub-batch can be scanned later against the same dispatch. Fulfilment reflects the cumulative scanned quantity at each stage. Only after the total quantity is scanned does the status advance to `Dispatched`.
+After the first sub-batch, the invoice remains incomplete or in progress for the remaining quantity. The remaining sub-batch can be scanned later against the same invoice. Fulfilment reflects the cumulative scanned quantity. Only after the total invoice quantity is scanned does the invoice advance to `Dispatched`.
 
 Pass Criteria:  
-The order persists as `Partially Dispatched` across sessions until the full quantity is reached; intermediate scanned quantities are tracked accurately; the order is marked `Dispatched` only when complete.
+Intermediate scanned quantities are tracked accurately, and the invoice is marked `Dispatched` only when complete.
 
-## 7. IDM-04 SRN (Sales Return Note)
+## 8. IDM-04 SRN (Sales Return Note)
 
 Purpose:  
 SRN is used when a customer returns products. The operator searches the original invoice or dispatch, starts a return session, selects the condition of the returned product, and scans the returned serial.
@@ -857,7 +1004,7 @@ Login screen is displayed.
 Pass Criteria:  
 SRN page is not visible to logged-out users.
 
-## 8. IDM-03 Battery Pre-Bill
+## 9. IDM-03 Battery Pre-Bill
 
 Purpose:  
 Battery Pre-Bill reserves battery serials before invoice processing. It ensures batteries are scanned and committed to an invoice line before billing can proceed.
@@ -1031,7 +1178,7 @@ Login screen is displayed.
 Pass Criteria:  
 Battery Pre-Bill page is not visible to logged-out users.
 
-## 9. IDM-07 Fulfilment
+## 10. IDM-07 Fulfilment
 
 Purpose:  
 Fulfilment is used to check whether an invoice is pending, partially fulfilled, or completed. Warehouse supervisors use it to verify how many serials are required, scanned, and committed.
@@ -1145,7 +1292,7 @@ Login screen is displayed.
 Pass Criteria:  
 Fulfilment page is not visible to logged-out users.
 
-## 10. IDM-08 Ageing Report
+## 11. IDM-08 Ageing Report
 
 Purpose:  
 Ageing Report shows how long in-stock serials have remained in a warehouse. This helps warehouse teams identify slow-moving stock and missing receipt-date data.
@@ -1260,7 +1407,7 @@ Login screen is displayed.
 Pass Criteria:  
 Ageing Report page is not visible to logged-out users.
 
-## 11. IDM-09 Serial History
+## 12. IDM-09 Serial History
 
 Purpose:  
 Serial History is used to track the complete lifecycle of a serial. It helps a warehouse supervisor answer where the serial came from, where it moved, whether it was dispatched, returned, or involved in an exception.
@@ -1385,7 +1532,7 @@ Login screen is displayed.
 Pass Criteria:  
 Serial History page is not visible to logged-out users.
 
-## 12. IDM-10 Exceptions
+## 13. IDM-10 Exceptions
 
 Purpose:  
 Exceptions are used to review and correct validation problems such as wrong serial, product mismatch, duplicate scan, invalid status, or other warehouse workflow issues. Supervisors use this screen to decide whether an exception should be corrected.
@@ -1581,232 +1728,6 @@ Login screen is displayed.
 Pass Criteria:  
 Exceptions page is not visible to logged-out users.
 
-## 13. CSV Import And Export Testing
-
-CSV testing is used when scanners are unavailable or a tester needs to process multiple rows from a file. Use small files first, then larger files after basic validation passes.
-
-General CSV rules for testers:
-
-- Download the template from the page before preparing the file.
-- Keep the same column names as the template.
-- Do not rename headers.
-- Use one serial or ID per row.
-- Confirm success and rejected rows separately.
-- Export results after import and review the output file.
-
-Screenshot checkpoint: capture each module's CSV panel before import and the exported result file name after export.
-
-### TC-CSV-GRN-001 - GRN CSV Import
-
-Purpose:  
-Confirm GRN serials can be imported by CSV.
-
-Preconditions:  
-GRN session is open for `DEMO-DISP-CW-01`.
-
-Test Steps:
-
-1. In `GRN Bulk Serial Fallback`, download `grn-serial-import-template.csv`.
-2. Fill the file with column `serial_no`.
-3. Add rows: `DEMO-GRN-0001`, `DEMO-GRN-0002`, `INVALID-SERIAL-9999`.
-4. Click `Import Serials`.
-5. Select the prepared CSV file.
-6. Review scan results.
-7. Click `Export GRN Results`.
-
-Expected Result:  
-Valid rows are accepted and invalid rows are rejected.
-
-Pass Criteria:  
-Exported GRN results show each serial with a status and message.
-
-### TC-CSV-DISP-001 - Dispatch CSV Import
-
-Purpose:  
-Confirm dispatch serials can be imported by CSV.
-
-Preconditions:  
-Dispatch session is open, and `Invoice Line ID` is selected.
-
-Test Steps:
-
-1. In `Dispatch Bulk Serial Fallback`, download `dispatch-serial-import-template.csv`.
-2. Fill column `serial_no`.
-3. Add rows: `DEMO-DISP-0001`, `DEMO-DISP-0002`, `INVALID-SERIAL-9999`.
-4. Click `Import Serials`.
-5. Select the prepared CSV file.
-6. Review results.
-7. Click `Export Dispatched Serials`.
-
-Expected Result:  
-Valid dispatch serials are accepted, invalid serials are rejected.
-
-Pass Criteria:  
-Exported file includes serial, invoice line ID, status, and message.
-
-### TC-CSV-SRN-001 - SRN CSV Import
-
-Purpose:  
-Confirm returned serials can be imported by CSV.
-
-Preconditions:  
-SRN session is open.
-
-Test Steps:
-
-1. In `SRN Bulk Return Fallback`, download `srn-return-import-template.csv`.
-2. Fill columns `serial_no` and `condition_tag`.
-3. Add row: `DEMO-SRN-0001,SALEABLE`.
-4. Add row: `INVALID-SERIAL-9999,DEFECTIVE`.
-5. Click `Import Returns`.
-6. Select the prepared CSV file.
-7. Review accepted and rejected rows.
-8. Click `Export Processed Returns`.
-
-Expected Result:  
-Valid returned serial is accepted and invalid serial is rejected.
-
-Pass Criteria:  
-Exported processed returns file contains serial, condition tag, status, and message.
-
-### TC-CSV-BAT-001 - Battery CSV Import
-
-Purpose:  
-Confirm battery serials can be committed by CSV.
-
-Preconditions:  
-Battery invoice line is selected.
-
-Test Steps:
-
-1. In `Battery Bulk Commit Fallback`, download `battery-serial-import-template.csv`.
-2. Fill column `serial_no`.
-3. Add rows: `DEMO-BAT-0001`, `DEMO-BAT-0002`, `DEMO-DISP-0001`.
-4. Click `Import Serials`.
-5. Select the prepared CSV file.
-6. Review results.
-7. Click `Export Committed Serials`.
-
-Expected Result:  
-Battery serials are committed and non-battery serial is rejected.
-
-Pass Criteria:  
-Exported committed serials file includes serial, invoice line ID, status, and message.
-
-### TC-CSV-FUL-001 - Fulfilment CSV Import
-
-Purpose:  
-Confirm fulfilment status can be checked for multiple invoices.
-
-Preconditions:  
-Tester knows at least one valid numeric invoice ID.
-
-Test Steps:
-
-1. Open Monitoring -> `Fulfilment`.
-2. In `Fulfilment CSV`, download `fulfilment-import-template.csv`.
-3. Fill column `invoice_id`.
-4. Add one valid invoice ID and `999999`.
-5. Click `Import Invoice IDs`.
-6. Select the prepared CSV file.
-7. Click `Export Fulfilment Results`.
-
-Expected Result:  
-Valid invoice returns fulfilment status; invalid invoice is rejected or omitted from successful results.
-
-Pass Criteria:  
-Exported fulfilment result includes invoice ID, status, required quantity, scanned quantity, and committed quantity for successful rows.
-
-### TC-CSV-HIST-001 - Serial History CSV Import
-
-Purpose:  
-Confirm serial history can be checked for multiple serials.
-
-Preconditions:  
-Tester is on Serial History page.
-
-Test Steps:
-
-1. In `Serial History CSV`, download `serial-history-import-template.csv`.
-2. Fill column `serial_no`.
-3. Add rows: `DEMO-HERO-0001`, `INVALID-SERIAL-9999`.
-4. Click `Import Serials`.
-5. Select the prepared CSV file.
-6. Review scanner results.
-7. Click `Export Timeline Results`.
-
-Expected Result:  
-Valid serial timeline is loaded; invalid serial is rejected or not found.
-
-Pass Criteria:  
-Export contains timeline rows for valid serials only.
-
-### TC-CSV-EXC-001 - Exception Review CSV Import
-
-Purpose:  
-Confirm exception details can be reviewed in bulk.
-
-Preconditions:  
-Tester is on Exceptions page and knows a valid exception ID from the table.
-
-Test Steps:
-
-1. In `Exception Review CSV`, download `exception-review-import-template.csv`.
-2. Fill column `exception_id`.
-3. Add one valid exception ID and `999999`.
-4. Click `Import Exception IDs`.
-5. Select the prepared CSV file.
-6. Review loaded details.
-7. Click `Export Reviewed Exceptions`.
-
-Expected Result:  
-Valid exception details are loaded; invalid IDs do not load unrelated details.
-
-Pass Criteria:  
-Exported reviewed exceptions contain only successfully loaded exception details.
-
-### TC-CSV-AGE-001 - Ageing CSV Export
-
-Purpose:  
-Confirm ageing report can be exported.
-
-Preconditions:  
-Ageing report is loaded for Warehouse ID `3`.
-
-Test Steps:
-
-1. Open Monitoring -> `Ageing Report`.
-2. Enter Warehouse ID `3`.
-3. Wait for report to load.
-4. In `Ageing Report Export`, click `Export Ageing Report`.
-5. In `Variance Report Export`, click `Export Variance Report`.
-
-Expected Result:  
-CSV files download successfully.
-
-Pass Criteria:  
-Export files contain visible column headers and report rows where data is available.
-
-### TC-CSV-EXC-EXPORT-001 - Exception CSV Export
-
-Purpose:  
-Confirm exception list and selected exception can be exported.
-
-Preconditions:  
-Exceptions page is open.
-
-Test Steps:
-
-1. Click `Export Exception List`.
-2. Select an exception row.
-3. In detail panel, click `Export Selected Exception`.
-
-Expected Result:  
-Exception CSV files download successfully.
-
-Pass Criteria:  
-Downloaded files contain exception ID, serial, rule, status, and correction fields where available.
-
 ## 14. Cross-Module Negative Test Checklist
 
 Run these checks for each module where the field or action exists:
@@ -1892,14 +1813,14 @@ Before marking manual testing complete:
 
 - Dashboard opens after login.
 - GRN supports valid, duplicate, wrong, excess, invalid, and complete-session scenarios.
-- Dispatch supports invoice search, line selection, valid scan, invalid scan, duplicate scan, and completion checks.
+- Dispatch supports invoice search, warehouse confirmation, dispatch quantity selection, valid scan, invalid scan, duplicate scan, and completion checks.
 - SRN supports SALEABLE, DEFECTIVE, and REPAIR condition workflows.
 - Battery Pre-Bill commits only valid battery serials and shows commit status.
 - Fulfilment shows required, scanned, and committed quantities.
 - Ageing Report loads bucket details by warehouse.
 - Serial History displays timeline for `DEMO-HERO-0001`.
 - Exceptions can be viewed, filtered, loaded, and corrected with a reason.
-- CSV templates download and imports/exports work for supported modules.
+- SAP receipt scanning and Dispatch are tested through physical QR/serial scan entry only; no CSV import/export is part of those workflows.
 - Logged-out users cannot access protected pages directly.
 
 ### Mandatory Gatekeeper Verification Points

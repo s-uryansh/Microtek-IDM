@@ -11,8 +11,13 @@ const exceptionFields = `
   e.corrected_by AS "correctedBy",
   e.correction_reason AS "correctionReason",
   e.correction_txn_ref AS "correctionTxnRef",
-  COALESCE(g.receiving_warehouse_id, d.warehouse_id, s.receiving_warehouse_id) AS "warehouseId"
+  COALESCE(e.warehouse_id, g.receiving_warehouse_id, d.warehouse_id, s.receiving_warehouse_id) AS "warehouseId"
 `;
+
+// Resolved warehouse for scoping: prefer the warehouse_id persisted at
+// creation time (the only reliable source for BATTERY/IMPORT/FOUNDATION
+// contexts), falling back to the context-table joins for older rows.
+const resolvedWarehouse = `COALESCE(e.warehouse_id, g.receiving_warehouse_id, d.warehouse_id, s.receiving_warehouse_id)`;
 
 const warehouseJoin = `
   LEFT JOIN grn g ON g.grn_id = e.context_id AND e.context_type = 'GRN'
@@ -22,7 +27,7 @@ const warehouseJoin = `
 
 export function createExceptionRepository(pool) {
   return {
-    async createException({ serialNo, ruleCode, contextType, contextId, batchId, raisedBy, createdBy }) {
+    async createException({ serialNo, ruleCode, contextType, contextId, batchId, warehouseId, raisedBy, createdBy }) {
       const result = await pool.query(
         `INSERT INTO exception_log (
            serial_no,
@@ -30,15 +35,16 @@ export function createExceptionRepository(pool) {
            context_type,
            context_id,
            batch_id,
+           warehouse_id,
            raised_by,
            created_by
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING
            exception_id AS "exceptionId",
            rule_code AS "ruleCode",
            status`,
-        [serialNo ?? null, ruleCode, contextType, contextId ?? null, batchId ?? null, raisedBy, createdBy]
+        [serialNo ?? null, ruleCode, contextType, contextId ?? null, batchId ?? null, warehouseId ?? null, raisedBy, createdBy]
       );
 
       return result.rows[0];
@@ -72,9 +78,7 @@ export function createExceptionRepository(pool) {
       }
 
       if (warehouseIds && warehouseIds.length > 0) {
-        conditions.push(
-          `COALESCE(g.receiving_warehouse_id, d.warehouse_id, s.receiving_warehouse_id) = ANY($${paramIndex++}::bigint[])`
-        );
+        conditions.push(`${resolvedWarehouse} = ANY($${paramIndex++}::bigint[])`);
         values.push(warehouseIds);
       }
 

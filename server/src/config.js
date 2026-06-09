@@ -19,6 +19,13 @@ export function loadConfig(env = process.env) {
     throw new Error("Invalid environment configuration");
   }
 
+  if (result.data.NODE_ENV === "production" && !result.data.IMPORT_WEBHOOK_SECRET) {
+    // Without a secret the import webhook signature check silently passes
+    // (see webhookVerifier), so it must be present in production.
+    console.error("IMPORT_WEBHOOK_SECRET must be set in production");
+    throw new Error("Invalid environment configuration");
+  }
+
   return {
     nodeEnv: result.data.NODE_ENV,
     port: result.data.PORT,

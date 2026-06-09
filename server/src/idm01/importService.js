@@ -1,33 +1,40 @@
 import {
-  productionBatchSchema,
+  productionBatchEnvelopeSchema,
   productionRecordSchema,
   qrOnlyRecordSchema
 } from "../models/importSchemas.js";
 
 function mapValidationError(error) {
   const issue = error.issues[0];
-  return issue?.code === "invalid_string" ? "MALFORMED_SERIAL" : "INVALID_RECORD";
+  // zod v4 emits "invalid_format" for regex failures; older builds used
+  // "invalid_string". Either way a bad serial format is a MALFORMED_SERIAL,
+  // any other structural problem is a generic INVALID_RECORD.
+  return issue?.code === "invalid_string" || issue?.code === "invalid_format"
+    ? "MALFORMED_SERIAL"
+    : "INVALID_RECORD";
 }
 
-// a set is used to track seen serial number and avoid duplicates
-function dedupeRecords(records) {
+// a set is used to track seen serial number and avoid duplicates.
+// Operates on already-validated { index, record } candidates so the original
+// row index is preserved for the rejection report.
+function dedupeRecords(candidates) {
   const seen = new Set();
   const accepted = [];
   const duplicateRejections = [];
 
-  records.forEach((record, index) => {
+  for (const { index, record } of candidates) {
     if (seen.has(record.serialNo)) {
       duplicateRejections.push({
         index,
         serialNo: record.serialNo,
         reason: "DUPLICATE_SERIAL"
       });
-      return;
+      continue;
     }
 
     seen.add(record.serialNo);
     accepted.push({ index, record });
-  });
+  }
 
   return { accepted, duplicateRejections };
 }
@@ -62,7 +69,11 @@ function parseQrCode(qrCode) {
   }
 }
 
-function normalizeRecord(input) {
+function normalizeRecord(rawInput) {
+  // Records can arrive as arbitrary JSON; coerce anything non-object to an
+  // empty object so per-row validation can reject it cleanly instead of
+  // throwing and taking the whole batch down.
+  const input = rawInput && typeof rawInput === "object" && !Array.isArray(rawInput) ? rawInput : {};
   const qrData = qrOnlyRecordSchema.safeParse(input).success ? parseQrCode(input.qrCode) : {};
   const merged = { ...qrData, ...input };
   const sourceWarehouseId = toPositiveInteger(
@@ -105,6 +116,24 @@ async function createReceiptException(repositories, { serialNo, ruleCode, grnId,
   };
 }
 
+// Per-row validation shared by importProductionBatch (which needs the parsed
+// record to carry forward) and the public validateProductionRecord method.
+function validateProductionRecord(rawRecord) {
+  const normalized = normalizeRecord(rawRecord);
+  const parsed = productionRecordSchema.safeParse(normalized);
+
+  if (parsed.success) {
+    return { valid: true, reason: null, serialNo: parsed.data.serialNo, record: parsed.data };
+  }
+
+  return {
+    valid: false,
+    reason: mapValidationError(parsed.error),
+    serialNo: normalized.serialNo || null,
+    record: null
+  };
+}
+
 function invalidReceipt(ruleCode, message, exception = null) {
   return {
     valid: false,
@@ -127,15 +156,35 @@ export function createImportService({ repositories }) {
   }
   return {
     async importProductionBatch(input) {
-      const normalizedInput = {
-        ...input,
-        records: Array.isArray(input?.records) ? input.records.map(normalizeRecord) : input?.records
-      };
-      const parsed = productionBatchSchema.safeParse(normalizedInput);
+      // Only batch-envelope problems (missing externalRef/source/receivedBy, or
+      // a non-array/empty records list) fail the whole batch. Individual
+      // malformed records are rejected per-row below.
+      const parsed = productionBatchEnvelopeSchema.safeParse(input);
 
       if (!parsed.success) {
         throw new Error("Invalid production import payload");
       }
+
+      // Validate each record on its own. Malformed rows become rejections that
+      // travel alongside UNKNOWN_PRODUCT/DUPLICATE_SERIAL rejections; valid rows
+      // are carried forward (with their original index) for processing.
+      const validCandidates = [];
+      const malformedRejections = [];
+
+      parsed.data.records.forEach((rawRecord, index) => {
+        const validation = validateProductionRecord(rawRecord);
+
+        if (!validation.valid) {
+          malformedRejections.push({
+            index,
+            serialNo: validation.serialNo,
+            reason: validation.reason
+          });
+          return;
+        }
+
+        validCandidates.push({ index, record: validation.record });
+      });
 
       const sourceLabel = parsed.data.sourceLabel || "unknown";
 
@@ -179,10 +228,10 @@ export function createImportService({ repositories }) {
 
       try {
         const result = await repositories.withTransaction(async (txRepositories) => {
-          const { accepted, duplicateRejections } = dedupeRecords(parsed.data.records);
-          const txRejections = [...duplicateRejections];
+          const { accepted, duplicateRejections } = dedupeRecords(validCandidates);
+          const txRejections = [...malformedRejections, ...duplicateRejections];
           let txImportedCount = 0;
-          const txRejectedRows = [];
+          const txRejectedRows = [...malformedRejections];
           const dispatchLineCounters = new Map();
 
           for (const { index, record } of accepted) {
@@ -287,6 +336,12 @@ export function createImportService({ repositories }) {
       }
     },
 
+    // NOTE: This is the lighter "inbound-from-factory" receipt path. It overlaps
+    // with grnService.scanSerial (POST /api/idm-02/grns/:grnId/scans) but skips
+    // serial validation, collapses "not expected here" into WRONG_SERIAL, and
+    // does not lock the GRN. See SCRATCH_receipt_vs_grn_scan.txt for the full
+    // comparison and the recommendation to make grnService.scanSerial canonical.
+    // Behavioural alignment is proposed there but NOT applied (pending sign-off).
     async scanReceipt({ serialNo, receivingWarehouseId, userId }) {
       const serial = await repositories.serials.findBySerialNo(serialNo);
 
@@ -312,6 +367,22 @@ export function createImportService({ repositories }) {
           userId
         });
         return invalidReceipt("WRONG_SERIAL", "Serial is not linked to an original SAP factory dispatch.", exception);
+      }
+
+      // The serial resolves to more than one SAP dispatch doc. We deliberately
+      // do NOT pick one (no resolution policy is defined — sign-off item B);
+      // surface a distinct condition so the ambiguity is visible instead of
+      // silently validating against the newest doc.
+      if (dispatch.ambiguous) {
+        return {
+          ...invalidReceipt(
+            "AMBIGUOUS_DISPATCH",
+            "Serial maps to multiple SAP dispatch documents; ownership must be resolved before receipt.",
+            null
+          ),
+          serialNo,
+          candidateDispatchDocIds: dispatch.candidateDispatchDocIds
+        };
       }
 
       const runReceiptWrite = repositories.withTransaction
@@ -402,13 +473,8 @@ export function createImportService({ repositories }) {
     },
 
     validateProductionRecord(record) {
-      const parsed = productionRecordSchema.safeParse(normalizeRecord(record));
-
-      if (parsed.success) {
-        return { valid: true, reason: null };
-      }
-
-      return { valid: false, reason: mapValidationError(parsed.error) };
+      const { valid, reason } = validateProductionRecord(record);
+      return { valid, reason };
     },
 
     async listBatches({ limit = 20, offset = 0, sourceLabel }) {

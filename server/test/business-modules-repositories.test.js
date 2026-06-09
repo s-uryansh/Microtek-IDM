@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 import { createInvoiceRepository } from "../src/db/invoiceRepository.js";
 import { createSerialRepository } from "../src/db/serialRepository.js";
 import { createDispatchRepository } from "../src/db/dispatchRepository.js";
+import { createSapDispatchRepository } from "../src/db/sapDispatchRepository.js";
 
 function readRepository(fileName) {
   return readFileSync(resolve(`src/db/${fileName}`), "utf8");
@@ -135,5 +136,42 @@ describe("business module repository SQL contracts", () => {
       lines: [{ invoiceLineId: 1, productId: 1, quantity: 2 }],
       scans: [{ dispatchScanId: 8, invoiceLineId: 1, serialId: 6 }]
     });
+  });
+
+  test("SAP dispatch lookup flags a serial that maps to multiple dispatch docs", async () => {
+    const repository = createSapDispatchRepository({
+      async query() {
+        return {
+          rows: [
+            { sapDispatchDocId: "12", serialId: "44", destinationWarehouseId: "3" },
+            { sapDispatchDocId: "9", serialId: "44", destinationWarehouseId: "5" }
+          ]
+        };
+      }
+    });
+
+    const dispatch = await repository.findBySerialId(44);
+
+    // Returns the newest doc (ordered created_at DESC) but flags the ambiguity
+    // rather than silently hiding the second owner.
+    expect(dispatch.sapDispatchDocId).toBe(12);
+    expect(dispatch.ambiguous).toBe(true);
+    expect(dispatch.candidateDispatchDocIds).toEqual([12, 9]);
+  });
+
+  test("SAP dispatch lookup is unambiguous for a single owner and null when unknown", async () => {
+    const single = createSapDispatchRepository({
+      async query() {
+        return { rows: [{ sapDispatchDocId: "12", serialId: "44", destinationWarehouseId: "3" }] };
+      }
+    });
+    const missing = createSapDispatchRepository({
+      async query() {
+        return { rows: [] };
+      }
+    });
+
+    expect(await single.findBySerialId(44)).toMatchObject({ sapDispatchDocId: 12, ambiguous: false });
+    expect(await missing.findBySerialId(99)).toBeNull();
   });
 });

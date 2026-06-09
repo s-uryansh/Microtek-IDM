@@ -72,4 +72,39 @@ describe("Express foundation", () => {
 
     expect(response.headers["access-control-allow-origin"]).not.toBe("https://evil.example");
   });
+
+  async function injectWithHeaders(app, { method, url, headers = {} }) {
+    const httpRequest = createRequest({ method, url, headers });
+    const response = createResponse();
+    app.handle(httpRequest, response);
+    await new Promise((resolve) => setImmediate(resolve));
+    return {
+      status: response.statusCode,
+      body: response._getData() ? response._getJSONData() : null
+    };
+  }
+
+  test("rejects unauthenticated access to /api/metrics", async () => {
+    const response = await injectWithHeaders(createApp({ config }), { method: "GET", url: "/api/metrics" });
+    expect(response.status).toBe(401);
+  });
+
+  test("rejects non-admin access to /api/metrics", async () => {
+    const response = await injectWithHeaders(createApp({ config }), {
+      method: "GET",
+      url: "/api/metrics",
+      headers: { "x-user-id": "supervisor_1", "x-user-role": "supervisor", "x-warehouse-ids": "4" }
+    });
+    expect(response.status).toBe(403);
+  });
+
+  test("allows an admin to read /api/metrics", async () => {
+    const response = await injectWithHeaders(createApp({ config }), {
+      method: "GET",
+      url: "/api/metrics",
+      headers: { "x-user-id": "admin_1", "x-user-role": "admin" }
+    });
+    expect(response.status).toBe(200);
+    expect(typeof response.body).toBe("object");
+  });
 });
