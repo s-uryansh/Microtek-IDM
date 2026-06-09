@@ -35,6 +35,37 @@ export function createDispatchRoutes({ dispatchService }) {
     }
   }
 
+  router.get(
+    "/availability",
+    requireAuthContext,
+    requirePermission("dispatch:write"),
+    async (request, response, next) => {
+      try {
+        const invoiceId = Number.parseInt(request.query.invoiceId, 10);
+        const warehouseId = Number.parseInt(request.query.warehouseId, 10);
+
+        if (!Number.isInteger(invoiceId) || invoiceId <= 0 || !Number.isInteger(warehouseId) || warehouseId <= 0) {
+          sendError(response, 400, "BAD_REQUEST", "Invoice ID and warehouse ID are required");
+          return;
+        }
+
+        if (!hasWarehouseScope(request, warehouseId)) {
+          sendError(response, 403, "FORBIDDEN", "Insufficient permission");
+          return;
+        }
+
+        const result = await dispatchService.getAvailability({ invoiceId, warehouseId });
+        response.status(200).json(result);
+      } catch (error) {
+        if (error.status === 404) {
+          sendError(response, 404, "NOT_FOUND", "Invoice not found");
+          return;
+        }
+        next(error);
+      }
+    }
+  );
+
   router.post(
     "/",
     requireAuthContext,
@@ -44,6 +75,7 @@ export function createDispatchRoutes({ dispatchService }) {
         const result = await dispatchService.startDispatch({
           invoiceId: request.body.invoiceId,
           warehouseId: request.body.warehouseId,
+          dispatchQuantity: request.body.dispatchQuantity,
           userId: request.auth.userId
         });
         response.status(201).json(result);
@@ -70,7 +102,6 @@ export function createDispatchRoutes({ dispatchService }) {
       try {
         const result = await dispatchService.scanSerial({
           dispatchId: parseDispatchId(request),
-          invoiceLineId: request.body.invoiceLineId,
           serialNo: request.body.serialNo,
           userId: request.auth.userId
         });

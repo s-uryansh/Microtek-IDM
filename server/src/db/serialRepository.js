@@ -5,12 +5,15 @@ export function createSerialRepository(pool) {
 
   function mapSerial(row) {
     if (!row) return null;
-    return {
+    const mapped = {
       ...row,
       serialId: toNumber(row.serialId),
       productId: toNumber(row.productId),
       currentWarehouseId: toNumber(row.currentWarehouseId)
     };
+    if (row.sourceWarehouseId !== undefined) mapped.sourceWarehouseId = toNumber(row.sourceWarehouseId);
+    if (row.destinationWarehouseId !== undefined) mapped.destinationWarehouseId = toNumber(row.destinationWarehouseId);
+    return mapped;
   }
 
   return {
@@ -30,6 +33,10 @@ export function createSerialRepository(pool) {
       productId,
       batchNo,
       currentWarehouseId,
+      sourceWarehouseId,
+      destinationWarehouseId,
+      qrPayload,
+      currentStatus,
       sourceInvoiceRef,
       batchId,
       createdBy
@@ -41,17 +48,34 @@ export function createSerialRepository(pool) {
            batch_no,
            current_status,
            current_warehouse_id,
+           original_dispatch_warehouse_id,
+           destination_warehouse_id,
+           qr_payload,
            source_invoice_ref,
            batch_id,
            created_by
          )
-         VALUES ($1, $2, $3, 'PRODUCED', $4, $5, $6, $7)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (serial_no) DO NOTHING
          RETURNING
            serial_id AS "serialId",
            serial_no AS "serialNo",
-           current_warehouse_id AS "currentWarehouseId"`,
-        [serialNo, productId, batchNo ?? null, currentWarehouseId ?? null, sourceInvoiceRef ?? null, batchId, createdBy]
+           current_warehouse_id AS "currentWarehouseId",
+           original_dispatch_warehouse_id AS "sourceWarehouseId",
+           destination_warehouse_id AS "destinationWarehouseId"`,
+        [
+          serialNo,
+          productId,
+          batchNo ?? null,
+          currentStatus ?? "PRODUCED",
+          currentWarehouseId ?? null,
+          sourceWarehouseId ?? null,
+          destinationWarehouseId ?? null,
+          qrPayload ?? null,
+          sourceInvoiceRef ?? null,
+          batchId,
+          createdBy
+        ]
       );
 
       if (result.rows[0]) {
@@ -116,6 +140,23 @@ export function createSerialRepository(pool) {
       );
     },
 
+    async countAvailableStock({ warehouseId, productIds }) {
+      if (!Array.isArray(productIds) || productIds.length === 0) {
+        return 0;
+      }
+
+      const result = await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM serial_master
+         WHERE current_status = 'IN_STOCK'
+           AND current_warehouse_id = $1
+           AND product_id = ANY($2::bigint[])`,
+        [warehouseId, productIds]
+      );
+
+      return result.rows[0].count;
+    },
+
     async findBySerialNo(serialNo) {
       const result = await pool.query(
         `SELECT
@@ -123,7 +164,9 @@ export function createSerialRepository(pool) {
            serial_no AS "serialNo",
            product_id AS "productId",
            current_status AS "currentStatus",
-           current_warehouse_id AS "currentWarehouseId"
+           current_warehouse_id AS "currentWarehouseId",
+           original_dispatch_warehouse_id AS "sourceWarehouseId",
+           destination_warehouse_id AS "destinationWarehouseId"
          FROM serial_master
          WHERE serial_no = $1`,
         [serialNo]

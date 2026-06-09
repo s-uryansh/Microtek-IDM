@@ -21,6 +21,10 @@ export function createImportRoutes({ importService, importWebhookSecret }) {
     next();
   }
 
+  function hasWarehouseScope(request, warehouseId) {
+    return request.auth.warehouseIds.some((authWarehouseId) => String(authWarehouseId) === String(warehouseId));
+  }
+
   router.post(
     "/production",
     verifyWebhookSignature,
@@ -80,6 +84,36 @@ export function createImportRoutes({ importService, importWebhookSecret }) {
         }
 
         response.status(200).json(result);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/receipts/scans",
+    requireAuthContext,
+    requirePermission("grn:write"),
+    async (request, response, next) => {
+      try {
+        const receivingWarehouseId = Number.parseInt(request.body.receivingWarehouseId, 10);
+
+        if (!Number.isInteger(receivingWarehouseId) || receivingWarehouseId <= 0) {
+          sendError(response, 400, "BAD_REQUEST", "Receiving warehouse ID is required");
+          return;
+        }
+
+        if (!hasWarehouseScope(request, receivingWarehouseId)) {
+          sendError(response, 403, "FORBIDDEN", "Insufficient permission");
+          return;
+        }
+
+        const result = await importService.scanReceipt({
+          serialNo: request.body.serialNo,
+          receivingWarehouseId,
+          userId: request.auth.userId
+        });
+        response.status(result.valid ? 201 : 200).json(result);
       } catch (error) {
         next(error);
       }

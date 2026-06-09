@@ -1,15 +1,10 @@
 import { Router } from "express";
 import cookie from "cookie";
-import { z } from "zod";
 
 import { sendError } from "../http/errorResponse.js";
+import { loginSchema } from "../models/authSchemas.js";
 
 const AUTH_COOKIE_NAME = "idm_auth";
-
-const loginSchema = z.object({
-  username: z.string().trim().min(1).max(80),
-  password: z.string().min(1).max(256)
-});
 
 function getToken(request) {
   const cookies = cookie.parse(request.headers.cookie || "");

@@ -29,7 +29,8 @@ export function createDispatchRepository(pool) {
       ...row,
       dispatchId: toNumber(row.dispatchId),
       invoiceId: toNumber(row.invoiceId),
-      warehouseId: toNumber(row.warehouseId)
+      warehouseId: toNumber(row.warehouseId),
+      targetQuantity: toNumber(row.targetQuantity)
     };
 
     if (lines) mapped.lines = lines;
@@ -68,20 +69,22 @@ export function createDispatchRepository(pool) {
   }
 
   return {
-    async createDispatch({ invoiceId, warehouseId, createdBy }) {
+    async createDispatch({ invoiceId, warehouseId, targetQuantity, createdBy }) {
       const result = await pool.query(
         `INSERT INTO dispatch (
            invoice_id,
            warehouse_id,
+           target_quantity,
            created_by
          )
-         VALUES ($1, $2, $3)
+         VALUES ($1, $2, $3, $4)
          RETURNING
            dispatch_id AS "dispatchId",
            invoice_id AS "invoiceId",
            warehouse_id AS "warehouseId",
+           target_quantity AS "targetQuantity",
            status`,
-        [invoiceId, warehouseId, createdBy]
+        [invoiceId, warehouseId, targetQuantity ?? null, createdBy]
       );
 
       return mapDispatch(result.rows[0]);
@@ -93,6 +96,7 @@ export function createDispatchRepository(pool) {
            dispatch_id AS "dispatchId",
            invoice_id AS "invoiceId",
            warehouse_id AS "warehouseId",
+           target_quantity AS "targetQuantity",
            status
          FROM dispatch
          WHERE invoice_id = $1`,
@@ -108,6 +112,7 @@ export function createDispatchRepository(pool) {
            dispatch_id AS "dispatchId",
            invoice_id AS "invoiceId",
            warehouse_id AS "warehouseId",
+           target_quantity AS "targetQuantity",
            status
          FROM dispatch
          WHERE dispatch_id = $1`,
@@ -132,6 +137,7 @@ export function createDispatchRepository(pool) {
            dispatch_id AS "dispatchId",
            invoice_id AS "invoiceId",
            warehouse_id AS "warehouseId",
+           target_quantity AS "targetQuantity",
            status
          FROM dispatch
          WHERE dispatch_id = $1
@@ -157,6 +163,25 @@ export function createDispatchRepository(pool) {
       ]);
 
       return toNumber(result.rows[0]?.warehouseId);
+    },
+
+    async setDispatchTargetQuantity(dispatchId, targetQuantity, updatedBy) {
+      const result = await pool.query(
+        `UPDATE dispatch
+         SET target_quantity = $2,
+             updated_at = now(),
+             updated_by = $3
+         WHERE dispatch_id = $1
+         RETURNING
+           dispatch_id AS "dispatchId",
+           invoice_id AS "invoiceId",
+           warehouse_id AS "warehouseId",
+           target_quantity AS "targetQuantity",
+           status`,
+        [dispatchId, targetQuantity, updatedBy]
+      );
+
+      return mapDispatch(result.rows[0]);
     },
 
     async insertScan({ dispatchId, invoiceLineId, serialId, scannedBy, createdBy }) {

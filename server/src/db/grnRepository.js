@@ -62,9 +62,12 @@ export function createGrnRepository(pool) {
         `SELECT
            sdl.sap_dispatch_line_id AS "sapDispatchLineId",
            sdl.serial_id AS "serialId",
-           sdl.product_id AS "productId"
+           sdl.product_id AS "productId",
+           sdd.destination_warehouse_id AS "destinationWarehouseId",
+           sdd.source_warehouse_id AS "sourceWarehouseId"
          FROM grn g
          JOIN sap_dispatch_line sdl ON sdl.sap_dispatch_doc_id = g.sap_dispatch_doc_id
+         JOIN sap_dispatch_doc sdd ON sdd.sap_dispatch_doc_id = sdl.sap_dispatch_doc_id
          WHERE g.grn_id = $1
            AND sdl.serial_id = $2`,
         [grnId, serialId]

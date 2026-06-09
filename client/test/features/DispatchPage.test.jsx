@@ -6,9 +6,11 @@ import { DispatchPage } from "../../src/features/dispatch/DispatchPage.jsx";
 const createMock = vi.fn();
 const scanMock = vi.fn();
 const completeMock = vi.fn();
+const availabilityMock = vi.fn();
 
 vi.mock("../../src/api/modules/dispatch.js", () => ({
   createDispatch: (...args) => createMock(...args),
+  fetchDispatchAvailability: (...args) => availabilityMock(...args),
   scanDispatchSerial: (...args) => scanMock(...args),
   completeDispatch: (...args) => completeMock(...args),
   getDispatch: vi.fn()
@@ -22,37 +24,68 @@ function renderPage() {
   );
 }
 
+async function startDispatch() {
+  fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "1" } });
+  fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
+  fireEvent.change(screen.getByLabelText("Dispatch Quantity"), { target: { value: "1" } });
+  fireEvent.click(screen.getByText("Start Dispatch"));
+  await waitFor(() => expect(screen.getByText(/Dispatch #1/)).toBeVisible());
+}
+
 beforeEach(() => {
   createMock.mockReset();
   scanMock.mockReset();
   completeMock.mockReset();
+  availabilityMock.mockReset();
+  availabilityMock.mockResolvedValue({
+    invoiceId: 1,
+    warehouseId: 3,
+    invoiceRequiredQuantity: 4,
+    alreadyScannedQuantity: 0,
+    remainingInvoiceQuantity: 4,
+    currentWarehouseStockQty: 9
+  });
 });
 
 describe("DispatchPage — happy path", () => {
   test("creates a dispatch and shows the scan session", async () => {
-    createMock.mockResolvedValue({ dispatchId: 1, invoiceId: 1, warehouseId: 3, status: "PENDING" });
+    createMock.mockResolvedValue({
+      dispatchId: 1,
+      invoiceId: 1,
+      warehouseId: 3,
+      status: "PENDING",
+      targetQuantity: 1,
+      currentWarehouseStockQty: 9
+    });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
-    fireEvent.click(screen.getByText("Start Dispatch"));
-    await waitFor(() => expect(screen.getByText(/Dispatch #1/)).toBeVisible());
+    await startDispatch();
+    expect(screen.getByText(/Current Stock: 9/)).toBeVisible();
+    expect(createMock).toHaveBeenCalledWith({
+      invoiceId: 1,
+      warehouseId: 3,
+      dispatchQuantity: 1
+    });
   });
 });
 
 describe("DispatchPage — scan flows", () => {
   beforeEach(() => {
-    createMock.mockResolvedValue({ dispatchId: 1, invoiceId: 1, warehouseId: 3, status: "PENDING" });
+    createMock.mockResolvedValue({
+      dispatchId: 1,
+      invoiceId: 1,
+      warehouseId: 3,
+      status: "PENDING",
+      targetQuantity: 1,
+      currentWarehouseStockQty: 9
+    });
   });
 
-  test("requires invoice line context before scanning", async () => {
+  test("enables physical QR scanning after dispatch setup without invoice line input", async () => {
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
-    fireEvent.click(screen.getByText("Start Dispatch"));
-    await waitFor(() => expect(screen.getByText(/Dispatch #1/)).toBeVisible());
+    await startDispatch();
     const input = screen.getByLabelText("Scan Serial");
-    expect(input).toBeDisabled();
-    expect(screen.getByText("Select an invoice line or enter Invoice Line ID before scanning dispatch serials.")).toBeVisible();
+    expect(input).not.toBeDisabled();
+    expect(screen.queryByLabelText("Invoice Line ID")).not.toBeInTheDocument();
     expect(scanMock).not.toHaveBeenCalled();
   });
 
@@ -63,11 +96,7 @@ describe("DispatchPage — scan flows", () => {
       alert: null, exception: null
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
-    fireEvent.click(screen.getByText("Start Dispatch"));
-    await waitFor(() => expect(screen.getByText(/Dispatch #1/)).toBeVisible());
-    fireEvent.change(screen.getByLabelText("Invoice Line ID"), { target: { value: "11" } });
+    await startDispatch();
     const input = screen.getByLabelText("Scan Serial");
     fireEvent.change(input, { target: { value: "S-1" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -82,11 +111,7 @@ describe("DispatchPage — scan flows", () => {
     });
     completeMock.mockResolvedValue({ dispatchId: 1, status: "DISPATCHED" });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
-    fireEvent.click(screen.getByText("Start Dispatch"));
-    await waitFor(() => expect(screen.getByText(/Dispatch #1/)).toBeVisible());
-    fireEvent.change(screen.getByLabelText("Invoice Line ID"), { target: { value: "11" } });
+    await startDispatch();
     const input = screen.getByLabelText("Scan Serial");
     fireEvent.change(input, { target: { value: "S-1" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -102,11 +127,7 @@ describe("DispatchPage — scan flows", () => {
       alert: { ruleCode: "ALREADY_DISPATCHED", message: "Serial has already been dispatched." }
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
-    fireEvent.click(screen.getByText("Start Dispatch"));
-    await waitFor(() => expect(screen.getByText(/Dispatch #1/)).toBeVisible());
-    fireEvent.change(screen.getByLabelText("Invoice Line ID"), { target: { value: "11" } });
+    await startDispatch();
     const input = screen.getByLabelText("Scan Serial");
     fireEvent.change(input, { target: { value: "S-1" } });
     fireEvent.keyDown(input, { key: "Enter" });

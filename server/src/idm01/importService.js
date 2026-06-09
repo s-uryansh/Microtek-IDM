@@ -1,37 +1,8 @@
-import { z } from "zod";
-
-const serialPattern = /^[A-Z0-9][A-Z0-9._/-]{5,79}$/;
-
-// Individual Record:
-// {
-  // "serialNo": "ABC123456",
-  // "productCode": "SKU-INV-1",
-  // "batchNo": "B-01",
-  // "warehouseId": 3
-// }
-const productionRecordSchema = z.object({
-  serialNo: z.string().trim().regex(serialPattern),
-  productCode: z.string().trim().min(1).max(40),
-  batchNo: z.string().trim().max(60).optional(),
-  warehouseId: z.number().int().positive().optional(),
-  sourceInvoiceRef: z.string().trim().max(60).optional()
-});
-
-// Representing the entire batch import payload:
-// {
-  // "externalRef": "SAP-PROD-001",
-  // "source": "SAP",
-  // "receivedBy": "integration_user",
-  // "records": [...]
-// }
-const productionBatchSchema = z.object({
-  externalRef: z.string().trim().min(1).max(80),
-  source: z.string().trim().min(1).max(60),
-  sourceLabel: z.string().trim().max(60).optional(),
-  receivedBy: z.string().trim().min(1).max(60),
-  records: z.array(productionRecordSchema).min(1).max(10000)
-});
-
+import {
+  productionBatchSchema,
+  productionRecordSchema,
+  qrOnlyRecordSchema
+} from "../models/importSchemas.js";
 
 function mapValidationError(error) {
   const issue = error.issues[0];
@@ -61,6 +32,87 @@ function dedupeRecords(records) {
   return { accepted, duplicateRejections };
 }
 
+function pickFirst(source, keys) {
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null && source[key] !== "") {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+function toPositiveInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : undefined;
+}
+
+function parseQrCode(qrCode) {
+  if (!qrCode) return {};
+
+  try {
+    const parsed = JSON.parse(qrCode);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    const entries = {};
+    const params = new URLSearchParams(qrCode.includes("?") ? qrCode.split("?").at(-1) : qrCode);
+    for (const [key, value] of params.entries()) {
+      entries[key] = value;
+    }
+    return entries;
+  }
+}
+
+function normalizeRecord(input) {
+  const qrData = qrOnlyRecordSchema.safeParse(input).success ? parseQrCode(input.qrCode) : {};
+  const merged = { ...qrData, ...input };
+  const sourceWarehouseId = toPositiveInteger(
+    pickFirst(merged, ["sourceWarehouseId", "sourceWarehouse", "dispatchedFromWarehouseId", "fromWarehouseId"])
+  );
+  const destinationWarehouseId = toPositiveInteger(
+    pickFirst(merged, ["destinationWarehouseId", "destinationWarehouse", "warehouseId", "toWarehouseId"])
+  );
+
+  return {
+    serialNo: String(pickFirst(merged, ["serialNo", "serial", "serialNumber"]) ?? "").trim(),
+    productCode: String(pickFirst(merged, ["productCode", "sku", "materialCode"]) ?? "").trim(),
+    batchNo: pickFirst(merged, ["batchNo", "batch", "batchNumber"]),
+    warehouseId: destinationWarehouseId,
+    sourceWarehouseId,
+    destinationWarehouseId,
+    qrCode: input.qrCode,
+    sourceInvoiceRef: pickFirst(merged, ["sourceInvoiceRef", "invoiceRef", "dispatchRef"])
+  };
+}
+
+async function createReceiptException(repositories, { serialNo, ruleCode, grnId, userId }) {
+  if (!repositories.exceptionsRepo) {
+    return null;
+  }
+
+  const exception = await repositories.exceptionsRepo.createException({
+    serialNo,
+    ruleCode,
+    contextType: "GRN",
+    contextId: grnId,
+    raisedBy: userId,
+    createdBy: userId
+  });
+
+  return {
+    exceptionId: exception.exceptionId,
+    ruleCode: exception.ruleCode,
+    status: exception.status ?? "OPEN"
+  };
+}
+
+function invalidReceipt(ruleCode, message, exception = null) {
+  return {
+    valid: false,
+    matchStatus: ruleCode,
+    alert: { ruleCode, message },
+    exception
+  };
+}
 
 export function createImportService({ repositories }) {
   function mapBatchRow(batch) {
@@ -75,7 +127,11 @@ export function createImportService({ repositories }) {
   }
   return {
     async importProductionBatch(input) {
-      const parsed = productionBatchSchema.safeParse(input);
+      const normalizedInput = {
+        ...input,
+        records: Array.isArray(input?.records) ? input.records.map(normalizeRecord) : input?.records
+      };
+      const parsed = productionBatchSchema.safeParse(normalizedInput);
 
       if (!parsed.success) {
         throw new Error("Invalid production import payload");
@@ -127,6 +183,7 @@ export function createImportService({ repositories }) {
           const txRejections = [...duplicateRejections];
           let txImportedCount = 0;
           const txRejectedRows = [];
+          const dispatchLineCounters = new Map();
 
           for (const { index, record } of accepted) {
             const product = await txRepositories.serials.findProductByCode(record.productCode);
@@ -149,7 +206,11 @@ export function createImportService({ repositories }) {
               serialNo: record.serialNo,
               productId: product.productId,
               batchNo: record.batchNo,
-              currentWarehouseId: record.warehouseId,
+              currentWarehouseId: record.sourceWarehouseId ?? record.warehouseId,
+              sourceWarehouseId: record.sourceWarehouseId,
+              destinationWarehouseId: record.destinationWarehouseId ?? record.warehouseId,
+              qrPayload: record.qrCode,
+              currentStatus: record.destinationWarehouseId ? "IN_TRANSIT" : "PRODUCED",
               sourceInvoiceRef: record.sourceInvoiceRef,
               batchId: batch.batchId,
               createdBy: parsed.data.receivedBy
@@ -164,6 +225,37 @@ export function createImportService({ repositories }) {
               batchId: batch.batchId,
               createdBy: parsed.data.receivedBy
             });
+            if (record.destinationWarehouseId) {
+              await txRepositories.serials.appendSerialEvent({
+                serialId: serial.serialId,
+                eventType: "FACTORY_DISPATCH",
+                warehouseId: record.destinationWarehouseId,
+                referenceType: "IMPORT",
+                referenceId: batch.batchId,
+                batchId: batch.batchId,
+                createdBy: parsed.data.receivedBy
+              });
+
+              if (txRepositories.sapDispatches?.upsertDoc && txRepositories.sapDispatches?.insertLine) {
+                const dispatchExternalRef = record.sourceInvoiceRef || parsed.data.externalRef;
+                const dispatchDoc = await txRepositories.sapDispatches.upsertDoc({
+                  externalRef: dispatchExternalRef,
+                  sourceWarehouseId: record.sourceWarehouseId,
+                  destinationWarehouseId: record.destinationWarehouseId,
+                  batchId: batch.batchId,
+                  createdBy: parsed.data.receivedBy
+                });
+                const nextLineNo = (dispatchLineCounters.get(dispatchExternalRef) || 0) + 1;
+                dispatchLineCounters.set(dispatchExternalRef, nextLineNo);
+                await txRepositories.sapDispatches.insertLine({
+                  sapDispatchDocId: dispatchDoc.sapDispatchDocId,
+                  serialId: serial.serialId,
+                  productId: product.productId,
+                  lineNo: nextLineNo,
+                  createdBy: parsed.data.receivedBy
+                });
+              }
+            }
             txImportedCount += 1;
           }
 
@@ -195,8 +287,122 @@ export function createImportService({ repositories }) {
       }
     },
 
+    async scanReceipt({ serialNo, receivingWarehouseId, userId }) {
+      const serial = await repositories.serials.findBySerialNo(serialNo);
+
+      if (!serial) {
+        const exception = await createReceiptException(repositories, {
+          serialNo,
+          ruleCode: "NOT_FOUND",
+          grnId: null,
+          userId
+        });
+        return invalidReceipt("NOT_FOUND", "Serial was not found in the SAP dispatch registry.", exception);
+      }
+
+      const dispatch = await repositories.sapDispatches?.findBySerialId
+        ? await repositories.sapDispatches.findBySerialId(serial.serialId)
+        : null;
+
+      if (!dispatch) {
+        const exception = await createReceiptException(repositories, {
+          serialNo,
+          ruleCode: "WRONG_SERIAL",
+          grnId: null,
+          userId
+        });
+        return invalidReceipt("WRONG_SERIAL", "Serial is not linked to an original SAP factory dispatch.", exception);
+      }
+
+      const runReceiptWrite = repositories.withTransaction
+        ? (work) => repositories.withTransaction(work)
+        : (work) => work(repositories);
+
+      return runReceiptWrite(async (txRepositories) => {
+        const grn = await txRepositories.grns.create({
+          sapDispatchDocId: dispatch.sapDispatchDocId,
+          receivingWarehouseId,
+          createdBy: userId
+        });
+
+        if (String(dispatch.destinationWarehouseId) !== String(receivingWarehouseId)) {
+          const exception = await createReceiptException(txRepositories, {
+            serialNo,
+            ruleCode: "WRONG_WAREHOUSE",
+            grnId: grn.grnId,
+            userId
+          });
+          await txRepositories.grns.updateStatus(grn.grnId, "EXCEPTION", userId);
+          return {
+            ...invalidReceipt(
+              "WRONG_WAREHOUSE",
+              "Scanned serial was dispatched by SAP to a different destination warehouse.",
+              exception
+            ),
+            serialNo,
+            sourceWarehouseId: dispatch.sourceWarehouseId,
+            expectedWarehouseId: dispatch.destinationWarehouseId,
+            receivedWarehouseId: receivingWarehouseId,
+            sapDispatchDocId: dispatch.sapDispatchDocId
+          };
+        }
+
+        const existingScan = await txRepositories.grns.findScanBySerial(grn.grnId, serial.serialId);
+
+        if (existingScan) {
+          const exception = await createReceiptException(txRepositories, {
+            serialNo,
+            ruleCode: "DUPLICATE_SCAN",
+            grnId: grn.grnId,
+            userId
+          });
+          return {
+            ...invalidReceipt("DUPLICATE_SCAN", "Serial has already been received for this SAP dispatch.", exception),
+            serialNo,
+            sourceWarehouseId: dispatch.sourceWarehouseId,
+            expectedWarehouseId: dispatch.destinationWarehouseId,
+            receivedWarehouseId: receivingWarehouseId,
+            sapDispatchDocId: dispatch.sapDispatchDocId
+          };
+        }
+
+        await txRepositories.grns.insertScan({
+          grnId: grn.grnId,
+          serialId: serial.serialId,
+          serialNo,
+          matchStatus: "MATCHED",
+          scannedBy: userId,
+          createdBy: userId
+        });
+        await txRepositories.serials.updateReceipt(serial.serialId, receivingWarehouseId, userId);
+        await txRepositories.serials.appendSerialEvent({
+          serialId: serial.serialId,
+          eventType: "GRN",
+          warehouseId: receivingWarehouseId,
+          referenceType: "GRN",
+          referenceId: grn.grnId,
+          createdBy: userId
+        });
+        await txRepositories.grns.updateStatus(grn.grnId, "IN_PROGRESS", userId);
+
+        return {
+          valid: true,
+          matchStatus: "MATCHED",
+          serialNo,
+          serialId: serial.serialId,
+          sourceWarehouseId: dispatch.sourceWarehouseId,
+          expectedWarehouseId: dispatch.destinationWarehouseId,
+          receivedWarehouseId: receivingWarehouseId,
+          sapDispatchDocId: dispatch.sapDispatchDocId,
+          grnId: grn.grnId,
+          alert: null,
+          exception: null
+        };
+      });
+    },
+
     validateProductionRecord(record) {
-      const parsed = productionRecordSchema.safeParse(record);
+      const parsed = productionRecordSchema.safeParse(normalizeRecord(record));
 
       if (parsed.success) {
         return { valid: true, reason: null };

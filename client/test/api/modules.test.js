@@ -2,7 +2,12 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import { fetchAgeingReport } from "../../src/api/modules/ageing.js";
 import { commitBatterySerial } from "../../src/api/modules/battery.js";
 import * as dispatchModule from "../../src/api/modules/dispatch.js";
-import { createDispatch, scanDispatchSerial, completeDispatch } from "../../src/api/modules/dispatch.js";
+import {
+  createDispatch,
+  fetchDispatchAvailability,
+  scanDispatchSerial,
+  completeDispatch
+} from "../../src/api/modules/dispatch.js";
 import { fetchExceptions, correctException } from "../../src/api/modules/exceptions.js";
 import { fetchFulfilmentStatus } from "../../src/api/modules/fulfilment.js";
 import { createGrn, scanGrnSerial, completeGrn } from "../../src/api/modules/grn.js";
@@ -61,20 +66,29 @@ describe("API modules", () => {
 
     test("createDispatch calls POST", async () => {
       mockClient.__mockPost.mockResolvedValue({ dispatchId: 1 });
-      await createDispatch({ invoiceId: 1, warehouseId: 3 });
+      await createDispatch({ invoiceId: 1, warehouseId: 3, dispatchQuantity: 2 });
       expect(mockClient.__mockPost).toHaveBeenCalledWith(
         "/idm-05/dispatches",
-        { invoiceId: 1, warehouseId: 3 },
+        { invoiceId: 1, warehouseId: 3, dispatchQuantity: 2 },
+        expect.any(Object)
+      );
+    });
+
+    test("fetchDispatchAvailability calls GET with invoice and warehouse", async () => {
+      mockClient.__mockGet.mockResolvedValue({ currentWarehouseStockQty: 9 });
+      await fetchDispatchAvailability({ invoiceId: 1, warehouseId: 3 });
+      expect(mockClient.__mockGet).toHaveBeenCalledWith(
+        "/idm-05/dispatches/availability?invoiceId=1&warehouseId=3",
         expect.any(Object)
       );
     });
 
     test("scanDispatchSerial calls POST with correct path", async () => {
       mockClient.__mockPost.mockResolvedValue({ valid: true });
-      await scanDispatchSerial({ dispatchId: 1, invoiceLineId: 1, serialNo: "S-001" });
+      await scanDispatchSerial({ dispatchId: 1, serialNo: "S-001" });
       expect(mockClient.__mockPost).toHaveBeenCalledWith(
         "/idm-05/dispatches/1/scans",
-        { invoiceLineId: 1, serialNo: "S-001" },
+        { serialNo: "S-001" },
         expect.any(Object)
       );
     });

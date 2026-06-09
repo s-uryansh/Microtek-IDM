@@ -1,15 +1,4 @@
-import { z } from "zod";
-
-const serialPattern = /^[A-Z0-9][A-Z0-9._/-]{5,79}$/;
-
-const validationRequestSchema = z.object({
-  serialNo: z.string().trim().regex(serialPattern),
-  contextType: z.enum(["FOUNDATION", "IMPORT", "GRN", "DISPATCH", "SRN", "BATTERY"]),
-  contextId: z.number().int().positive().optional(),
-  warehouseId: z.number().int().positive().optional(),
-  expectedProductId: z.number().int().positive().optional(),
-  userId: z.string().trim().min(1).max(60)
-});
+import { validationRequestSchema } from "../models/validationSchemas.js";
 
 const messages = {
   MALFORMED_SERIAL: "Serial format is invalid.",
@@ -86,6 +75,16 @@ export function createValidationService({ repositories }) {
 
       if (
         request.warehouseId &&
+        request.contextType === "GRN" &&
+        serial.destinationWarehouseId &&
+        serial.destinationWarehouseId !== request.warehouseId
+      ) {
+        return fail({ request, ruleCode: "WRONG_WAREHOUSE" });
+      }
+
+      if (
+        request.warehouseId &&
+        (request.contextType !== "GRN" || !serial.destinationWarehouseId) &&
         serial.currentWarehouseId &&
         serial.currentWarehouseId !== request.warehouseId
       ) {

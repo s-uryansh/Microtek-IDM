@@ -5,7 +5,6 @@ import { Input } from "../../components/ui/Input.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { LookupSelector } from "../../components/operations/LookupSelector.jsx";
-import { BulkCsvTools } from "../../components/operations/BulkCsvTools.jsx";
 import { commitBatterySerial, fetchBatteryCommitStatus } from "../../api/modules/battery.js";
 import { searchInvoices } from "../../api/modules/lookups.js";
 
@@ -19,7 +18,6 @@ export function BatteryPage() {
   const [commitStatus, setCommitStatus] = useState(null);
   const [error, setError] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [commitRows, setCommitRows] = useState([]);
 
   async function handleScan(serialNo) {
     if (!invoiceLineId) {
@@ -30,12 +28,6 @@ export function BatteryPage() {
       invoiceLineId: Number(invoiceLineId),
       serialNo
     });
-    setCommitRows((rows) => [...rows, {
-      serial_no: serialNo,
-      invoice_line_id: invoiceLineId,
-      status: res?.status || res?.alert?.ruleCode || "REJECTED",
-      message: res?.alert?.message || (res?.valid ? "Battery serial committed" : "Commit failed")
-    }]);
 
     if (res?.valid) {
       return {
@@ -118,18 +110,6 @@ export function BatteryPage() {
               type="number"
               inputMode="numeric"
               placeholder="Enter invoice line ID"
-            />
-            <BulkCsvTools
-              title="Battery Bulk Commit Fallback"
-              templateFilename="battery-serial-import-template.csv"
-              templateHeaders={["serial_no"]}
-              importLabel="Import Serials"
-              exportLabel="Export Committed Serials"
-              exportFilename="battery-committed-serials.csv"
-              exportHeaders={["serial_no", "invoice_line_id", "status", "message"]}
-              exportRows={commitRows}
-              disabled={!invoiceLineId}
-              onImportRow={(row) => handleScan(row.serial_no)}
             />
             <ScanSession
               module="BATTERY"

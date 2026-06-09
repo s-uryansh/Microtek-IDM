@@ -3,6 +3,7 @@ import {
   listBatches,
   getBatch,
   importProduction,
+  scanSapReceipt,
   fetchAgeingSummary
 } from "../../src/api/modules/importMonitor.js";
 
@@ -60,6 +61,16 @@ describe("importMonitor API module", () => {
     expect(mockClient.__mockPost).toHaveBeenCalledWith(
       "/idm-01/import/production",
       { externalRef: "EXT-1", source: "SAP", records: [{ a: 1 }] },
+      { signal: undefined }
+    );
+  });
+
+  test("scanSapReceipt POSTs scanned serial and receiving warehouse", async () => {
+    mockClient.__mockPost.mockResolvedValue({ valid: true });
+    await scanSapReceipt({ serialNo: "MTK1234567896", receivingWarehouseId: 3 });
+    expect(mockClient.__mockPost).toHaveBeenCalledWith(
+      "/idm-01/import/receipts/scans",
+      { serialNo: "MTK1234567896", receivingWarehouseId: 3 },
       { signal: undefined }
     );
   });

@@ -366,6 +366,28 @@ The login screen is shown.
 Pass Criteria:  
 GRN screen is not visible to a logged-out user.
 
+### TC-GRN-011 - Validation Handshake (Gatekeeper)
+
+Purpose:  
+Confirm the Gatekeeper Validation Handshake blocks a serial that is unauthorized (not in the Master Validation Registry) or misdirected (destination warehouse does not match the SAP dispatch record). See Scope Section 3.2.
+
+Preconditions:  
+GRN session for `DEMO-DISP-CW-01` is open at the receiving warehouse (usually Warehouse ID `3`).
+
+Test Steps:
+
+1. Scan an **unauthorized serial** that does not exist in the Registry, for example `INVALID-SERIAL-9999`.
+2. Submit the scan and observe the result.
+3. Scan a **misdirected serial** — one that exists in the Registry but is dispatched to a different warehouse than the current GRN warehouse, for example `DEMO-WRONG-0001`.
+4. Submit the scan and observe the result.
+5. Open Monitoring -> `Exceptions` and refresh the open exceptions list.
+
+Expected Result:  
+Both scans are **blocked** (the receipt is not recorded). The unauthorized serial is rejected as not found; the misdirected serial is rejected as wrong warehouse. A corresponding exception is raised for each blocked scan.
+
+Pass Criteria:  
+Neither serial is received into stock, and an exception (NOT_FOUND / WRONG_WAREHOUSE or equivalent) is visible in the Exception Portal for the blocked scan.
+
 ## 6. IDM-05 Dispatch
 
 Purpose:  
@@ -584,6 +606,53 @@ Login screen is displayed.
 
 Pass Criteria:  
 Dispatch page is not visible to logged-out users.
+
+### TC-DISP-011 - Manual Entry Enforcement (Gatekeeper)
+
+Purpose:  
+Confirm that the dispatch scan panel remains locked until the operator manually confirms the Invoice ID, and that the Invoice ID is never taken from a scanned product QR code. See Scope Section 3.5.1.
+
+Preconditions:  
+Tester is logged in as `admin` and is on Operations -> `Dispatch`.
+
+Test Steps:
+
+1. On the `Start Dispatch Session` screen, leave `Invoice ID` and `Warehouse ID` empty and confirm `Start Dispatch` is disabled.
+2. Manually enter (or select via `Search Invoice`) the Invoice ID for `DEMO-INV-001` and the warehouse, then click `Start Dispatch`.
+3. On the scan screen, before selecting an invoice line, attempt to use the dispatch scan input.
+4. Observe whether the scan panel is enabled.
+5. Select the invoice line for `SKU-INV-1` so `Invoice Line ID` is filled.
+6. Observe the scan panel again.
+
+Expected Result:  
+The dispatch session cannot start without a manually supplied Invoice ID. The scan panel stays **locked** (disabled, showing a message to select/enter an invoice line) until the invoice line is confirmed. At no point is the Invoice ID populated from a scanned product serial/QR.
+
+Pass Criteria:  
+Scan input is disabled until the operator manually binds the Invoice ID and selects an invoice line; the panel then unlocks.
+
+### TC-DISP-012 - Partial Batch Dispatch (Multi-Stage)
+
+Purpose:  
+Confirm a large order can be dispatched in multiple sub-batches across separate sessions, remains `Partially Dispatched` until the full quantity is scanned, and tracks intermediate progress correctly. See Scope Section 3.5.2.
+
+Preconditions:  
+A dispatch invoice whose line quantity is greater than one is available (for the demo set, `DEMO-INV-001` requiring `DEMO-DISP-0001` and `DEMO-DISP-0002`). For a representative large-order test, use an invoice line provided for the cycle with a higher quantity and scan it in smaller sub-batches.
+
+Test Steps:
+
+1. Start a dispatch session for the invoice and select the invoice line.
+2. Scan the first sub-batch only — for the demo set, scan `DEMO-DISP-0001` (one of two required).
+3. Click the dispatch completion button and observe the status.
+4. Note the scanned vs. required quantity shown for the line.
+5. In a later session/visit, reopen the same dispatch and scan the remaining sub-batch — `DEMO-DISP-0002`.
+6. Open Monitoring -> `Fulfilment`, search the invoice, and review Required vs. Scanned counts.
+7. Complete the dispatch once the full quantity is scanned.
+
+Expected Result:  
+After the first sub-batch the order is shown as `Partially Dispatched` (not `Dispatched`), and completion is blocked while short. The remaining sub-batch can be scanned later against the same dispatch. Fulfilment reflects the cumulative scanned quantity at each stage. Only after the total quantity is scanned does the status advance to `Dispatched`.
+
+Pass Criteria:  
+The order persists as `Partially Dispatched` across sessions until the full quantity is reached; intermediate scanned quantities are tracked accurately; the order is marked `Dispatched` only when complete.
 
 ## 7. IDM-04 SRN (Sales Return Note)
 
@@ -1832,3 +1901,11 @@ Before marking manual testing complete:
 - Exceptions can be viewed, filtered, loaded, and corrected with a reason.
 - CSV templates download and imports/exports work for supported modules.
 - Logged-out users cannot access protected pages directly.
+
+### Mandatory Gatekeeper Verification Points
+
+These three checks are mandatory before manual testing is signed off:
+
+- **Validation Handshake (TC-GRN-011):** GRN blocks any unauthorized or misdirected serial (not in the Master Validation Registry, or destination warehouse mismatch) and raises an exception instead of receiving it.
+- **Manual Entry Enforcement (TC-DISP-011):** The dispatch scan panel stays locked until the operator manually confirms the Invoice ID; the Invoice ID is never derived from a scanned product QR code.
+- **Partial Batch Dispatch (TC-DISP-012):** Large orders can be dispatched in multiple sub-batches across sessions, persist as `Partially Dispatched` until the full quantity is reached, and are tracked correctly for ageing and audit.

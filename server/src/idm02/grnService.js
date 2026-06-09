@@ -128,6 +128,36 @@ export function createGrnService({ repositories }) {
           });
         }
 
+        // Validation Handshake: the serial is on this GRN's dispatch document, but the
+        // document's destination warehouse must match the warehouse physically receiving it.
+        // A mismatch means the stock has been misdirected to the wrong warehouse — block it.
+        if (
+          expectedLine.destinationWarehouseId != null &&
+          String(expectedLine.destinationWarehouseId) !== String(lockedGrn.receivingWarehouseId)
+        ) {
+          const exception = await createException(txRepositories, {
+            serialNo,
+            ruleCode: "WRONG_WAREHOUSE",
+            grnId,
+            userId
+          });
+          await txRepositories.grns.insertScan({
+            grnId,
+            serialId: validation.serial.serialId,
+            serialNo,
+            matchStatus: "WRONG_SERIAL",
+            scannedBy: userId,
+            createdBy: userId
+          });
+          await txRepositories.grns.updateStatus(grnId, "EXCEPTION", userId);
+          return exceptionResult({
+            matchStatus: "WRONG_WAREHOUSE",
+            ruleCode: "WRONG_WAREHOUSE",
+            message: "Serial's dispatch destination does not match this GRN's receiving warehouse.",
+            exception
+          });
+        }
+
         await txRepositories.grns.insertScan({
           grnId,
           serialId: validation.serial.serialId,

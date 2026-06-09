@@ -4,7 +4,6 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { DataTable } from "../../components/data/DataTable.jsx";
-import { BulkCsvTools } from "../../components/operations/BulkCsvTools.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { fetchExceptions, fetchException, correctException } from "../../api/modules/exceptions.js";
 
@@ -32,7 +31,6 @@ export function ExceptionsPage() {
   const [detailError, setDetailError] = useState(null);
   const [correctionReason, setCorrectionReason] = useState("");
   const [correcting, setCorrecting] = useState(false);
-  const [detailRows, setDetailRows] = useState([]);
 
   const loadExceptions = useCallback(() => {
     setLoading(true);
@@ -57,7 +55,6 @@ export function ExceptionsPage() {
     try {
       const data = await fetchException({ exceptionId });
       setDetail(data);
-      setDetailRows((rows) => [...rows, data]);
     } catch (err) {
       setDetailError(err?.message || "Failed to load exception");
     }
@@ -73,7 +70,6 @@ export function ExceptionsPage() {
     setSelected(parsed);
     const data = await fetchException({ exceptionId: parsed });
     setDetail(data);
-    setDetailRows((rows) => [...rows, data]);
     setExceptionIdInput(String(parsed));
     return { status: "LOADED", message: "Exception detail loaded", state: "success" };
   }
@@ -141,26 +137,6 @@ export function ExceptionsPage() {
               onScan={handleScanException}
             />
           </div>
-          <BulkCsvTools
-            title="Exception CSV Export"
-            templateFilename="exception-export-template.csv"
-            templateHeaders={["exceptionId", "serialNo", "ruleCode", "contextType", "status", "raisedAt"]}
-            exportLabel="Export Exception List"
-            exportFilename="exceptions.csv"
-            exportHeaders={["exceptionId", "serialNo", "ruleCode", "contextType", "status", "raisedAt"]}
-            exportRows={list}
-          />
-          <BulkCsvTools
-            title="Exception Review CSV"
-            templateFilename="exception-review-import-template.csv"
-            templateHeaders={["exception_id"]}
-            importLabel="Import Exception IDs"
-            exportLabel="Export Reviewed Exceptions"
-            exportFilename="reviewed-exceptions.csv"
-            exportHeaders={["exceptionId", "serialNo", "ruleCode", "status", "correctedAt", "correctedBy", "correctionReason"]}
-            exportRows={detailRows}
-            onImportRow={(row) => handleScanException(row.exception_id)}
-          />
           <DataTable
             columns={columns}
             data={list}
@@ -195,15 +171,6 @@ export function ExceptionsPage() {
             )}
             {detail && !detailError && (
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-                <BulkCsvTools
-                  title="Correction Export"
-                  templateFilename="exception-correction-template.csv"
-                  templateHeaders={["exceptionId", "serialNo", "ruleCode", "status", "correctedAt", "correctedBy", "correctionReason"]}
-                  exportLabel="Export Selected Exception"
-                  exportFilename={`exception-${detail.exceptionId}.csv`}
-                  exportHeaders={["exceptionId", "serialNo", "ruleCode", "status", "correctedAt", "correctedBy", "correctionReason"]}
-                  exportRows={[detail]}
-                />
                 <div><span style={{ color: "var(--color-text-muted)" }}>Serial:</span> {detail.serialNo || "N/A"}</div>
                 <div><span style={{ color: "var(--color-text-muted)" }}>Rule:</span> {detail.ruleCode}</div>
                 <div><span style={{ color: "var(--color-text-muted)" }}>Context:</span> {detail.contextType} {detail.contextId && `#${detail.contextId}`}</div>

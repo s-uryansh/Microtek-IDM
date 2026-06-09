@@ -10,6 +10,7 @@ import { createLookupRepository } from "./lookupRepository.js";
 import { createReconciliationRepository } from "./reconciliationRepository.js";
 import { createSerialRepository } from "./serialRepository.js";
 import { createSerialHistoryRepository } from "./serialHistoryRepository.js";
+import { createSapDispatchRepository } from "./sapDispatchRepository.js";
 import { createSrnRepository } from "./srnRepository.js";
 
 export function createRepositories(pool) {
@@ -21,6 +22,7 @@ export function createRepositories(pool) {
     invoices: createInvoiceRepository(pool),
     dispatches: createDispatchRepository(pool),
     grns: createGrnRepository(pool),
+    sapDispatches: createSapDispatchRepository(pool),
     srns: createSrnRepository(pool),
     ageingReports: createAgeingReportRepository(pool),
     reconciliationReports: createReconciliationRepository(pool),

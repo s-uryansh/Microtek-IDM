@@ -16,6 +16,10 @@ export function importProduction({ externalRef, source, records, signal }) {
   return post("/idm-01/import/production", { externalRef, source, records }, { signal });
 }
 
+export function scanSapReceipt({ serialNo, receivingWarehouseId, signal }) {
+  return post("/idm-01/import/receipts/scans", { serialNo, receivingWarehouseId }, { signal });
+}
+
 export function fetchAgeingSummary({ signal } = {}) {
   return get("/idm-08/ageing/summary", { signal });
 }

@@ -1,13 +1,5 @@
-import { z } from "zod";
-
+import { ageingReportSchema } from "../models/ageingSchemas.js";
 import { sanitizeCsvCell } from "../utils/sanitizeCsvCell.js";
-
-const ageingReportSchema = z.object({
-  warehouseIds: z.array(z.number().int().positive()).min(1),
-  productId: z.number().int().positive().optional(),
-  limit: z.number().int().nonnegative().max(200).default(50),
-  offset: z.number().int().nonnegative().default(0)
-});
 
 function addToSummary(summaryByBucket, bucket) {
   const existing = summaryByBucket.get(bucket.code);

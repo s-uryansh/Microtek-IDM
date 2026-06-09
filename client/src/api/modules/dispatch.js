@@ -1,11 +1,18 @@
-import { post } from "../client.js";
+import { get, post } from "../client.js";
 
-export function createDispatch({ invoiceId, warehouseId, signal }) {
-  return post("/idm-05/dispatches", { invoiceId, warehouseId }, { signal });
+export function createDispatch({ invoiceId, warehouseId, dispatchQuantity, signal }) {
+  return post("/idm-05/dispatches", { invoiceId, warehouseId, dispatchQuantity }, { signal });
 }
 
-export function scanDispatchSerial({ dispatchId, invoiceLineId, serialNo, signal }) {
-  return post(`/idm-05/dispatches/${dispatchId}/scans`, { invoiceLineId, serialNo }, { signal });
+export function fetchDispatchAvailability({ invoiceId, warehouseId, signal }) {
+  const params = new URLSearchParams();
+  if (invoiceId) params.set("invoiceId", invoiceId);
+  if (warehouseId) params.set("warehouseId", warehouseId);
+  return get(`/idm-05/dispatches/availability?${params.toString()}`, { signal });
+}
+
+export function scanDispatchSerial({ dispatchId, serialNo, signal }) {
+  return post(`/idm-05/dispatches/${dispatchId}/scans`, { serialNo }, { signal });
 }
 
 export function completeDispatch({ dispatchId, signal }) {

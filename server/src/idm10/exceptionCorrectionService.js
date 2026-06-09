@@ -1,14 +1,4 @@
-import { z } from "zod";
-
-const listExceptionsSchema = z.object({
-  status: z.string().nullable().optional(),
-  contextType: z.string().nullable().optional(),
-  warehouseIds: z.array(z.number().int().positive()).nullable().optional(),
-  page: z.number().int().positive().optional(),
-  pageSize: z.number().int().positive().optional(),
-  limit: z.number().int().nonnegative().max(200).optional(),
-  offset: z.number().int().nonnegative().optional()
-});
+import { listExceptionsSchema } from "../models/exceptionSchemas.js";
 
 export function createExceptionCorrectionService({ repositories }) {
   return {

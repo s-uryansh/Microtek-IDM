@@ -83,7 +83,7 @@ describe("IDM-02 GRN service", () => {
   test("T02-01 receives a matched serial and writes a GRN event", async () => {
     const repositories = createRepositories({
       grn: { grnId: 10, receivingWarehouseId: 5, status: "PENDING" },
-      expectedLine: { serialId: 7 },
+      expectedLine: { serialId: 7, destinationWarehouseId: 5 },
       validationResult: {
         valid: true,
         serial: { serialId: 7, serialNo: "MTK1234567890", currentWarehouseId: 5 },
@@ -140,6 +140,28 @@ describe("IDM-02 GRN service", () => {
     expect(result.matchStatus).toBe("WRONG_SERIAL");
     expect(repositories.calls.createException[0]).toMatchObject({ ruleCode: "WRONG_SERIAL", contextType: "GRN" });
     expect(repositories.calls.updateSerialReceipt).toHaveLength(0);
+  });
+
+  test("T02-05 blocks a misdirected serial whose dispatch destination is a different warehouse", async () => {
+    const repositories = createRepositories({
+      grn: { grnId: 10, receivingWarehouseId: 5, status: "PENDING" },
+      expectedLine: { serialId: 7, destinationWarehouseId: 6 },
+      validationResult: {
+        valid: true,
+        serial: { serialId: 7, serialNo: "MTK1234567890", currentWarehouseId: 5 },
+        alert: null,
+        exception: null
+      }
+    });
+    const service = createGrnService({ repositories });
+
+    const result = await service.scanSerial({ grnId: 10, serialNo: "MTK1234567890", userId: "operator_1" });
+
+    expect(result.valid).toBe(false);
+    expect(result.matchStatus).toBe("WRONG_WAREHOUSE");
+    expect(repositories.calls.createException[0]).toMatchObject({ ruleCode: "WRONG_WAREHOUSE", contextType: "GRN" });
+    expect(repositories.calls.updateSerialReceipt).toHaveLength(0);
+    expect(repositories.calls.appendEvent).toHaveLength(0);
   });
 
   test("T02-06 blocks duplicate scans", async () => {

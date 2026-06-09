@@ -2,13 +2,26 @@ import { describe, expect, test } from "vitest";
 
 import { createImportService } from "../src/idm01/importService.js";
 
-function createRepositories({ productsByCode = new Map(), existingBatch = null, appendEventError = null } = {}) {
+function createRepositories({
+  productsByCode = new Map(),
+  existingBatch = null,
+  appendEventError = null,
+  serialByNo = null,
+  sapDispatchForSerial = null,
+  existingReceiptScan = null
+} = {}) {
   const calls = {
     createBatch: [],
     markProcessed: [],
     markFailed: [],
     insertSerial: [],
+    upsertSapDispatchDoc: [],
+    insertSapDispatchLine: [],
+    createGrn: [],
+    insertGrnScan: [],
+    updateSerialReceipt: [],
     appendEvent: [],
+    createException: [],
     transaction: []
   };
 
@@ -51,6 +64,9 @@ function createRepositories({ productsByCode = new Map(), existingBatch = null, 
       async findProductByCode(productCode) {
         return productsByCode.get(productCode) ?? null;
       },
+      async findBySerialNo(serialNo) {
+        return serialByNo?.serialNo === serialNo ? serialByNo : null;
+      },
       async insertProductionSerial(serial) {
         calls.insertSerial.push(serial);
         return {
@@ -59,11 +75,51 @@ function createRepositories({ productsByCode = new Map(), existingBatch = null, 
           currentWarehouseId: serial.currentWarehouseId
         };
       },
+      async updateReceipt(serialId, warehouseId, receivedBy) {
+        calls.updateSerialReceipt.push({ serialId, warehouseId, receivedBy });
+      },
       async appendSerialEvent(event) {
         if (appendEventError) {
           throw appendEventError;
         }
         calls.appendEvent.push(event);
+      }
+    },
+    sapDispatches: {
+      async upsertDoc(input) {
+        calls.upsertSapDispatchDoc.push(input);
+        return { sapDispatchDocId: calls.upsertSapDispatchDoc.length, ...input };
+      },
+      async insertLine(input) {
+        calls.insertSapDispatchLine.push(input);
+        return { sapDispatchLineId: calls.insertSapDispatchLine.length, ...input };
+      },
+      async findBySerialId(serialId) {
+        return sapDispatchForSerial?.serialId === serialId ? sapDispatchForSerial : null;
+      }
+    },
+    grns: {
+      async create(input) {
+        calls.createGrn.push(input);
+        return { grnId: 501, status: "PENDING", ...input };
+      },
+      async findScanBySerial(grnId, serialId) {
+        return existingReceiptScan?.grnId === grnId && existingReceiptScan?.serialId === serialId
+          ? existingReceiptScan
+          : null;
+      },
+      async insertScan(input) {
+        calls.insertGrnScan.push(input);
+        return { grnScanId: calls.insertGrnScan.length, ...input };
+      },
+      async updateStatus(grnId, status, updatedBy) {
+        calls.updateGrnStatus = { grnId, status, updatedBy };
+      }
+    },
+    exceptionsRepo: {
+      async createException(input) {
+        calls.createException.push(input);
+        return { exceptionId: calls.createException.length, ruleCode: input.ruleCode, status: "OPEN" };
       }
     }
   };
@@ -113,6 +169,153 @@ describe("IDM-01 production import service", () => {
       createdBy: "integration_user"
     });
     expect(repositories.calls.markProcessed).toEqual([{ batchId: 101, recordCount: 1 }]);
+  });
+
+  test("imports SAP QR registry metadata and records factory dispatch destination", async () => {
+    const repositories = createRepositories({
+      productsByCode: new Map([["SKU-INV-1", { productId: 7 }]])
+    });
+    const service = createImportService({ repositories });
+
+    const result = await service.importProductionBatch({
+      externalRef: "SAP-GATEKEEPER-001",
+      source: "SAP",
+      receivedBy: "integration_user",
+      records: [
+        {
+          qrCode: JSON.stringify({
+            serialNo: "MTK1234567896",
+            productCode: "SKU-INV-1",
+            batchNo: "B-01",
+            sourceWarehouseId: 1,
+            destinationWarehouseId: 3
+          })
+        }
+      ]
+    });
+
+    expect(result.status).toBe("PROCESSED");
+    expect(repositories.calls.insertSerial[0]).toMatchObject({
+      serialNo: "MTK1234567896",
+      productId: 7,
+      batchNo: "B-01",
+      currentWarehouseId: 1,
+      sourceWarehouseId: 1,
+      destinationWarehouseId: 3,
+      qrPayload: expect.stringContaining("MTK1234567896")
+    });
+    expect(repositories.calls.appendEvent).toEqual([
+      expect.objectContaining({
+        eventType: "PRODUCTION",
+        warehouseId: 1
+      }),
+      expect.objectContaining({
+        eventType: "FACTORY_DISPATCH",
+        warehouseId: 3
+      })
+    ]);
+    expect(repositories.calls.upsertSapDispatchDoc[0]).toMatchObject({
+      externalRef: "SAP-GATEKEEPER-001",
+      sourceWarehouseId: 1,
+      destinationWarehouseId: 3,
+      batchId: 101
+    });
+    expect(repositories.calls.insertSapDispatchLine[0]).toMatchObject({
+      sapDispatchDocId: 1,
+      serialId: 1,
+      productId: 7,
+      lineNo: 1
+    });
+  });
+
+  test("validates a received QR against original SAP dispatch and records source to receiving warehouse", async () => {
+    const repositories = createRepositories({
+      serialByNo: {
+        serialId: 44,
+        serialNo: "MTK1234567896",
+        productId: 7,
+        currentStatus: "IN_TRANSIT",
+        currentWarehouseId: 1
+      },
+      sapDispatchForSerial: {
+        sapDispatchDocId: 12,
+        serialId: 44,
+        externalRef: "SAP-DISP-001",
+        sourceWarehouseId: 1,
+        destinationWarehouseId: 3
+      }
+    });
+    const service = createImportService({ repositories });
+
+    const result = await service.scanReceipt({
+      serialNo: "MTK1234567896",
+      receivingWarehouseId: 3,
+      userId: "operator_1"
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result).toMatchObject({
+      serialNo: "MTK1234567896",
+      sourceWarehouseId: 1,
+      receivedWarehouseId: 3,
+      sapDispatchDocId: 12,
+      matchStatus: "MATCHED"
+    });
+    expect(repositories.calls.createGrn[0]).toMatchObject({
+      sapDispatchDocId: 12,
+      receivingWarehouseId: 3
+    });
+    expect(repositories.calls.insertGrnScan[0]).toMatchObject({
+      grnId: 501,
+      serialId: 44,
+      serialNo: "MTK1234567896",
+      matchStatus: "MATCHED"
+    });
+    expect(repositories.calls.updateSerialReceipt).toEqual([
+      { serialId: 44, warehouseId: 3, receivedBy: "operator_1" }
+    ]);
+    expect(repositories.calls.appendEvent[0]).toMatchObject({
+      serialId: 44,
+      eventType: "GRN",
+      warehouseId: 3,
+      referenceType: "GRN",
+      referenceId: 501
+    });
+  });
+
+  test("blocks a received QR when it arrives at a different warehouse than SAP dispatched", async () => {
+    const repositories = createRepositories({
+      serialByNo: {
+        serialId: 44,
+        serialNo: "MTK1234567896",
+        productId: 7,
+        currentStatus: "IN_TRANSIT",
+        currentWarehouseId: 1
+      },
+      sapDispatchForSerial: {
+        sapDispatchDocId: 12,
+        serialId: 44,
+        externalRef: "SAP-DISP-001",
+        sourceWarehouseId: 1,
+        destinationWarehouseId: 3
+      }
+    });
+    const service = createImportService({ repositories });
+
+    const result = await service.scanReceipt({
+      serialNo: "MTK1234567896",
+      receivingWarehouseId: 4,
+      userId: "operator_1"
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.alert.ruleCode).toBe("WRONG_WAREHOUSE");
+    expect(repositories.calls.updateSerialReceipt).toHaveLength(0);
+    expect(repositories.calls.appendEvent).toHaveLength(0);
+    expect(repositories.calls.createException[0]).toMatchObject({
+      ruleCode: "WRONG_WAREHOUSE",
+      contextType: "GRN"
+    });
   });
 
   test("rejects unknown products while processing valid rows", async () => {

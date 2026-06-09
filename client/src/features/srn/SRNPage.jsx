@@ -5,7 +5,6 @@ import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { LookupSelector } from "../../components/operations/LookupSelector.jsx";
-import { BulkCsvTools } from "../../components/operations/BulkCsvTools.jsx";
 import { createSrn, scanSrnSerial } from "../../api/modules/srn.js";
 import { searchDispatches, searchInvoices } from "../../api/modules/lookups.js";
 
@@ -17,7 +16,6 @@ export function SRNPage() {
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [returnRows, setReturnRows] = useState([]);
 
   async function handleCreate() {
     setError(null);
@@ -38,12 +36,6 @@ export function SRNPage() {
       serialNo,
       conditionTag: rowConditionTag
     })) || {};
-    setReturnRows((rows) => [...rows, {
-      serial_no: serialNo,
-      condition_tag: rowConditionTag,
-      status: result.valid ? "ACCEPTED" : (result.alert?.ruleCode || "REJECTED"),
-      message: result.alert?.message || (result.valid ? "Return accepted" : "Return rejected")
-    }]);
     if (result.valid) {
       return {
         status: "ACCEPTED",
@@ -65,17 +57,6 @@ export function SRNPage() {
         <Card title={`SRN #${session.srnId ?? "—"}`}>
           <div className="scan-workflow-form scan-workflow-form--compact">
             <ConditionTagSelect value={conditionTag} onChange={setConditionTag} />
-            <BulkCsvTools
-              title="SRN Bulk Return Fallback"
-              templateFilename="srn-return-import-template.csv"
-              templateHeaders={["serial_no", "condition_tag"]}
-              importLabel="Import Returns"
-              exportLabel="Export Processed Returns"
-              exportFilename={`srn-${session.srnId ?? "session"}-returns.csv`}
-              exportHeaders={["serial_no", "condition_tag", "status", "message"]}
-              exportRows={returnRows}
-              onImportRow={(row) => handleScan(row.serial_no, row.condition_tag || conditionTag)}
-            />
           </div>
           <ScanSession
             module="SRN"
