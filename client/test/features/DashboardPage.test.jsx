@@ -12,6 +12,14 @@ vi.mock("../../src/api/modules/ageing.js", () => ({
 vi.mock("../../src/api/modules/exceptions.js", () => ({
   fetchExceptions: (...args) => exceptionsMock(...args)
 }));
+// Dashboard widgets are gated by permission; default to an admin (all permitted).
+let dashboardPermissions = new Set();
+vi.mock("../../src/auth/useAuth.js", () => ({
+  useAuth: () => ({
+    user: { userId: "1", role: "admin" },
+    hasPermission: (permission) => dashboardPermissions.has(permission)
+  })
+}));
 
 function renderDashboard() {
   return render(
@@ -24,6 +32,7 @@ function renderDashboard() {
 beforeEach(() => {
   ageingMock.mockReset();
   exceptionsMock.mockReset();
+  dashboardPermissions = new Set(["ageing:read", "exception:read"]);
 });
 
 describe("DashboardPage — successful load", () => {
@@ -179,5 +188,36 @@ describe("DashboardPage — retry", () => {
         params?.status === "OPEN" && params?.pageSize === 1
       ))
     ).toHaveLength(2);
+  });
+});
+
+describe("DashboardPage — permission gating", () => {
+  test("hides ageing widgets and skips the ageing fetch without ageing:read", async () => {
+    dashboardPermissions = new Set(["exception:read"]);
+    ageingMock.mockResolvedValue({ summary: [{ bucketCode: "B0_30", label: "0-30", quantity: 5 }] });
+    exceptionsMock.mockResolvedValue({ exceptions: [], total: 3 });
+
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText("Open Exceptions")).toBeVisible();
+    });
+    expect(screen.queryByText("Inventory Ageing Distribution")).toBeNull();
+    expect(screen.queryByText("Total Inventory")).toBeNull();
+    expect(ageingMock).not.toHaveBeenCalled();
+  });
+
+  test("hides exception widgets without exception:read", async () => {
+    dashboardPermissions = new Set(["ageing:read"]);
+    ageingMock.mockResolvedValue({ summary: [{ bucketCode: "B0_30", label: "0-30", quantity: 5 }] });
+    exceptionsMock.mockResolvedValue({ exceptions: [], total: 3 });
+
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText("Inventory Ageing Distribution")).toBeVisible();
+    });
+    expect(screen.queryByText("Open Exceptions")).toBeNull();
+    expect(exceptionsMock).not.toHaveBeenCalled();
   });
 });

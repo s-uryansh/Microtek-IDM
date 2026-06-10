@@ -17,7 +17,7 @@ function hasWarehouseScope(request, warehouseId) {
     return false;
   }
 
-  return request.auth.warehouseIds.includes(warehouseId);
+  return request.auth.warehouseIds.some((authWarehouseId) => String(authWarehouseId) === String(warehouseId));
 }
 
 export function createExceptionCorrectionRoutes({ exceptionCorrectionService }) {

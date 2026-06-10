@@ -155,7 +155,7 @@ Request:
   "records": [
     {
       "serialNo": "SN-001",
-      "productCode": "SKU-INV-1",
+      "productCode": "MTK-INVERTER-1KVA",
       "batchNo": "BATCH-01",
       "warehouseId": 3
     }
@@ -215,7 +215,7 @@ Create request:
 Scan request:
 
 ```json
-{ "serialNo": "DEMO-GRN-0001" }
+{ "serialNo": "MTK-INTRANSIT-0001" }
 ```
 
 Scan response:
@@ -224,7 +224,7 @@ Scan response:
 {
   "valid": true,
   "matchStatus": "MATCHED",
-  "serial": { "serialId": 1, "serialNo": "DEMO-GRN-0001" }
+  "serial": { "serialId": 1, "serialNo": "MTK-INTRANSIT-0001" }
 }
 ```
 
@@ -370,7 +370,7 @@ Create request:
 Scan request:
 
 ```json
-{ "invoiceLineId": 20, "serialNo": "DEMO-DISP-0001" }
+{ "invoiceLineId": 20, "serialNo": "MTK-INV1K-0001" }
 ```
 
 Scan response:
@@ -405,7 +405,7 @@ Request:
 
 ```json
 {
-  "serialNo": "DEMO-DISP-0001",
+  "serialNo": "MTK-INV1K-0001",
   "contextType": "FOUNDATION",
   "warehouseId": 3,
   "expectedProductId": 1
@@ -415,7 +415,7 @@ Request:
 Response:
 
 ```json
-{ "valid": true, "serial": { "serialNo": "DEMO-DISP-0001" } }
+{ "valid": true, "serial": { "serialNo": "MTK-INV1K-0001" } }
 ```
 
 Validation rules: serial format, existence, warehouse, dispatch status, expected product.
@@ -512,7 +512,7 @@ Response:
 
 ```json
 {
-  "serialNo": "DEMO-HERO-0001",
+  "serialNo": "MTK-LIFECYCLE-0001",
   "timeline": [
     { "type": "EVENT", "eventType": "PRODUCTION_IMPORT", "occurredAt": "2026-06-07T00:00:00.000Z" }
   ]

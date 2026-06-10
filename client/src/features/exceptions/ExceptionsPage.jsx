@@ -6,6 +6,7 @@ import { Input } from "../../components/ui/Input.jsx";
 import { DataTable } from "../../components/data/DataTable.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { fetchExceptions, fetchException, correctException } from "../../api/modules/exceptions.js";
+import { useAuth } from "../../auth/useAuth.js";
 
 const columns = [
   { key: "exceptionId", label: "ID" },
@@ -20,7 +21,13 @@ function toArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function canCorrectException(user) {
+  return ["admin", "supervisor"].includes(user?.role);
+}
+
 export function ExceptionsPage() {
+  const { user } = useAuth();
+  const allowCorrect = canCorrectException(user);
   const [exceptions, setExceptions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -96,7 +103,7 @@ export function ExceptionsPage() {
     <div>
       <PageHeader
         title="Exception Portal"
-        subtitle="Review and correct exceptions"
+        subtitle={allowCorrect ? "Review and correct exceptions" : "Review exceptions"}
         actions={
           <div className="page-header__control-row">
             <select
@@ -116,42 +123,44 @@ export function ExceptionsPage() {
       />
 
       <div className={`warehouse-grid ${selected ? "warehouse-grid--two" : ""}`.trim()}>
-        <Card title="Exception List">
-          <div className="scan-workflow-form scan-workflow-form--compact">
-            <Input
-              label="Exception ID"
-              value={exceptionIdInput}
-              onChange={setExceptionIdInput}
-              type="number"
-              inputMode="numeric"
-              placeholder="Enter exception ID"
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+          <Card title="Exception List">
+            <div className="scan-workflow-form scan-workflow-form--compact">
+              <Input
+                label="Exception ID"
+                value={exceptionIdInput}
+                onChange={setExceptionIdInput}
+                type="number"
+                inputMode="numeric"
+                placeholder="Enter exception ID"
+              />
+              <Button onClick={() => handleViewDetail(Number(exceptionIdInput))} disabled={!exceptionIdInput}>
+                Load Exception
+              </Button>
+              <ScanSession
+                module="EXCEPTION"
+                title="Exception scanner"
+                scannerLabel="Scan Exception ID"
+                placeholder="Scan or enter exception ID"
+                onScan={handleScanException}
+              />
+            </div>
+            <DataTable
+              columns={columns}
+              data={list}
+              loading={loading}
+              error={error}
+              onRetry={loadExceptions}
+              pageSize={10}
+              onRowClick={(row) => handleViewDetail(row?.exceptionId)}
             />
-            <Button onClick={() => handleViewDetail(Number(exceptionIdInput))} disabled={!exceptionIdInput}>
-              Load Exception
-            </Button>
-            <ScanSession
-              module="EXCEPTION"
-              title="Exception scanner"
-              scannerLabel="Scan Exception ID"
-              placeholder="Scan or enter exception ID"
-              onScan={handleScanException}
-            />
-          </div>
-          <DataTable
-            columns={columns}
-            data={list}
-            loading={loading}
-            error={error}
-            onRetry={loadExceptions}
-            pageSize={10}
-            onRowClick={(row) => handleViewDetail(row?.exceptionId)}
-          />
-          {exceptions && (
-            <p style={{ color: "var(--color-text-muted)", fontSize: "0.75rem", marginTop: "var(--space-2)" }}>
-              Showing {list.length} of {total} total
-            </p>
-          )}
-        </Card>
+            {exceptions && (
+              <p style={{ color: "var(--color-text-muted)", fontSize: "0.75rem", marginTop: "var(--space-2)" }}>
+                Showing {list.length} of {total} total
+              </p>
+            )}
+          </Card>
+        </div>
 
         {selected && (
           <Card title={detail ? `Exception #${detail.exceptionId}` : `Exception #${selected}`}>
@@ -185,7 +194,7 @@ export function ExceptionsPage() {
                   </>
                 )}
 
-                {detail.status === "OPEN" && (
+                {detail.status === "OPEN" && allowCorrect && (
                   <div
                     style={{
                       display: "flex",

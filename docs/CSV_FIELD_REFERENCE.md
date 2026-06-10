@@ -30,8 +30,8 @@ Sample CSV:
 
 ```csv
 serialNo,productCode,batchNo,warehouseId
-DEMO-PROD-0001,SKU-INV-1,BATCH-01,3
-DEMO-PROD-0002,SKU-BAT-1,BATCH-01,3
+MTK-PROD-0001,MTK-INVERTER-1KVA,BATCH-01,3
+MTK-PROD-0002,MTK-BATTERY-100AH,BATCH-01,3
 ```
 
 Validation rules:
@@ -62,8 +62,8 @@ Sample CSV:
 
 ```csv
 serial_no
-DEMO-GRN-0001
-DEMO-GRN-0002
+MTK-INTRANSIT-0001
+MTK-INTRANSIT-0002
 ```
 
 Validation rules:
@@ -93,8 +93,8 @@ Sample CSV:
 
 ```csv
 serial_no
-DEMO-BAT-0001
-DEMO-BAT-0002
+MTK-BAT100-0001
+MTK-BAT100-0002
 ```
 
 Validation rules:
@@ -161,8 +161,8 @@ Sample CSV:
 
 ```csv
 serial_no
-DEMO-DISP-0001
-DEMO-DISP-0002
+MTK-INV1K-0001
+MTK-INV1K-0002
 ```
 
 Validation rules:
@@ -216,8 +216,8 @@ Sample CSV:
 
 ```csv
 serial_no
-DEMO-HERO-0001
-DEMO-DISP-0001
+MTK-LIFECYCLE-0001
+MTK-INV1K-0001
 ```
 
 Validation rules:

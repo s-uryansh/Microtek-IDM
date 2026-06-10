@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { DispatchPage } from "../../src/features/dispatch/DispatchPage.jsx";
+import { AuthContext } from "../../src/auth/AuthProvider.jsx";
 
 const createMock = vi.fn();
 const scanMock = vi.fn();
@@ -16,11 +17,13 @@ vi.mock("../../src/api/modules/dispatch.js", () => ({
   getDispatch: vi.fn()
 }));
 
-function renderPage() {
+function renderPage(user = { userId: "1", role: "supervisor", warehouseIds: [3], defaultWarehouseId: 3 }) {
   return render(
-    <MemoryRouter>
-      <DispatchPage />
-    </MemoryRouter>
+    <AuthContext.Provider value={{ user }}>
+      <MemoryRouter>
+        <DispatchPage />
+      </MemoryRouter>
+    </AuthContext.Provider>
   );
 }
 
@@ -65,6 +68,11 @@ describe("DispatchPage — happy path", () => {
       warehouseId: 3,
       dispatchQuantity: 1
     });
+  });
+
+  test("prefills the warehouse from the signed-in user's assignment", async () => {
+    renderPage({ userId: "1", role: "supervisor", warehouseIds: [7], defaultWarehouseId: 7 });
+    await waitFor(() => expect(screen.getByLabelText("Warehouse ID")).toHaveValue(7));
   });
 });
 

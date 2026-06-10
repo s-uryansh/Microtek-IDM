@@ -77,7 +77,7 @@ describe("business module repository SQL contracts", () => {
         return {
           rows: [{
             serialId: "7",
-            serialNo: "DEMO-BAT-0001",
+            serialNo: "MTK-BAT100-0001",
             productId: "3",
             currentStatus: "IN_STOCK",
             currentWarehouseId: "3"
@@ -86,7 +86,7 @@ describe("business module repository SQL contracts", () => {
       }
     });
 
-    const serial = await repository.findBySerialNo("DEMO-BAT-0001");
+    const serial = await repository.findBySerialNo("MTK-BAT100-0001");
 
     expect(serial).toMatchObject({
       serialId: 7,

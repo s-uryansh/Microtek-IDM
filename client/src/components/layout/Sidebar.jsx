@@ -2,39 +2,50 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../../auth/useAuth.js";
 import { Icon } from "../ui/Icon.jsx";
 
+// Each nav item declares the RBAC permission required to use its page. Items the
+// signed-in user lacks permission for are hidden, and any section left empty is
+// dropped entirely. Permissions come from the server via the auth context.
 const navSections = [
   {
     title: "Operations",
     items: [
-      { label: "GRN", path: "/grn", icon: "box" },
-      { label: "Dispatch", path: "/dispatch", icon: "truck" },
-      { label: "SRN", path: "/srn", icon: "return" },
-      { label: "Battery Pre-Bill", path: "/battery", icon: "battery" }
+      { label: "GRN", path: "/grn", icon: "box", permission: "grn:write" },
+      { label: "Dispatch", path: "/dispatch", icon: "truck", permission: "dispatch:write" },
+      { label: "SRN", path: "/srn", icon: "return", permission: "srn:write" },
+      { label: "Battery Pre-Bill", path: "/battery", icon: "battery", permission: "battery:read" }
     ]
   },
   {
     title: "Monitoring",
     items: [
-      { label: "Fulfilment", path: "/fulfilment", icon: "chart" },
-      { label: "Ageing Report", path: "/ageing", icon: "trend" },
-      { label: "Serial History", path: "/serials", icon: "search" },
-      { label: "Exceptions", path: "/exceptions", icon: "warning" }
+      { label: "Fulfilment", path: "/fulfilment", icon: "chart", permission: "fulfilment:read" },
+      { label: "Ageing Report", path: "/ageing", icon: "trend", permission: "ageing:read" },
+      { label: "Serial History", path: "/serials", icon: "search", permission: "serial-history:read" },
+      { label: "Exceptions", path: "/exceptions", icon: "warning", permission: "exception:read" }
     ]
   },
   {
     title: "Administration",
     items: [
-      { label: "Import Monitor", path: "/imports", icon: "import" }
+      { label: "Import Monitor", path: "/imports", icon: "import", permission: "integration:import" },
+      { label: "Admin Panel", path: "/admin", icon: "chart", permission: "admin:access" }
     ]
   }
 ];
 
 export function Sidebar({ open, onClose, user }) {
-  const { user: authUser, logout } = useAuth();
+  const { user: authUser, logout, hasPermission } = useAuth();
+  const canAccess = (permission) => (typeof hasPermission === "function" ? hasPermission(permission) : false);
   const displayUser = user ?? {
     name: authUser?.userId || "Unauthenticated",
     role: authUser?.role || "No role"
   };
+  const sections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => canAccess(item.permission))
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <>
@@ -60,7 +71,7 @@ export function Sidebar({ open, onClose, user }) {
             </NavLink>
           </div>
 
-          {navSections.map((section) => (
+          {sections.map((section) => (
             <div key={section.title} className="sidebar__section">
               <div className="sidebar__section-title">{section.title}</div>
               {section.items.map((item) => (

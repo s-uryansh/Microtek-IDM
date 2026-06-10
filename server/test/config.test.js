@@ -21,7 +21,7 @@ describe("loadConfig", () => {
       authTokenSecret: "development-auth-secret-change-before-production",
       authSessionTtlSeconds: 28800,
       redisUrl: "redis://localhost:6379",
-      ageingRefreshIntervalMs: 3600000
+      ageingRefreshIntervalMs: 43200000
     });
   });
 

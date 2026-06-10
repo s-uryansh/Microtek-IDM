@@ -63,6 +63,35 @@ describe("AuthProvider", () => {
     expect(screen.getByText("admin")).toBeVisible();
   });
 
+  test("revalidates the session (and permissions) when the tab regains focus", async () => {
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ user: { userId: "1", username: "admin", role: "admin", warehouseIds: [1], permissions: ["ageing:read"] } })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ user: { userId: "1", username: "admin", role: "admin", warehouseIds: [1], permissions: [] } })
+      });
+
+    render(
+      <AuthProvider>
+        <Harness />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText("admin")).toBeVisible());
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    fireEvent.focus(window);
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      expect.stringContaining("/auth/me"),
+      expect.objectContaining({ credentials: "include" })
+    );
+  });
+
   test("clears auth when session restore returns unauthorized", async () => {
     global.fetch.mockResolvedValueOnce({
       ok: false,

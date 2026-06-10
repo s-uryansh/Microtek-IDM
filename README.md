@@ -77,6 +77,10 @@ Default development login:
 ```text
 username: admin
 password: admin123
+username: supervisor_1
+password: admin123
+username: operator_1
+password: admin123
 ```
 
 ## Running The System

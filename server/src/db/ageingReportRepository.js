@@ -70,6 +70,43 @@ export function createAgeingReportRepository(pool) {
       return { rows: result.rows, total: countResult.rows[0].total };
     },
 
+    async findProductsInBucket({ warehouseId, minAgeDays, maxAgeDays }) {
+      const conditions = ["s.warehouse_id = $1", "s.current_status = 'IN_STOCK'"];
+      const values = [warehouseId];
+
+      if (minAgeDays !== null && minAgeDays !== undefined) {
+        conditions.push(`s.age_days >= $${values.length + 1}`);
+        values.push(minAgeDays);
+      }
+      if (maxAgeDays !== null && maxAgeDays !== undefined) {
+        conditions.push(`s.age_days <= $${values.length + 1}`);
+        values.push(maxAgeDays);
+      }
+      if (minAgeDays === null && maxAgeDays === null) {
+        conditions.push("s.age_days IS NULL");
+      }
+
+      const result = await pool.query(`
+        SELECT
+          s.serial_id AS "serialId",
+          s.serial_no AS "serialNo",
+          s.product_id AS "productId",
+          p.product_code AS "productCode",
+          p.name AS "productName",
+          p.segment,
+          p.category,
+          s.age_days AS "ageDays",
+          s.received_at AS "receivedAt"
+        FROM ageing_serial_snapshot s
+        JOIN product p ON p.product_id = s.product_id
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY p.category, p.product_code, s.serial_no`,
+        values
+      );
+
+      return result.rows;
+    },
+
     async findSummaryByWarehouse({ warehouseIds = [] } = {}) {
       // An empty warehouseIds array collapses the filter to TRUE (all
       // warehouses) and is only passed for admins; non-admins are always

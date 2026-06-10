@@ -6,11 +6,16 @@ import { ExceptionsPage } from "../../src/features/exceptions/ExceptionsPage.jsx
 const listMock = vi.fn();
 const detailMock = vi.fn();
 const correctMock = vi.fn();
+const useAuthMock = vi.fn();
 
 vi.mock("../../src/api/modules/exceptions.js", () => ({
   fetchExceptions: (...args) => listMock(...args),
   fetchException: (...args) => detailMock(...args),
   correctException: (...args) => correctMock(...args)
+}));
+
+vi.mock("../../src/auth/useAuth.js", () => ({
+  useAuth: () => useAuthMock()
 }));
 
 function renderPage() {
@@ -25,9 +30,29 @@ beforeEach(() => {
   listMock.mockReset();
   detailMock.mockReset();
   correctMock.mockReset();
+  useAuthMock.mockReturnValue({
+    user: {
+      userId: "supervisor_1",
+      role: "supervisor",
+      warehouseIds: [5],
+      defaultWarehouseId: 5
+    }
+  });
 });
 
 describe("ExceptionsPage — list", () => {
+  test("renders the review portal without any create-exception affordance", async () => {
+    listMock.mockResolvedValue({ exceptions: [], total: 0 });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("Exception List")).toBeVisible());
+    expect(screen.getByLabelText("Filter by status")).toBeVisible();
+    expect(screen.queryByText("Create Exception From Serial")).toBeNull();
+    expect(screen.queryByLabelText("Exception action")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Validate Serial" })).toBeNull();
+  });
+
   test("renders rows and pagination summary", async () => {
     listMock.mockResolvedValue({
       exceptions: [
@@ -126,7 +151,7 @@ describe("ExceptionsPage — correction", () => {
     fireEvent.click(screen.getByText("MTK-007"));
     await waitFor(() => expect(screen.getByText("Exception #7")).toBeVisible());
     fireEvent.change(screen.getByLabelText("Correction Reason (required)"), { target: { value: "verified" } });
-    fireEvent.click(screen.getByText("Correct Exception"));
+    fireEvent.click(screen.getByRole("button", { name: "Correct Exception" }));
     await waitFor(() => expect(screen.getByText("CORRECTED")).toBeVisible());
     expect(correctMock).toHaveBeenCalledWith({ exceptionId: 7, correctionReason: "verified" });
   });
@@ -141,7 +166,7 @@ describe("ExceptionsPage — correction", () => {
     await waitFor(() => expect(screen.getByText("MTK-007")).toBeVisible());
     fireEvent.click(screen.getByText("MTK-007"));
     await waitFor(() => expect(screen.getByText("Exception #7")).toBeVisible());
-    expect(screen.getByText("Correct Exception")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Correct Exception" })).toBeDisabled();
     expect(correctMock).not.toHaveBeenCalled();
   });
 
@@ -157,7 +182,43 @@ describe("ExceptionsPage — correction", () => {
     fireEvent.click(screen.getByText("MTK-007"));
     await waitFor(() => expect(screen.getByText("Exception #7")).toBeVisible());
     fireEvent.change(screen.getByLabelText("Correction Reason (required)"), { target: { value: "ok" } });
-    fireEvent.click(screen.getByText("Correct Exception"));
+    fireEvent.click(screen.getByRole("button", { name: "Correct Exception" }));
     await waitFor(() => expect(screen.getByText("Exception was already corrected by another user")).toBeVisible());
+  });
+});
+
+describe("ExceptionsPage — read-only role", () => {
+  beforeEach(() => {
+    useAuthMock.mockReturnValue({
+      user: {
+        userId: "operator_1",
+        role: "warehouse_operator",
+        warehouseIds: [5],
+        defaultWarehouseId: 5
+      }
+    });
+    listMock.mockResolvedValue({
+      exceptions: [{ exceptionId: 7, serialNo: "MTK-007", ruleCode: "NOT_FOUND", contextType: "DISPATCH", status: "OPEN", raisedAt: "2026-06-06T09:00:00Z", raisedBy: "op1" }],
+      total: 1
+    });
+  });
+
+  test("lets a warehouse operator review but not correct exceptions", async () => {
+    detailMock.mockResolvedValueOnce({
+      exceptionId: 7, serialNo: "MTK-007", ruleCode: "NOT_FOUND",
+      contextType: "DISPATCH", contextId: 2, status: "OPEN",
+      raisedAt: "2026-06-06T09:00:00Z", raisedBy: "op1"
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("MTK-007")).toBeVisible());
+    fireEvent.click(screen.getByText("MTK-007"));
+    await waitFor(() => expect(screen.getByText("Exception #7")).toBeVisible());
+
+    // Read-only: no correction form, and no create affordance anywhere.
+    expect(screen.queryByLabelText("Correction Reason (required)")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Correct Exception" })).toBeNull();
+    expect(screen.queryByText("Create Exception From Serial")).toBeNull();
   });
 });

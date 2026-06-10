@@ -7,6 +7,7 @@ import { KPIRow } from "./KPIRow.jsx";
 import { RecentExceptionsWidget } from "./RecentExceptionsWidget.jsx";
 import { ActivityWidget } from "./ActivityWidget.jsx";
 import { fetchAgeingReport } from "../../api/modules/ageing.js";
+import { useAuth } from "../../auth/useAuth.js";
 
 function toArray(value) {
   return Array.isArray(value) ? value : [];
@@ -19,6 +20,10 @@ function toChartData(summary) {
 }
 
 export function DashboardPage() {
+  const { hasPermission } = useAuth();
+  const canViewAgeing = typeof hasPermission === "function" ? hasPermission("ageing:read") : false;
+  const canViewExceptions = typeof hasPermission === "function" ? hasPermission("exception:read") : false;
+
   const [ageingReport, setAgeingReport] = useState(null);
   const [ageingData, setAgeingData] = useState([]);
   const [ageingLoading, setAgeingLoading] = useState(true);
@@ -45,12 +50,16 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (!canViewAgeing) {
+      setAgeingLoading(false);
+      return undefined;
+    }
     const controller = new AbortController();
     loadAgeing({ signal: controller.signal }).catch(() => {});
     return () => {
       controller.abort();
     };
-  }, [loadAgeing]);
+  }, [loadAgeing, canViewAgeing]);
 
   return (
     <div className="dashboard">
@@ -61,34 +70,44 @@ export function DashboardPage() {
         ageingLoading={ageingLoading}
         ageingError={ageingError}
         onRetryAgeing={loadAgeing}
+        canViewAgeing={canViewAgeing}
+        canViewExceptions={canViewExceptions}
       />
 
-      <div className="dashboard__chart-row">
-        <div className="dashboard__chart-main">
-          <Card title="Inventory Ageing Distribution">
-            {ageingError ? (
-              <ErrorState
-                title="Unable to load ageing data"
-                message={ageingError}
-                onRetry={loadAgeing}
-              />
-            ) : (
-              <BarChart
-                data={ageingData}
-                loading={ageingLoading}
-                emptyMessage="No ageing data available"
-              />
-            )}
-          </Card>
+      {(canViewAgeing || canViewExceptions) && (
+        <div className="dashboard__chart-row">
+          {canViewAgeing && (
+            <div className="dashboard__chart-main">
+              <Card title="Inventory Ageing Distribution">
+                {ageingError ? (
+                  <ErrorState
+                    title="Unable to load ageing data"
+                    message={ageingError}
+                    onRetry={loadAgeing}
+                  />
+                ) : (
+                  <BarChart
+                    data={ageingData}
+                    loading={ageingLoading}
+                    emptyMessage="No ageing data available"
+                  />
+                )}
+              </Card>
+            </div>
+          )}
+          {canViewExceptions && (
+            <div className="dashboard__chart-side">
+              <ActivityWidget />
+            </div>
+          )}
         </div>
-        <div className="dashboard__chart-side">
-          <ActivityWidget />
-        </div>
-      </div>
+      )}
 
-      <div className="dashboard__table-row">
-        <RecentExceptionsWidget />
-      </div>
+      {canViewExceptions && (
+        <div className="dashboard__table-row">
+          <RecentExceptionsWidget />
+        </div>
+      )}
     </div>
   );
 }

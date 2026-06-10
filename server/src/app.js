@@ -34,6 +34,8 @@ import { createSerialHistoryRoutes } from "./idm09/serialHistoryRoutes.js";
 import { createSerialHistoryService } from "./idm09/serialHistoryService.js";
 import { createLookupRoutes } from "./lookups/lookupRoutes.js";
 import { createLookupService } from "./lookups/lookupService.js";
+import { createAdminRoutes } from "./admin/adminRoutes.js";
+import { createAdminService } from "./admin/adminService.js";
 import { createRbacPolicy } from "./security/rbacPolicy.js";
 import { requireAuthContext, requirePermission } from "./http/authContext.js";
 import { sendError } from "./http/errorResponse.js";
@@ -91,7 +93,14 @@ function createDefaultServices(config) {
       authRepository: repositories.auth,
       tokenSecret: config.authTokenSecret,
       sessionTtlSeconds: config.authSessionTtlSeconds,
-      logger: createLoggerLike(config)
+      logger: createLoggerLike(config),
+      resolvePermissions: repositories.admin?.getPermissionsForRoleCode
+        ? (role) => repositories.admin.getPermissionsForRoleCode(role)
+        : null
+    }),
+    adminService: createAdminService({
+      repositories,
+      adminRepo: repositories.admin
     })
   };
 }
@@ -123,9 +132,17 @@ function createTestHeaderAuthService() {
   };
 }
 
-export function createApp({ config, logger = console, services, rbacPolicy = createRbacPolicy() }) {
+export function createApp({ config, logger = console, services, rbacPolicy = null }) {
   const app = express();
   const resolvedServices = services ?? createDefaultServices(config);
+  const rolePermissionResolver = config.nodeEnv === "test"
+    ? null
+    : (resolvedServices.repositories?.admin?.getPermissionsForRoleCode
+        ? (role) => resolvedServices.repositories.admin.getPermissionsForRoleCode(role)
+        : null);
+  const resolvedRbacPolicy = rbacPolicy ?? createRbacPolicy({
+    resolvePermissionsForRole: rolePermissionResolver
+  });
   const testHeaderAuthService = config.nodeEnv === "test" ? createTestHeaderAuthService() : null;
   const authService = resolvedServices.authService && testHeaderAuthService
     ? { ...resolvedServices.authService, authenticateHeaders: testHeaderAuthService.authenticateHeaders }
@@ -137,7 +154,7 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
 
   app.disable("x-powered-by");
   app.use((request, _response, next) => {
-    request.rbacPolicy = rbacPolicy;
+    request.rbacPolicy = resolvedRbacPolicy;
     request.authService = authService;
     next();
   });
@@ -209,6 +226,7 @@ export function createApp({ config, logger = console, services, rbacPolicy = cre
     createBatteryPreBillingRoutes({ batteryPreBillingService: resolvedServices.batteryPreBillingService })
   );
   app.use("/api/lookups", createLookupRoutes({ lookupService: resolvedServices.lookupService }));
+  app.use("/api/admin", createAdminRoutes({ adminService: resolvedServices.adminService }));
 
   app.use((_request, response) => {
     sendError(response, 404, "NOT_FOUND", "Resource not found");

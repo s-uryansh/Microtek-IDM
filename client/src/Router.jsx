@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { ProtectedRoute } from "./auth/ProtectedRoute.jsx";
+import { AdminRoute } from "./auth/AdminRoute.jsx";
 import { AppShell } from "./components/layout/AppShell.jsx";
 import { RouteErrorFallback } from "./components/errors/RouteErrorFallback.jsx";
 import { ErrorBoundary } from "./components/errors/ErrorBoundary.jsx";
@@ -14,6 +15,7 @@ import { AgeingPage } from "./features/ageing/AgeingPage.jsx";
 import { SerialHistoryPage } from "./features/serials/SerialHistoryPage.jsx";
 import { ExceptionsPage } from "./features/exceptions/ExceptionsPage.jsx";
 import { ImportMonitorPage } from "./features/imports/ImportMonitorPage.jsx";
+import { AdminPage } from "./features/admin/AdminPage.jsx";
 import { LoginPage } from "./features/auth/LoginPage.jsx";
 
 function withBoundary(node) {
@@ -49,7 +51,16 @@ export const router = createBrowserRouter([
       { path: "ageing", element: withBoundary(<AgeingPage />), errorElement: <RouteErrorFallback /> },
       { path: "serials", element: withBoundary(<SerialHistoryPage />), errorElement: <RouteErrorFallback /> },
       { path: "exceptions", element: withBoundary(<ExceptionsPage />), errorElement: <RouteErrorFallback /> },
-      { path: "imports", element: withBoundary(<ImportMonitorPage />), errorElement: <RouteErrorFallback /> }
+      { path: "imports", element: withBoundary(<ImportMonitorPage />), errorElement: <RouteErrorFallback /> },
+      {
+        path: "admin",
+        element: (
+          <AdminRoute>
+            {withBoundary(<AdminPage />)}
+          </AdminRoute>
+        ),
+        errorElement: <RouteErrorFallback />
+      }
     ]
   }
 ]);

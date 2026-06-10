@@ -130,7 +130,7 @@ function createRepositories({
 describe("IDM-01 production import service", () => {
   test("imports valid production serials and writes production events", async () => {
     const repositories = createRepositories({
-      productsByCode: new Map([["SKU-INV-1", { productId: 7 }]])
+      productsByCode: new Map([["MTK-INVERTER-1KVA", { productId: 7 }]])
     });
     const service = createImportService({ repositories });
 
@@ -141,7 +141,7 @@ describe("IDM-01 production import service", () => {
       records: [
         {
           serialNo: "MTK1234567890",
-          productCode: "SKU-INV-1",
+          productCode: "MTK-INVERTER-1KVA",
           batchNo: "B-01",
           warehouseId: 3,
           sourceInvoiceRef: "INV-1"
@@ -173,7 +173,7 @@ describe("IDM-01 production import service", () => {
 
   test("imports SAP QR registry metadata and records factory dispatch destination", async () => {
     const repositories = createRepositories({
-      productsByCode: new Map([["SKU-INV-1", { productId: 7 }]])
+      productsByCode: new Map([["MTK-INVERTER-1KVA", { productId: 7 }]])
     });
     const service = createImportService({ repositories });
 
@@ -185,7 +185,7 @@ describe("IDM-01 production import service", () => {
         {
           qrCode: JSON.stringify({
             serialNo: "MTK1234567896",
-            productCode: "SKU-INV-1",
+            productCode: "MTK-INVERTER-1KVA",
             batchNo: "B-01",
             sourceWarehouseId: 1,
             destinationWarehouseId: 3

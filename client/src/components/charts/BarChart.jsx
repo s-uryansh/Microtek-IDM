@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 
 import { EmptyState } from "../ui/EmptyState.jsx";
 
-export function BarChart({ data, loading, emptyMessage = "No data available", className = "" }) {
+export function BarChart({ data, loading, emptyMessage = "No data available", className = "", onBarClick }) {
   if (loading) {
     return (
       <div className={`bar-chart ${className}`.trim()} role="figure" aria-label="Bar chart">
@@ -41,6 +41,7 @@ export function BarChart({ data, loading, emptyMessage = "No data available", cl
               value={bar.value}
               heightPercent={heightPercent}
               index={index}
+              onClick={onBarClick ? () => onBarClick(bar) : undefined}
             />
           );
         })}
@@ -55,7 +56,7 @@ export function BarChart({ data, loading, emptyMessage = "No data available", cl
   );
 }
 
-function Bar({ label, value, heightPercent, index }) {
+function Bar({ label, value, heightPercent, index, onClick }) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const barRef = useRef(null);
 
@@ -71,15 +72,21 @@ function Bar({ label, value, heightPercent, index }) {
     <div className="bar-chart__bar-wrapper">
         <div
           ref={barRef}
-          className="bar-chart__bar"
-        style={{ "--bar-height": `${heightPercent}%`, backgroundColor: color }}
+          className={`bar-chart__bar${onClick ? " bar-chart__bar--clickable" : ""}`}
+          style={{
+            "--bar-height": `${heightPercent}%`,
+            backgroundColor: color,
+            cursor: onClick ? "pointer" : undefined
+          }}
+          onClick={onClick}
+          onKeyDown={(e) => { if (onClick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(); } }}
           onMouseEnter={() => setTooltipVisible(true)}
           onMouseLeave={() => setTooltipVisible(false)}
           onFocus={() => setTooltipVisible(true)}
           onBlur={() => setTooltipVisible(false)}
-          tabIndex={0}
+          tabIndex={onClick ? 0 : 0}
           role="img"
-          aria-label={`${label}: ${value.toLocaleString("en-US")}`}
+          aria-label={`${label}: ${value.toLocaleString("en-US")}${onClick ? ". Click for details" : ""}`}
         />
         {tooltipVisible && (
           <div className="bar-chart__tooltip" role="tooltip">

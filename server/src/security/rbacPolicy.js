@@ -53,6 +53,17 @@ const foundationPermissionsByRole = new Map([
     ]
 ]);
 
+export const availablePermissionCodes = Array.from(
+  new Set(Array.from(foundationPermissionsByRole.values()).flatMap((permissions) => Array.from(permissions)))
+).sort();
+
+// Static fallback used when no database-backed permission resolver is available
+// (e.g. tests, or roles not yet seeded). Returns the permission codes granted to
+// a role under the built-in foundation role map.
+export function staticPermissionsForRole(role) {
+  return Array.from(foundationPermissionsByRole.get(role) ?? []);
+}
+
 function hasWarehouseScope({ userWarehouseIds, resourceWarehouseId }) {
   if (resourceWarehouseId === undefined || resourceWarehouseId === null) {
     return true;
@@ -61,10 +72,23 @@ function hasWarehouseScope({ userWarehouseIds, resourceWarehouseId }) {
   return userWarehouseIds.includes(resourceWarehouseId);
 }
 
-export function createRbacPolicy(rolePermissions = foundationPermissionsByRole) {
+export function createRbacPolicy({
+  rolePermissions = foundationPermissionsByRole,
+  resolvePermissionsForRole = null
+} = {}) {
   return {
     can({ role, permission, userWarehouseIds = [], resourceWarehouseId }) {
-      const permissions = rolePermissions.get(role);
+      const resolvedPermissions = resolvePermissionsForRole
+        ? resolvePermissionsForRole(role)
+        : null;
+
+      if (resolvedPermissions && typeof resolvedPermissions.then === "function") {
+        return resolvedPermissions.then((permissions) => (
+          permissions?.has(permission) && hasWarehouseScope({ userWarehouseIds, resourceWarehouseId })
+        ));
+      }
+
+      const permissions = resolvedPermissions ?? rolePermissions.get(role);
 
       if (!permissions?.has(permission)) {
         return false;

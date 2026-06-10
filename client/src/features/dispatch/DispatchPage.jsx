@@ -12,8 +12,10 @@ import {
   completeDispatch
 } from "../../api/modules/dispatch.js";
 import { searchInvoices } from "../../api/modules/lookups.js";
+import { useAuth } from "../../auth/useAuth.js";
 
 export function DispatchPage() {
+  const { user } = useAuth();
   const [invoiceId, setInvoiceId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [dispatchQuantity, setDispatchQuantity] = useState("");
@@ -23,6 +25,13 @@ export function DispatchPage() {
   const [availability, setAvailability] = useState(null);
   const [availabilityError, setAvailabilityError] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+
+  useEffect(() => {
+    const assignedWarehouseId = user?.defaultWarehouseId ?? user?.warehouseIds?.[0];
+    if (!warehouseId && assignedWarehouseId) {
+      setWarehouseId(String(assignedWarehouseId));
+    }
+  }, [user, warehouseId]);
 
   useEffect(() => {
     if (!invoiceId || !warehouseId || session) {
@@ -157,6 +166,23 @@ export function DispatchPage() {
               </>
             )}
           />
+          {selectedInvoice?.lines?.length > 0 && (
+            <div className="operation-panel" aria-label="Invoice lines preview">
+              <h3 className="operation-panel__title">Invoice Items</h3>
+              <div className="operation-panel__results">
+                {selectedInvoice.lines.map((line) => (
+                  <div key={line.invoiceLineId} className="operation-panel__result">
+                    <span className="operation-panel__result-title">
+                      Line {line.lineNo} · {line.productCode}
+                    </span>
+                    <span className="operation-panel__result-meta">
+                      {line.productName} · Qty {line.quantity}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <Input
             label="Invoice ID"
             value={invoiceId}

@@ -130,6 +130,31 @@ describe("IDM-10 exception correction route authorization", () => {
     expect(response.status).toBe(200);
   });
 
+  test("allows supervisor access when the resolved warehouse id is a bigint string", async () => {
+    const correctionService = createCorrectionService({
+      getResult: { exceptionId: 1, ruleCode: "WRONG_SERIAL", status: "OPEN", warehouseId: "5" }
+    });
+    const app = createApp({
+      config,
+      services: {
+        exceptionCorrectionService: correctionService
+      }
+    });
+
+    const response = await inject(app, {
+      method: "GET",
+      url: "/api/idm-10/exceptions/1",
+      headers: {
+        "x-user-id": "supervisor_1",
+        "x-user-role": "supervisor",
+        "x-warehouse-ids": "5"
+      }
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ exceptionId: 1, warehouseId: "5" });
+  });
+
   test("denies correction by supervisor out of warehouse scope", async () => {
     const correctionService = createCorrectionService({
       getResult: { exceptionId: 1, ruleCode: "WRONG_SERIAL", status: "OPEN", warehouseId: 10 }

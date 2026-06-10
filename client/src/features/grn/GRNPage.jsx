@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
@@ -7,17 +7,26 @@ import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { LookupSelector } from "../../components/operations/LookupSelector.jsx";
 import { createGrn, scanGrnSerial, completeGrn } from "../../api/modules/grn.js";
 import { searchDispatchDocs } from "../../api/modules/lookups.js";
+import { useAuth } from "../../auth/useAuth.js";
 
 function safeNumber(value, fallback = 0) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 export function GRNPage() {
+  const { user } = useAuth();
   const [sapDispatchDocId, setSapDispatchDocId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    const assignedWarehouseId = user?.defaultWarehouseId ?? user?.warehouseIds?.[0];
+    if (!warehouseId && assignedWarehouseId) {
+      setWarehouseId(String(assignedWarehouseId));
+    }
+  }, [user, warehouseId]);
 
   async function handleCreate() {
     setError(null);

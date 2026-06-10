@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { createAuthService } from "../src/auth/authService.js";
 import { hashPassword } from "../src/auth/password.js";
+import { staticPermissionsForRole } from "../src/security/rbacPolicy.js";
 
 function createRepository({ user }) {
   return {
@@ -39,7 +40,8 @@ describe("auth service", () => {
       userId: "1",
       username: "admin",
       role: "admin",
-      warehouseIds: [1, 2]
+      warehouseIds: [1, 2],
+      permissions: staticPermissionsForRole("admin")
     });
     expect(result.token).toEqual(expect.any(String));
     expect(repository.recordSuccessfulLogin).toHaveBeenCalledWith("1");
@@ -154,7 +156,8 @@ describe("auth service", () => {
       userId: "1",
       username: "admin",
       role: "admin",
-      warehouseIds: [1, 2]
+      warehouseIds: [1, 2],
+      permissions: staticPermissionsForRole("admin")
     });
   });
 });

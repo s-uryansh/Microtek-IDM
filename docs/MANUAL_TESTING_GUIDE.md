@@ -65,21 +65,21 @@ Use the lookup search where available because numeric IDs can vary between test 
 
 | Business Item | Search / Entry Value |
 | --- | --- |
-| GRN dispatch document | `DEMO-DISP-CW-01` |
-| GRN valid serial | `DEMO-GRN-0001` |
-| GRN second valid serial | `DEMO-GRN-0002` |
-| GRN wrong-document serial | `DEMO-WRONG-0001` |
-| GRN excess serial | `DEMO-EXCESS-0001` |
-| Dispatch invoice | `DEMO-INV-001` |
-| Dispatch valid serial | `DEMO-DISP-0001` |
-| Dispatch second valid serial | `DEMO-DISP-0002` |
-| Battery invoice | `DEMO-INV-BATTERY` |
-| Battery valid serial | `DEMO-BAT-0001` |
-| Battery second valid serial | `DEMO-BAT-0002` |
-| Return invoice | `DEMO-INV-RETURN` |
+| GRN dispatch document | `MTK-DISPATCH-CW-01` |
+| GRN valid serial | `MTK-INTRANSIT-0001` |
+| GRN second valid serial | `MTK-INTRANSIT-0002` |
+| GRN wrong-document serial | `MTK-INTRANSIT-RW02-0001` |
+| GRN excess serial | `MTK-EXCESS-0001` |
+| Dispatch invoice | `MTK-INVOICE-RW01-001` |
+| Dispatch valid serial | `MTK-INV1K-0001` |
+| Dispatch second valid serial | `MTK-INV1K-0002` |
+| Battery invoice | `MTK-INVOICE-BATTERY-001` |
+| Battery valid serial | `MTK-BAT100-0001` |
+| Battery second valid serial | `MTK-BAT100-0002` |
+| Return invoice | `MTK-INVOICE-RETURN-001` |
 | Return serial | `DEMO-SRN-0001` |
-| Serial history hero serial | `DEMO-HERO-0001` |
-| Open exception serial | `DEMO-DISP-0002` |
+| Serial history hero serial | `MTK-LIFECYCLE-0001` |
+| Open exception serial | `MTK-INV1K-0002` |
 | Invalid serial sample | `INVALID-SERIAL-9999` |
 | Invalid numeric ID sample | `999999` |
 
@@ -166,13 +166,13 @@ Main screen fields:
 | Field | What to enter for testing |
 | --- | --- |
 | `Receiving Warehouse ID` | `3` for `RW-01` in a freshly seeded demo environment |
-| `Scan QR Serial` | `DEMO-GRN-0001` or `DEMO-GRN-0002` |
+| `Scan QR Serial` | `MTK-INTRANSIT-0001` or `MTK-INTRANSIT-0002` |
 
 Negative test data:
 
 | Scenario | Receiving Warehouse ID | QR Serial |
 | --- | ---: | --- |
-| Wrong destination warehouse | `3` | `DEMO-WRONG-0001` |
+| Wrong destination warehouse | `3` | `MTK-INTRANSIT-RW02-0001` |
 | Unknown serial | `3` | `INVALID-SERIAL-9999` |
 
 Screenshot checkpoint: capture the `SAP Receipt Scan` panel before scanning and after a successful scan result.
@@ -190,7 +190,7 @@ Test Steps:
 1. Open Administration -> `Import Monitor`.
 2. Select `Receipt Scan` if it is not already selected.
 3. In `Receiving Warehouse ID`, enter `3`.
-4. In `Scan QR Serial`, enter `DEMO-GRN-0001`.
+4. In `Scan QR Serial`, enter `MTK-INTRANSIT-0001`.
 5. Submit the scan.
 
 Expected Result:  
@@ -210,7 +210,7 @@ Tester is on Import Monitor -> `Receipt Scan`.
 Test Steps:
 
 1. In `Receiving Warehouse ID`, enter `3`.
-2. In `Scan QR Serial`, enter `DEMO-GRN-0002`.
+2. In `Scan QR Serial`, enter `MTK-INTRANSIT-0002`.
 3. Submit the scan.
 
 Expected Result:  
@@ -230,7 +230,7 @@ Tester is on Import Monitor -> `Receipt Scan`.
 Test Steps:
 
 1. In `Receiving Warehouse ID`, enter `3`.
-2. In `Scan QR Serial`, enter `DEMO-WRONG-0001`.
+2. In `Scan QR Serial`, enter `MTK-INTRANSIT-RW02-0001`.
 3. Submit the scan.
 
 Expected Result:  
@@ -270,7 +270,7 @@ Tester is on Import Monitor -> `Receipt Scan`.
 Test Steps:
 
 1. Leave `Receiving Warehouse ID` empty.
-2. Try to enter `DEMO-GRN-0001` in `Scan QR Serial`.
+2. Try to enter `MTK-INTRANSIT-0001` in `Scan QR Serial`.
 
 Expected Result:  
 The scan input is disabled or the screen tells the tester to enter the receiving warehouse ID first.
@@ -308,7 +308,7 @@ Tester is logged in as `admin`.
 Test Steps:
 
 1. Open Operations -> `GRN`.
-2. In `Search Dispatch Document`, enter `DEMO-DISP-CW-01`.
+2. In `Search Dispatch Document`, enter `MTK-DISPATCH-CW-01`.
 3. Select the returned document.
 4. Verify `SAP Dispatch Document ID` is filled.
 5. Verify `Receiving Warehouse ID` is filled. In a fresh demo environment this is usually `3`.
@@ -326,11 +326,11 @@ Purpose:
 Confirm that a correct incoming serial is accepted.
 
 Preconditions:  
-GRN session for `DEMO-DISP-CW-01` is open.
+GRN session for `MTK-DISPATCH-CW-01` is open.
 
 Test Steps:
 
-1. In the GRN scan input, enter `DEMO-GRN-0001`.
+1. In the GRN scan input, enter `MTK-INTRANSIT-0001`.
 2. Submit the scan.
 3. Observe the scan result message.
 
@@ -346,11 +346,11 @@ Purpose:
 Confirm that the same serial cannot be received twice in the same GRN session.
 
 Preconditions:  
-`DEMO-GRN-0001` has already been scanned successfully in the same GRN session.
+`MTK-INTRANSIT-0001` has already been scanned successfully in the same GRN session.
 
 Test Steps:
 
-1. Enter `DEMO-GRN-0001` again.
+1. Enter `MTK-INTRANSIT-0001` again.
 2. Submit the scan.
 3. Observe the result message.
 
@@ -366,11 +366,11 @@ Purpose:
 Confirm that a serial belonging to another dispatch document is rejected or flagged.
 
 Preconditions:  
-GRN session for `DEMO-DISP-CW-01` is open.
+GRN session for `MTK-DISPATCH-CW-01` is open.
 
 Test Steps:
 
-1. Enter `DEMO-WRONG-0001`.
+1. Enter `MTK-INTRANSIT-RW02-0001`.
 2. Submit the scan.
 3. Observe the result message.
 
@@ -386,11 +386,11 @@ Purpose:
 Confirm that an unexpected serial is flagged as excess.
 
 Preconditions:  
-GRN session for `DEMO-DISP-CW-01` is open.
+GRN session for `MTK-DISPATCH-CW-01` is open.
 
 Test Steps:
 
-1. Enter `DEMO-EXCESS-0001`.
+1. Enter `MTK-EXCESS-0001`.
 2. Submit the scan.
 3. Observe the result message.
 
@@ -503,13 +503,13 @@ Purpose:
 Confirm the Gatekeeper Validation Handshake blocks a serial that is unauthorized (not in the Master Validation Registry) or misdirected (destination warehouse does not match the SAP dispatch record). See Scope Section 3.2.
 
 Preconditions:  
-GRN session for `DEMO-DISP-CW-01` is open at the receiving warehouse (usually Warehouse ID `3`).
+GRN session for `MTK-DISPATCH-CW-01` is open at the receiving warehouse (usually Warehouse ID `3`).
 
 Test Steps:
 
 1. Scan an **unauthorized serial** that does not exist in the Registry, for example `INVALID-SERIAL-9999`.
 2. Submit the scan and observe the result.
-3. Scan a **misdirected serial** — one that exists in the Registry but is dispatched to a different warehouse than the current GRN warehouse, for example `DEMO-WRONG-0001`.
+3. Scan a **misdirected serial** — one that exists in the Registry but is dispatched to a different warehouse than the current GRN warehouse, for example `MTK-INTRANSIT-RW02-0001`.
 4. Submit the scan and observe the result.
 5. Open Monitoring -> `Exceptions` and refresh the open exceptions list.
 
@@ -543,11 +543,11 @@ Field values for the standard demo test:
 
 | Field | What to enter for testing |
 | --- | --- |
-| `Search Invoice` | `DEMO-INV-001` |
-| `Invoice ID` | Use the numeric ID filled after selecting `DEMO-INV-001` |
+| `Search Invoice` | `MTK-INVOICE-RW01-001` |
+| `Invoice ID` | Use the numeric ID filled after selecting `MTK-INVOICE-RW01-001` |
 | `Warehouse ID` | Use the ID filled after selecting the invoice; usually `3` for `RW-01` |
 | `Dispatch Quantity` | `2` for a full demo dispatch, or `1` for partial dispatch testing |
-| `Scan Serial` | `DEMO-DISP-0001`, then `DEMO-DISP-0002` |
+| `Scan Serial` | `MTK-INV1K-0001`, then `MTK-INV1K-0002` |
 
 Screenshot checkpoint: capture the start form showing invoice, warehouse, dispatch quantity, and current stock; then capture the `Dispatch #...` scan panel after starting.
 
@@ -562,7 +562,7 @@ Tester is logged in as `admin`.
 Test Steps:
 
 1. Open Operations -> `Dispatch`.
-2. In `Search Invoice`, enter `DEMO-INV-001`.
+2. In `Search Invoice`, enter `MTK-INVOICE-RW01-001`.
 3. Select the returned invoice.
 4. Verify `Invoice ID` is filled.
 5. Verify `Warehouse ID` is filled. In a fresh demo environment this is usually `3`.
@@ -582,7 +582,7 @@ Purpose:
 Confirm that the operator does not need to enter or select an invoice line. IDM maps each scanned serial to the SAP invoice line by product.
 
 Preconditions:  
-Dispatch session for `DEMO-INV-001` is open.
+Dispatch session for `MTK-INVOICE-RW01-001` is open.
 
 Test Steps:
 
@@ -605,7 +605,7 @@ Dispatch session is open with `Dispatch Quantity` set to `2`.
 
 Test Steps:
 
-1. Enter `DEMO-DISP-0001` in the dispatch scan input.
+1. Enter `MTK-INV1K-0001` in the dispatch scan input.
 2. Submit the scan.
 
 Expected Result:  
@@ -620,11 +620,11 @@ Purpose:
 Confirm that the same serial cannot be dispatched twice.
 
 Preconditions:  
-`DEMO-DISP-0001` was already scanned successfully in the same dispatch session.
+`MTK-INV1K-0001` was already scanned successfully in the same dispatch session.
 
 Test Steps:
 
-1. Enter `DEMO-DISP-0001` again.
+1. Enter `MTK-INV1K-0001` again.
 2. Submit the scan.
 
 Expected Result:  
@@ -658,11 +658,11 @@ Purpose:
 Confirm that a serial not suitable for the invoice is rejected.
 
 Preconditions:  
-Dispatch session is open for `DEMO-INV-001`.
+Dispatch session is open for `MTK-INVOICE-RW01-001`.
 
 Test Steps:
 
-1. Enter `DEMO-BAT-0001`.
+1. Enter `MTK-BAT100-0001`.
 2. Submit the scan.
 
 Expected Result:  
@@ -681,8 +681,8 @@ Dispatch session is open with `Dispatch Quantity` set to `2`.
 
 Test Steps:
 
-1. Scan `DEMO-DISP-0001`.
-2. Scan `DEMO-DISP-0002`.
+1. Scan `MTK-INV1K-0001`.
+2. Scan `MTK-INV1K-0002`.
 3. Click the dispatch completion button.
 
 Expected Result:  
@@ -701,10 +701,10 @@ Start a fresh dispatch session for an invoice that requires more than one serial
 
 Test Steps:
 
-1. Search and select `DEMO-INV-001`.
+1. Search and select `MTK-INVOICE-RW01-001`.
 2. Enter `Dispatch Quantity` as `2`.
 3. Click `Start Dispatch`.
-4. Scan only `DEMO-DISP-0001`.
+4. Scan only `MTK-INV1K-0001`.
 5. Click the dispatch completion button.
 
 Expected Result:  
@@ -763,7 +763,7 @@ Tester is logged in as `admin` and is on Operations -> `Dispatch`.
 Test Steps:
 
 1. On the `Start Dispatch Session` screen, leave `Invoice ID`, `Warehouse ID`, and `Dispatch Quantity` empty and confirm `Start Dispatch` is disabled.
-2. Search and select `DEMO-INV-001`.
+2. Search and select `MTK-INVOICE-RW01-001`.
 3. Confirm `Invoice ID` and `Warehouse ID` are filled.
 4. In `Dispatch Quantity`, enter `1` or `2`.
 5. Click `Start Dispatch`.
@@ -781,17 +781,17 @@ Purpose:
 Confirm an invoice can be dispatched in multiple sub-batches across separate sessions and tracks cumulative scanned quantity correctly.
 
 Preconditions:  
-A dispatch invoice whose quantity is greater than one is available. For the demo set, use `DEMO-INV-001` with `DEMO-DISP-0001` and `DEMO-DISP-0002`.
+A dispatch invoice whose quantity is greater than one is available. For the demo set, use `MTK-INVOICE-RW01-001` with `MTK-INV1K-0001` and `MTK-INV1K-0002`.
 
 Test Steps:
 
-1. Start a dispatch session for `DEMO-INV-001`.
+1. Start a dispatch session for `MTK-INVOICE-RW01-001`.
 2. In `Dispatch Quantity`, enter `1`.
-3. Scan `DEMO-DISP-0001`.
+3. Scan `MTK-INV1K-0001`.
 4. Complete the first dispatch session.
 5. Start or resume dispatch for the same invoice later.
 6. In `Dispatch Quantity`, enter `1`.
-7. Scan `DEMO-DISP-0002`.
+7. Scan `MTK-INV1K-0002`.
 8. Open Monitoring -> `Fulfilment`, search the invoice, and review Required vs. Scanned counts.
 9. Complete dispatch once the full invoice quantity is scanned.
 
@@ -838,7 +838,7 @@ Tester is logged in as `admin`.
 Test Steps:
 
 1. Open Operations -> `SRN`.
-2. In `Search Original Invoice`, enter `DEMO-INV-RETURN`.
+2. In `Search Original Invoice`, enter `MTK-INVOICE-RETURN-001`.
 3. Select the returned invoice.
 4. Verify `Receiving Warehouse ID` is filled.
 5. Select `SALEABLE` in `Condition Tag`.
@@ -958,7 +958,7 @@ SRN session is open.
 
 Test Steps:
 
-1. Enter `DEMO-GRN-0001`.
+1. Enter `MTK-INTRANSIT-0001`.
 2. Submit the scan.
 
 Expected Result:  
@@ -1034,7 +1034,7 @@ Tester is logged in as `admin`.
 Test Steps:
 
 1. Open Operations -> `Battery Pre-Bill`.
-2. In `Search Battery Invoice`, enter `DEMO-INV-BATTERY`.
+2. In `Search Battery Invoice`, enter `MTK-INVOICE-BATTERY-001`.
 3. Select the returned invoice.
 4. In `Select Battery Line`, click the battery line.
 5. Verify `Invoice Line ID` is filled.
@@ -1055,7 +1055,7 @@ Battery invoice line is selected.
 
 Test Steps:
 
-1. Enter `DEMO-BAT-0001` in the battery scan input.
+1. Enter `MTK-BAT100-0001` in the battery scan input.
 2. Submit the scan.
 
 Expected Result:  
@@ -1070,11 +1070,11 @@ Purpose:
 Confirm that the same battery serial cannot be committed twice.
 
 Preconditions:  
-`DEMO-BAT-0001` was already committed.
+`MTK-BAT100-0001` was already committed.
 
 Test Steps:
 
-1. Enter `DEMO-BAT-0001` again.
+1. Enter `MTK-BAT100-0001` again.
 2. Submit the scan.
 
 Expected Result:  
@@ -1093,7 +1093,7 @@ Battery invoice line is selected.
 
 Test Steps:
 
-1. Enter `DEMO-DISP-0001`.
+1. Enter `MTK-INV1K-0001`.
 2. Submit the scan.
 
 Expected Result:  
@@ -1208,7 +1208,7 @@ Tester is logged in as `admin`.
 Test Steps:
 
 1. Open Monitoring -> `Fulfilment`.
-2. Enter the current numeric Invoice ID for `DEMO-INV-001`. Use Dispatch lookup first if the numeric ID is unknown.
+2. Enter the current numeric Invoice ID for `MTK-INVOICE-RW01-001`. Use Dispatch lookup first if the numeric ID is unknown.
 3. Click `Search`.
 
 Expected Result:  
@@ -1435,7 +1435,7 @@ Main screen sections:
 - Current Status
 - Timeline cards
 
-Screenshot checkpoint: capture the timeline for `DEMO-HERO-0001`.
+Screenshot checkpoint: capture the timeline for `MTK-LIFECYCLE-0001`.
 
 ### TC-HIST-001 - Search Serial History
 
@@ -1448,11 +1448,11 @@ Tester is logged in as `admin`.
 Test Steps:
 
 1. Open Monitoring -> `Serial History`.
-2. In `Serial Number`, enter `DEMO-HERO-0001`.
+2. In `Serial Number`, enter `MTK-LIFECYCLE-0001`.
 3. Click `Search`.
 
 Expected Result:  
-The page displays `Serial: DEMO-HERO-0001`, current status, and timeline entries.
+The page displays `Serial: MTK-LIFECYCLE-0001`, current status, and timeline entries.
 
 Pass Criteria:  
 Tester can see at least one lifecycle event for the serial.
@@ -1467,7 +1467,7 @@ Tester is on Serial History page.
 
 Test Steps:
 
-1. In `Serial scanner`, enter `DEMO-HERO-0001`.
+1. In `Serial scanner`, enter `MTK-LIFECYCLE-0001`.
 2. Submit the scan.
 
 Expected Result:  
@@ -1795,7 +1795,7 @@ Actual Result:
 What actually happened.
 
 Test Data Used:  
-Example: `DEMO-GRN-0001`.
+Example: `MTK-INTRANSIT-0001`.
 
 Screenshot / Video:  
 Attach file name or link.
@@ -1818,7 +1818,7 @@ Before marking manual testing complete:
 - Battery Pre-Bill commits only valid battery serials and shows commit status.
 - Fulfilment shows required, scanned, and committed quantities.
 - Ageing Report loads bucket details by warehouse.
-- Serial History displays timeline for `DEMO-HERO-0001`.
+- Serial History displays timeline for `MTK-LIFECYCLE-0001`.
 - Exceptions can be viewed, filtered, loaded, and corrected with a reason.
 - SAP receipt scanning and Dispatch are tested through physical QR/serial scan entry only; no CSV import/export is part of those workflows.
 - Logged-out users cannot access protected pages directly.

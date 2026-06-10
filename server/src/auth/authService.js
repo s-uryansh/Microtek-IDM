@@ -3,15 +3,17 @@ import { randomBytes } from "node:crypto";
 import { authError, invalidCredentialsError } from "./authErrors.js";
 import { verifyPassword } from "./password.js";
 import { createSessionToken, verifySessionToken } from "./token.js";
+import { staticPermissionsForRole } from "../security/rbacPolicy.js";
 
 const DUMMY_HASH = "$2b$12$tPMbnZMIwpdRNkm6EBsNpu6eYbK0E5ivwJAF.zCDdlGkwtNaRd/F6";
 
-function publicUser(user) {
+function publicUser(user, permissions = []) {
   return {
     userId: String(user.userId),
     username: user.username,
     role: user.role,
-    warehouseIds: user.warehouseIds
+    warehouseIds: user.warehouseIds,
+    permissions: Array.isArray(permissions) ? permissions : []
   };
 }
 
@@ -25,8 +27,26 @@ export function createAuthService({
   logger = console,
   sessionTtlSeconds = 8 * 60 * 60,
   maxFailedLogins = 5,
-  lockoutMs = 15 * 60 * 1000
+  lockoutMs = 15 * 60 * 1000,
+  resolvePermissions = null
 }) {
+  // Resolve the permission codes granted to a user's role. Prefers the injected
+  // (database-backed) resolver; falls back to the static foundation role map so
+  // the client always receives a permission list to drive UI gating.
+  async function permissionsForUser(role) {
+    if (resolvePermissions) {
+      try {
+        const resolved = await resolvePermissions(role);
+        if (Array.isArray(resolved) && resolved.length > 0) {
+          return resolved;
+        }
+      } catch (error) {
+        logger.warn?.({ role, error }, "Permission resolution failed; using static fallback");
+      }
+    }
+    return staticPermissionsForRole(role);
+  }
+
   return {
     async login({ username, password, ipAddress, userAgent }) {
       const normalizedUsername = String(username || "").trim();
@@ -67,7 +87,8 @@ export function createAuthService({
       });
 
       logger.info?.({ userId: user.userId, ipAddress }, "Login succeeded");
-      return { token, expiresAt, user: publicUser(user) };
+      const permissions = await permissionsForUser(user.role);
+      return { token, expiresAt, user: publicUser(user, permissions) };
     },
 
     async authenticateToken(token) {
@@ -92,7 +113,8 @@ export function createAuthService({
         throw authError("UNAUTHORIZED", "Authentication required", 401);
       }
 
-      return publicUser(user);
+      const permissions = await permissionsForUser(user.role);
+      return publicUser(user, permissions);
     },
 
     async logout(token) {

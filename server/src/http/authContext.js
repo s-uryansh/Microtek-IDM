@@ -42,24 +42,28 @@ export async function requireAuthContext(request, response, next) {
 }
 
 export function requirePermission(permission, { warehouseIdFromBody = false, warehouseIdFromQuery = false } = {}) {
-  return (request, response, next) => {
-    const resourceWarehouseId = warehouseIdFromBody
-      ? request.body?.warehouseId
-      : warehouseIdFromQuery
-        ? Number.parseInt(request.query?.warehouseId, 10)
-        : undefined;
-    const allowed = request.rbacPolicy.can({
-      role: request.auth.role,
-      permission,
-      userWarehouseIds: request.auth.warehouseIds,
-      resourceWarehouseId
-    });
+  return async (request, response, next) => {
+    try {
+      const resourceWarehouseId = warehouseIdFromBody
+        ? request.body?.warehouseId
+        : warehouseIdFromQuery
+          ? Number.parseInt(request.query?.warehouseId, 10)
+          : undefined;
+      const allowed = await request.rbacPolicy.can({
+        role: request.auth.role,
+        permission,
+        userWarehouseIds: request.auth.warehouseIds,
+        resourceWarehouseId
+      });
 
-    if (!allowed) {
-      sendError(response, 403, "FORBIDDEN", "Insufficient permission");
-      return;
+      if (!allowed) {
+        sendError(response, 403, "FORBIDDEN", "Insufficient permission");
+        return;
+      }
+
+      next();
+    } catch (error) {
+      next(error);
     }
-
-    next();
   };
 }

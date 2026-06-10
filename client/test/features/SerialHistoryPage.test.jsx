@@ -31,17 +31,17 @@ describe("SerialHistoryPage", () => {
   test("renders timeline when serial is found", async () => {
     mockFetchHistory.mockResolvedValue({
       found: true,
-      serial: { serialId: 1, serialNo: "DEMO-HERO-0001", currentStatus: "IN_STOCK" },
+      serial: { serialId: 1, serialNo: "MTK-LIFECYCLE-0001", currentStatus: "IN_STOCK" },
       timeline: [
         { type: "EVENT", at: "2026-01-01T00:00:00Z", eventType: "PRODUCTION", warehouseId: 1, referenceType: null, referenceId: null, createdBy: "sys" },
         { type: "EXCEPTION", at: "2026-03-15T00:00:00Z", ruleCode: "WRONG_WAREHOUSE", contextType: "GRN", contextId: 1, status: "CORRECTED", raisedBy: "op1", correctedAt: "2026-03-16T00:00:00Z", correctedBy: "supervisor_1" }
       ]
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Serial Number"), { target: { value: "DEMO-HERO-0001" } });
+    fireEvent.change(screen.getByLabelText("Serial Number"), { target: { value: "MTK-LIFECYCLE-0001" } });
     fireEvent.click(screen.getByText("Search"));
     await waitFor(() => {
-      expect(screen.getByText("Serial: DEMO-HERO-0001")).toBeVisible();
+      expect(screen.getByText("Serial: MTK-LIFECYCLE-0001")).toBeVisible();
     });
     expect(screen.getByText("PRODUCTION")).toBeVisible();
     expect(screen.getByText("WRONG_WAREHOUSE")).toBeVisible();

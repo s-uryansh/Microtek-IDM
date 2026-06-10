@@ -1,4 +1,4 @@
-const DEFAULT_INTERVAL_MS = 3600000;
+const DEFAULT_INTERVAL_MS = 43200000;
 
 async function refreshAgeingSnapshot({ pool, logger }) {
   const startedAt = Date.now();

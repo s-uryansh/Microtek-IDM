@@ -7,6 +7,13 @@ export function fetchAgeingReport({ warehouseId, productId, signal }) {
   return get(`/idm-08/ageing?${params.toString()}`, { signal });
 }
 
+export function fetchAgeingBucketProducts({ warehouseId, bucketCode, signal }) {
+  const params = new URLSearchParams();
+  if (warehouseId) params.set("warehouseId", warehouseId);
+  if (bucketCode) params.set("bucketCode", bucketCode);
+  return get(`/idm-08/ageing/products?${params.toString()}`, { signal });
+}
+
 export function fetchReconciliationVariance({ warehouseId, productId, signal }) {
   const params = new URLSearchParams();
   if (warehouseId) params.set("warehouseId", warehouseId);

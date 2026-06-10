@@ -16,6 +16,14 @@ function addToSummary(summaryByBucket, bucket) {
   });
 }
 
+const BUCKET_RANGES = {
+  "B0_30":       { minDays: 0,  maxDays: 30 },
+  "B31_60":      { minDays: 31, maxDays: 60 },
+  "B61_90":      { minDays: 61, maxDays: 90 },
+  "B91_PLUS":    { minDays: 91, maxDays: null },
+  "MISSING_RECEIVED_AT": { minDays: null, maxDays: null }
+};
+
 export function createAgeingReportService({ repositories, bucketService }) {
   return {
     async getAgeingReport(filters) {
@@ -96,6 +104,19 @@ export function createAgeingReportService({ repositories, bucketService }) {
       });
 
       return { rows, total: result.total };
+    },
+
+    async getProductsInBucket({ warehouseId, bucketCode }) {
+      const range = BUCKET_RANGES[bucketCode];
+      if (!range) {
+        throw Object.assign(new Error(`Unknown bucket: ${bucketCode}`), { status: 400 });
+      }
+
+      return repositories.ageingReports.findProductsInBucket({
+        warehouseId,
+        minAgeDays: range.minDays,
+        maxAgeDays: range.maxDays
+      });
     },
 
     async getCsvExport({ warehouseIds = [], limit = 1000, offset = 0 }) {

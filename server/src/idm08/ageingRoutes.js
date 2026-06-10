@@ -97,6 +97,32 @@ export function createAgeingRoutes({ ageingReportService }) {
   );
 
   router.get(
+    "/products",
+    requireAuthContext,
+    requirePermission("ageing:read"),
+    async (request, response, next) => {
+      try {
+        const warehouseId = parsePositiveInt(request.query.warehouseId);
+        const bucketCode = request.query.bucketCode;
+
+        if (!warehouseId || !bucketCode) {
+          sendError(response, 400, "BAD_REQUEST", "warehouseId and bucketCode are required");
+          return;
+        }
+
+        const products = await ageingReportService.getProductsInBucket({ warehouseId, bucketCode });
+        response.status(200).json({ items: products });
+      } catch (error) {
+        if (error.status === 400) {
+          sendError(response, 400, "BAD_REQUEST", error.message);
+          return;
+        }
+        next(error);
+      }
+    }
+  );
+
+  router.get(
     "/export",
     requireAuthContext,
     requirePermission("ageing:read"),

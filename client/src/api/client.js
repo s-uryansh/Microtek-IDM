@@ -101,6 +101,10 @@ export function put(path, body, options = {}) {
   return request("PUT", path, { ...options, body });
 }
 
+export function patch(path, body, options = {}) {
+  return request("PATCH", path, { ...options, body });
+}
+
 export function del(path, options = {}) {
   return request("DELETE", path, options);
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
@@ -7,15 +7,24 @@ import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { LookupSelector } from "../../components/operations/LookupSelector.jsx";
 import { createSrn, scanSrnSerial } from "../../api/modules/srn.js";
 import { searchDispatches, searchInvoices } from "../../api/modules/lookups.js";
+import { useAuth } from "../../auth/useAuth.js";
 
 const CONDITION_TAGS = ["SALEABLE", "DEFECTIVE", "REPAIR"];
 
 export function SRNPage() {
+  const { user } = useAuth();
   const [warehouseId, setWarehouseId] = useState("");
   const [conditionTag, setConditionTag] = useState("SALEABLE");
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    const assignedWarehouseId = user?.defaultWarehouseId ?? user?.warehouseIds?.[0];
+    if (!warehouseId && assignedWarehouseId) {
+      setWarehouseId(String(assignedWarehouseId));
+    }
+  }, [user, warehouseId]);
 
   async function handleCreate() {
     setError(null);

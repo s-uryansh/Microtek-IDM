@@ -12,6 +12,7 @@ import { createSerialRepository } from "./serialRepository.js";
 import { createSerialHistoryRepository } from "./serialHistoryRepository.js";
 import { createSapDispatchRepository } from "./sapDispatchRepository.js";
 import { createSrnRepository } from "./srnRepository.js";
+import { createAdminRepository } from "../admin/adminRepository.js";
 
 export function createRepositories(pool) {
   const repositories = {
@@ -28,7 +29,8 @@ export function createRepositories(pool) {
     reconciliationReports: createReconciliationRepository(pool),
     serialHistories: createSerialHistoryRepository(pool),
     batteryPreBilling: createBatteryPreBillingRepository(pool),
-    auth: createAuthRepository(pool)
+    auth: createAuthRepository(pool),
+    admin: createAdminRepository(pool)
   };
 
   if (typeof pool.connect === "function") {

@@ -9,11 +9,13 @@ function mapUser(row) {
   return {
     userId: String(row.userId),
     username: row.username,
+    displayName: row.displayName,
     passwordHash: row.passwordHash,
     role: row.role,
     isActive: row.isActive,
     failedLoginCount: row.failedLoginCount,
     lockedUntil: row.lockedUntil,
+    defaultWarehouseId: row.defaultWarehouseId ?? null,
     warehouseIds: row.warehouseIds?.map((id) => Number(id)).filter(Number.isInteger) ?? []
   };
 }
@@ -23,14 +25,16 @@ export function createAuthRepository(pool) {
     async findByUsername(username) {
       const result = await pool.query(
         `SELECT
-           au.app_user_id AS "userId",
-           au.username,
-           au.password_hash AS "passwordHash",
-           au.is_active AS "isActive",
-           au.failed_login_count AS "failedLoginCount",
-           au.locked_until AS "lockedUntil",
-           r.code AS role,
-           COALESCE(array_agg(auw.warehouse_id) FILTER (WHERE auw.warehouse_id IS NOT NULL), '{}') AS "warehouseIds"
+          au.app_user_id AS "userId",
+          au.username,
+          au.display_name AS "displayName",
+          au.password_hash AS "passwordHash",
+          au.is_active AS "isActive",
+          au.failed_login_count AS "failedLoginCount",
+          au.locked_until AS "lockedUntil",
+          au.default_warehouse_id AS "defaultWarehouseId",
+          r.code AS role,
+          COALESCE(array_agg(auw.warehouse_id) FILTER (WHERE auw.warehouse_id IS NOT NULL), '{}') AS "warehouseIds"
          FROM app_user au
          JOIN role r ON r.role_id = au.role_id
          LEFT JOIN app_user_warehouse auw ON auw.app_user_id = au.app_user_id
@@ -45,14 +49,16 @@ export function createAuthRepository(pool) {
     async findById(userId) {
       const result = await pool.query(
         `SELECT
-           au.app_user_id AS "userId",
-           au.username,
-           au.password_hash AS "passwordHash",
-           au.is_active AS "isActive",
-           au.failed_login_count AS "failedLoginCount",
-           au.locked_until AS "lockedUntil",
-           r.code AS role,
-           COALESCE(array_agg(auw.warehouse_id) FILTER (WHERE auw.warehouse_id IS NOT NULL), '{}') AS "warehouseIds"
+          au.app_user_id AS "userId",
+          au.username,
+          au.display_name AS "displayName",
+          au.password_hash AS "passwordHash",
+          au.is_active AS "isActive",
+          au.failed_login_count AS "failedLoginCount",
+          au.locked_until AS "lockedUntil",
+          au.default_warehouse_id AS "defaultWarehouseId",
+          r.code AS role,
+          COALESCE(array_agg(auw.warehouse_id) FILTER (WHERE auw.warehouse_id IS NOT NULL), '{}') AS "warehouseIds"
          FROM app_user au
          JOIN role r ON r.role_id = au.role_id
          LEFT JOIN app_user_warehouse auw ON auw.app_user_id = au.app_user_id

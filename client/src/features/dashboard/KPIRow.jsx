@@ -11,47 +11,67 @@ function safeNumber(value, fallback = 0) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function buildKpis({ exceptionsData, ageingData }) {
+function buildKpis({ exceptionsData, ageingData, canViewAgeing, canViewExceptions }) {
   const totalInventory = safeArray(ageingData?.summary).reduce(
     (sum, b) => sum + safeNumber(b?.quantity),
     0
   );
   const openExceptions = safeNumber(exceptionsData?.total);
 
-  return [
-    {
+  const kpis = [];
+
+  if (canViewAgeing) {
+    kpis.push({
       id: "total-inventory",
       label: "Total Inventory",
       value: ageingData ? totalInventory : null,
       unit: "units",
       trend: null,
       unavailable: ageingData == null
-    },
-    {
-      id: "open-exceptions",
-      label: "Open Exceptions",
-      value: exceptionsData ? openExceptions : null,
-      unit: "issues",
-      trend: null,
-      unavailable: exceptionsData == null
-    },
-    {
-      id: "exceptions-resolved",
-      label: "Exceptions Resolved",
-      value: 0,
-      unit: "rate",
-      trend: null
-    }
-  ];
+    });
+  }
+
+  if (canViewExceptions) {
+    kpis.push(
+      {
+        id: "open-exceptions",
+        label: "Open Exceptions",
+        value: exceptionsData ? openExceptions : null,
+        unit: "issues",
+        trend: null,
+        unavailable: exceptionsData == null
+      },
+      {
+        id: "exceptions-resolved",
+        label: "Exceptions Resolved",
+        value: 0,
+        unit: "rate",
+        trend: null
+      }
+    );
+  }
+
+  return kpis;
 }
 
-export function KPIRow({ ageingReport, ageingLoading, ageingError, onRetryAgeing }) {
+export function KPIRow({
+  ageingReport,
+  ageingLoading,
+  ageingError,
+  onRetryAgeing,
+  canViewAgeing = true,
+  canViewExceptions = true
+}) {
   const [kpis, setKpis] = useState([]);
   const [exceptionsData, setExceptionsData] = useState(null);
   const [exceptionsLoading, setExceptionsLoading] = useState(true);
   const [exceptionsError, setExceptionsError] = useState(null);
 
   const loadExceptions = useCallback(async ({ signal } = {}) => {
+    if (!canViewExceptions) {
+      setExceptionsLoading(false);
+      return null;
+    }
     setExceptionsLoading(true);
     setExceptionsError(null);
     try {
@@ -67,14 +87,14 @@ export function KPIRow({ ageingReport, ageingLoading, ageingError, onRetryAgeing
     } finally {
       if (!signal?.aborted) setExceptionsLoading(false);
     }
-  }, []);
+  }, [canViewExceptions]);
 
   const retryAll = useCallback(async () => {
     await Promise.allSettled([
       loadExceptions(),
-      onRetryAgeing?.()
+      canViewAgeing ? onRetryAgeing?.() : Promise.resolve()
     ]);
-  }, [loadExceptions, onRetryAgeing]);
+  }, [loadExceptions, onRetryAgeing, canViewAgeing]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,16 +113,23 @@ export function KPIRow({ ageingReport, ageingLoading, ageingError, onRetryAgeing
       return;
     }
 
-    setKpis(buildKpis({ exceptionsData, ageingData: ageingReport }));
-  }, [ageingReport, exceptionsData]);
+    setKpis(buildKpis({ exceptionsData, ageingData: ageingReport, canViewAgeing, canViewExceptions }));
+  }, [ageingReport, exceptionsData, canViewAgeing, canViewExceptions]);
 
-  const loading = ageingLoading || exceptionsLoading;
-  const fullError = ageingError && exceptionsError
-    ? [ageingError, exceptionsError].join("; ")
+  // Errors only count toward the KPI state for metrics the user is permitted to see.
+  const effectiveAgeingError = canViewAgeing ? ageingError : null;
+  const effectiveExceptionsError = canViewExceptions ? exceptionsError : null;
+  const loading = (canViewAgeing && ageingLoading) || (canViewExceptions && exceptionsLoading);
+  const fullError = effectiveAgeingError && effectiveExceptionsError
+    ? [effectiveAgeingError, effectiveExceptionsError].join("; ")
     : null;
-  const partialError = !loading && !fullError && (ageingError || exceptionsError)
+  const partialError = !loading && !fullError && (effectiveAgeingError || effectiveExceptionsError)
     ? "Some metrics are unavailable. Showing partial data."
     : null;
+
+  if (!canViewAgeing && !canViewExceptions) {
+    return null;
+  }
 
   if (loading) {
     return (
