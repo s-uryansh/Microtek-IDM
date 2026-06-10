@@ -9,4 +9,5 @@ npm-debug.log*
 /.agents
 /.codex
 /.claude
+/graphify-out
 AGENTS.md
