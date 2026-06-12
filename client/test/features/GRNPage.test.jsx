@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { GRNPage } from "../../src/features/grn/GRNPage.jsx";
+import { AuthContext } from "../../src/auth/AuthProvider.jsx";
 
 const createMock = vi.fn();
 const scanMock = vi.fn();
@@ -14,11 +15,14 @@ vi.mock("../../src/api/modules/grn.js", () => ({
   getGrn: vi.fn()
 }));
 
-function renderPage() {
+// Staff user: WarehouseSelector auto-fills the receiving warehouse from their assignment.
+function renderPage(user = { userId: "1", role: "warehouse_operator", warehouseIds: [3] }) {
   return render(
-    <MemoryRouter>
-      <GRNPage />
-    </MemoryRouter>
+    <AuthContext.Provider value={{ user }}>
+      <MemoryRouter>
+        <GRNPage />
+      </MemoryRouter>
+    </AuthContext.Provider>
   );
 }
 
@@ -34,11 +38,9 @@ describe("GRNPage — happy path", () => {
     renderPage();
     expect(screen.getByText("Goods Receipt Note")).toBeVisible();
     expect(screen.getByText("Start GRN Session")).toBeVisible();
-    fireEvent.change(screen.getByLabelText("SAP Dispatch Document ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Receiving Warehouse ID"), { target: { value: "3" } });
     fireEvent.click(screen.getByText("Start GRN"));
     await waitFor(() => expect(screen.getByText(/GRN #1/)).toBeVisible());
-    expect(createMock).toHaveBeenCalledWith({ sapDispatchDocId: 1, warehouseId: 3 });
+    expect(createMock).toHaveBeenCalledWith({ warehouseId: 3 });
   });
 });
 
@@ -50,23 +52,19 @@ describe("GRNPage — scan flows", () => {
   test("matched scan renders a MATCHED result", async () => {
     scanMock.mockResolvedValue({ valid: true, matchStatus: "MATCHED", serial: { serialId: 1, serialNo: "S-1" }, alert: null, exception: null });
     renderPage();
-    fireEvent.change(screen.getByLabelText("SAP Dispatch Document ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Receiving Warehouse ID"), { target: { value: "3" } });
     fireEvent.click(screen.getByText("Start GRN"));
     await waitFor(() => expect(screen.getByText(/GRN #1/)).toBeVisible());
     const input = screen.getByLabelText("Scan Serial");
     fireEvent.change(input, { target: { value: "S-1" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(screen.getByText("MATCHED")).toBeVisible());
-    expect(screen.getByText("Serial matched")).toBeVisible();
+    expect(screen.getByText("Serial received")).toBeVisible();
   });
 
   test("successful scan enables completion and closes the GRN", async () => {
     scanMock.mockResolvedValue({ valid: true, matchStatus: "MATCHED", serial: { serialId: 1, serialNo: "S-1" }, alert: null, exception: null });
     completeMock.mockResolvedValue({ grnId: 1, status: "CLOSED", summary: { scannedCount: 1 } });
     renderPage();
-    fireEvent.change(screen.getByLabelText("SAP Dispatch Document ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Receiving Warehouse ID"), { target: { value: "3" } });
     fireEvent.click(screen.getByText("Start GRN"));
     await waitFor(() => expect(screen.getByText(/GRN #1/)).toBeVisible());
     const input = screen.getByLabelText("Scan Serial");
@@ -85,8 +83,6 @@ describe("GRNPage — scan flows", () => {
       alert: { ruleCode: "WRONG_SERIAL", message: "Serial belongs to another sender dispatch document." }
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("SAP Dispatch Document ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Receiving Warehouse ID"), { target: { value: "3" } });
     fireEvent.click(screen.getByText("Start GRN"));
     await waitFor(() => expect(screen.getByText(/GRN #1/)).toBeVisible());
     const input = screen.getByLabelText("Scan Serial");
@@ -98,8 +94,6 @@ describe("GRNPage — scan flows", () => {
   test("scan throwing API error is rendered as REJECTED with the error message", async () => {
     scanMock.mockRejectedValue(new Error("Backend down"));
     renderPage();
-    fireEvent.change(screen.getByLabelText("SAP Dispatch Document ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Receiving Warehouse ID"), { target: { value: "3" } });
     fireEvent.click(screen.getByText("Start GRN"));
     await waitFor(() => expect(screen.getByText(/GRN #1/)).toBeVisible());
     const input = screen.getByLabelText("Scan Serial");
@@ -113,8 +107,6 @@ describe("GRNPage — error states", () => {
   test("create error renders inline message", async () => {
     createMock.mockRejectedValue(new Error("Network down"));
     renderPage();
-    fireEvent.change(screen.getByLabelText("SAP Dispatch Document ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Receiving Warehouse ID"), { target: { value: "3" } });
     fireEvent.click(screen.getByText("Start GRN"));
     await waitFor(() => expect(screen.getByText("Network down")).toBeVisible());
   });

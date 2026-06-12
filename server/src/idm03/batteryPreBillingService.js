@@ -1,43 +1,28 @@
 const BATTERY_ALERTS = {
-  NOT_BATTERY_LINE: "Invoice line is not a battery product.",
-  PRODUCT_INVOICE_MISMATCH: "Serial product does not match the invoice line.",
-  ALREADY_COMMITTED: "Serial is already committed to another invoice."
+  NOT_BATTERY_LINE: "This serial's product is not a battery item on the selected invoice.",
+  ALREADY_COMMITTED: "Serial is already committed to an invoice.",
+  WRONG_WAREHOUSE: "Serial belongs to a different warehouse."
 };
 
 export function createBatteryPreBillingService({ repositories }) {
-  async function checkInvoiceLine(invoiceLineId) {
-    const line = await repositories.invoices.findLineById(invoiceLineId);
-
-    if (!line) {
-      throw Object.assign(new Error("Invoice line not found"), { status: 404 });
-    }
-
-    return line;
-  }
-
   return {
-    async getInvoiceWarehouseByLineId(invoiceLineId) {
-      const line = await checkInvoiceLine(invoiceLineId);
-      return line.warehouseId;
-    },
+    // Operator enters the invoice, then scans battery serials. The invoice line
+    // is resolved from the scanned serial's product — no manual line picking —
+    // so a serial can never be committed against the wrong (non-battery) line.
+    async commitSerial({ invoiceId, serialNo, userId, userWarehouseIds = [] }) {
+      const invoice = await repositories.invoices.findById(invoiceId);
 
-    async commitSerial({ invoiceLineId, serialNo, userId }) {
-      const line = await checkInvoiceLine(invoiceLineId);
-
-      if (!line.isBattery) {
-        return {
-          valid: false,
-          status: null,
-          alert: { ruleCode: "NOT_BATTERY_LINE", message: BATTERY_ALERTS.NOT_BATTERY_LINE }
-        };
+      if (!invoice) {
+        throw Object.assign(new Error("Invoice not found"), { status: 404 });
       }
 
+      // Validate the serial on its own (format, exists in IDM, not already
+      // dispatched). Warehouse scope is enforced below against the operator's
+      // assigned warehouses, like dispatch.
       const validation = await repositories.validationService.validateSerial({
         serialNo,
         contextType: "BATTERY",
-        contextId: invoiceLineId,
-        warehouseId: line.warehouseId,
-        expectedProductId: line.productId,
+        contextId: invoiceId,
         userId
       });
 
@@ -46,6 +31,44 @@ export function createBatteryPreBillingService({ repositories }) {
       }
 
       const serial = validation.serial;
+      const inScope = userWarehouseIds.some(
+        (warehouseId) => String(warehouseId) === String(serial.currentWarehouseId)
+      );
+
+      if (!inScope) {
+        const exception = await repositories.exceptionsRepo.createException({
+          serialNo,
+          ruleCode: "WRONG_WAREHOUSE",
+          contextType: "BATTERY",
+          contextId: invoiceId,
+          warehouseId: serial.currentWarehouseId,
+          raisedBy: userId,
+          createdBy: userId
+        });
+
+        return {
+          valid: false,
+          status: null,
+          alert: { ruleCode: "WRONG_WAREHOUSE", message: BATTERY_ALERTS.WRONG_WAREHOUSE },
+          exception: {
+            exceptionId: exception.exceptionId,
+            ruleCode: exception.ruleCode,
+            status: exception.status ?? "OPEN"
+          }
+        };
+      }
+
+      // Resolve the battery invoice line from the serial's product.
+      const line = await repositories.batteryPreBilling.findBatteryLine(invoiceId, serial.productId);
+
+      if (!line) {
+        return {
+          valid: false,
+          status: null,
+          alert: { ruleCode: "NOT_BATTERY_LINE", message: BATTERY_ALERTS.NOT_BATTERY_LINE }
+        };
+      }
+
       const existing = await repositories.batteryPreBilling.findCommitBySerial(serial.serialId);
 
       if (existing) {
@@ -58,7 +81,7 @@ export function createBatteryPreBillingService({ repositories }) {
 
       return await repositories.withTransaction(async (txRepos) => {
         await txRepos.batteryPreBilling.insertCommit({
-          invoiceLineId,
+          invoiceLineId: line.invoiceLineId,
           serialId: serial.serialId,
           committedBy: userId,
           createdBy: userId
@@ -67,9 +90,9 @@ export function createBatteryPreBillingService({ repositories }) {
         await txRepos.serials.appendSerialEvent({
           serialId: serial.serialId,
           eventType: "PRE_BILLING",
-          warehouseId: line.warehouseId,
+          warehouseId: serial.currentWarehouseId,
           referenceType: "INVOICE_LINE",
-          referenceId: invoiceLineId,
+          referenceId: line.invoiceLineId,
           createdBy: userId
         });
 
@@ -86,7 +109,7 @@ export function createBatteryPreBillingService({ repositories }) {
 
       const committedQuantity = await repositories.batteryPreBilling.countCommitsForInvoice(invoiceId);
 
-      return { invoiceId, warehouseId: invoice.warehouseId, committedQuantity };
+      return { invoiceId, committedQuantity };
     }
   };
 }

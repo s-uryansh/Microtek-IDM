@@ -9,7 +9,8 @@ export function createDispatchRepository(pool) {
       ...row,
       invoiceLineId: toNumber(row.invoiceLineId),
       productId: toNumber(row.productId),
-      quantity: toNumber(row.quantity)
+      quantity: toNumber(row.quantity),
+      targetQuantity: toNumber(row.targetQuantity)
     };
   }
 
@@ -39,16 +40,25 @@ export function createDispatchRepository(pool) {
     return mapped;
   }
 
-  async function findLines(invoiceId) {
+  async function findLines(invoiceId, dispatchId = null) {
+    // dispatch_line.target_quantity (when present) is the per-line cap chosen by the
+    // operator for this dispatch. When absent, the line cap falls back to the full
+    // invoice line quantity (legacy single-quantity dispatches).
     const result = await pool.query(
       `SELECT
-         invoice_line_id AS "invoiceLineId",
-         product_id AS "productId",
-         required_quantity AS "quantity"
-       FROM invoice_line
-       WHERE invoice_id = $1
-       ORDER BY line_no`,
-      [invoiceId]
+         il.invoice_line_id AS "invoiceLineId",
+         il.product_id AS "productId",
+         il.required_quantity AS "quantity",
+         p.is_battery AS "isBattery",
+         dl.target_quantity AS "targetQuantity"
+       FROM invoice_line il
+       JOIN product p ON p.product_id = il.product_id
+       LEFT JOIN dispatch_line dl
+         ON dl.invoice_line_id = il.invoice_line_id
+        AND dl.dispatch_id = $2
+       WHERE il.invoice_id = $1
+       ORDER BY il.line_no`,
+      [invoiceId, dispatchId]
     );
 
     return result.rows.map(mapLine);
@@ -126,7 +136,7 @@ export function createDispatchRepository(pool) {
       }
 
       return mapDispatch(dispatch, {
-        lines: await findLines(dispatch.invoiceId),
+        lines: await findLines(dispatch.invoiceId, dispatchId),
         scans: await findScans(dispatchId)
       });
     },
@@ -152,9 +162,29 @@ export function createDispatchRepository(pool) {
       }
 
       return mapDispatch(dispatch, {
-        lines: await findLines(dispatch.invoiceId),
+        lines: await findLines(dispatch.invoiceId, dispatchId),
         scans: await findScans(dispatchId)
       });
+    },
+
+    async setDispatchLineTargets(dispatchId, lineTargets, createdBy) {
+      // Replace per-line targets for this dispatch with the supplied selection.
+      await pool.query(`DELETE FROM dispatch_line WHERE dispatch_id = $1`, [dispatchId]);
+
+      for (const { invoiceLineId, targetQuantity } of lineTargets) {
+        if (!Number.isInteger(targetQuantity) || targetQuantity <= 0) {
+          continue;
+        }
+        await pool.query(
+          `INSERT INTO dispatch_line (dispatch_id, invoice_line_id, target_quantity, created_by)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (dispatch_id, invoice_line_id) DO UPDATE
+           SET target_quantity = EXCLUDED.target_quantity,
+               updated_at = now(),
+               updated_by = EXCLUDED.created_by`,
+          [dispatchId, invoiceLineId, targetQuantity, createdBy]
+        );
+      }
     },
 
     async getWarehouseId(dispatchId) {

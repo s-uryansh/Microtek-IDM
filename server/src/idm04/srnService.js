@@ -25,9 +25,21 @@ async function createSrnException(repositories, { serialNo, ruleCode, srnId, use
 
 export function createSrnService({ repositories, conditionTagService }) {
   return {
-    async createSrn({ receivingWarehouseId, userId }) {
+    async createSrn({ receivingWarehouseId, invoiceId, returnProductIds, userId }) {
+      // A return is only valid for an invoice that was actually dispatched. If
+      // the invoice has no serials from a completed dispatch, there is nothing
+      // legitimate that could be coming back, so the invoice id is rejected.
+      if (invoiceId && !(await repositories.srns.invoiceHasDispatchedSerials(invoiceId))) {
+        throw Object.assign(new Error("Invoice has not been dispatched; there is nothing to return."), {
+          status: 409,
+          code: "INVOICE_NOT_DISPATCHED"
+        });
+      }
+
       return repositories.srns.create({
         receivingWarehouseId,
+        invoiceId,
+        returnProductIds,
         createdBy: userId
       });
     },
@@ -81,6 +93,21 @@ export function createSrnService({ repositories, conditionTagService }) {
             userId
           });
           return invalid("NO_ORIGINAL_DISPATCH", "Serial does not reconcile to an original dispatch.", exception);
+        }
+
+        // A return is validated purely against what was actually dispatched:
+        // the serial must reconcile to a completed dispatch ON THIS INVOICE.
+        // (invoice_id comes back from PostgreSQL as a bigint string, so compare
+        // as strings.) We deliberately do NOT gate on the operator's selected
+        // product list — being a dispatched serial on this invoice is enough.
+        if (lockedSrn.invoiceId && String(originalDispatchScan.invoiceId) !== String(lockedSrn.invoiceId)) {
+          const exception = await createSrnException(txRepositories, {
+            serialNo,
+            ruleCode: "WRONG_INVOICE_SERIAL",
+            srnId,
+            userId
+          });
+          return invalid("WRONG_INVOICE_SERIAL", "Serial was not on the invoice being returned.", exception);
         }
 
         if (await txRepositories.srns.hasReturnedSerial(validation.serial.serialId)) {

@@ -28,7 +28,9 @@ function makeApp(result) {
 }
 
 describe("IDM-09 serial history routes", () => {
-  test("denies serial history outside caller warehouse scope", async () => {
+  test("returns serial history for a permitted caller regardless of warehouse", async () => {
+    // Serial history is a global audit trail gated by serial-history:read; it is
+    // not restricted to the caller's assigned warehouses.
     const app = makeApp({
       found: true,
       serial: { serialNo: "MTK1234567890" },
@@ -38,19 +40,14 @@ describe("IDM-09 serial history routes", () => {
 
     const res = await request(app).get("/api/idm-09/serials/MTK1234567890/history");
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  test("allows serial history inside caller warehouse scope", async () => {
-    const app = makeApp({
-      found: true,
-      serial: { serialNo: "MTK1234567890" },
-      warehouseIds: [3],
-      timeline: []
-    });
+  test("returns 404 when the serial is not found", async () => {
+    const app = makeApp({ found: false });
 
-    const res = await request(app).get("/api/idm-09/serials/MTK1234567890/history");
+    const res = await request(app).get("/api/idm-09/serials/UNKNOWN/history");
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
   });
 });

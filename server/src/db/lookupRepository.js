@@ -23,7 +23,9 @@ export function createLookupRepository(pool) {
          p.product_code AS "productCode",
          p.name AS "productName",
          p.is_battery AS "isBattery",
-         il.required_quantity AS "quantity"
+         il.required_quantity AS "quantity",
+         il.uom,
+         il.amount
        FROM invoice_line il
        JOIN product p ON p.product_id = il.product_id
        WHERE il.invoice_id = ANY($1::bigint[])
@@ -67,21 +69,19 @@ export function createLookupRepository(pool) {
   }
 
   return {
-    async searchInvoices({ query, warehouseIds, batteryOnly = false, limit = MAX_LIMIT }) {
+    async searchInvoices({ query, batteryOnly = false, limit = MAX_LIMIT }) {
+      // Invoices are warehouse-agnostic: any operator can look one up by id or
+      // SAP ref. Warehouse scoping is enforced later, per scanned serial.
       const result = await pool.query(
         `SELECT
            i.invoice_id AS "invoiceId",
            i.sap_invoice_ref AS "sapInvoiceRef",
-           i.warehouse_id AS "warehouseId",
-           w.code AS "warehouseCode",
            i.status,
            i.created_at AS "createdAt"
          FROM invoice i
-         JOIN warehouse w ON w.warehouse_id = i.warehouse_id
-         WHERE i.warehouse_id = ANY($1::bigint[])
-           AND ($2::text = '' OR i.sap_invoice_ref ILIKE $3 OR CAST(i.invoice_id AS text) = $2)
+         WHERE ($1::text = '' OR i.sap_invoice_ref ILIKE $2 OR CAST(i.invoice_id AS text) = $1)
            AND (
-             $4::boolean = FALSE OR EXISTS (
+             $3::boolean = FALSE OR EXISTS (
                SELECT 1
                FROM invoice_line il
                JOIN product p ON p.product_id = il.product_id
@@ -89,9 +89,12 @@ export function createLookupRepository(pool) {
                  AND p.is_battery = TRUE
              )
            )
-         ORDER BY i.created_at DESC, i.invoice_id DESC
-         LIMIT $5`,
-        [warehouseIds, String(query || "").trim(), queryPattern(query), batteryOnly, normalizeLimit(limit)]
+         ORDER BY
+           (CAST(i.invoice_id AS text) = $1) DESC,
+           (UPPER(i.sap_invoice_ref) = UPPER($1)) DESC,
+           i.created_at DESC, i.invoice_id DESC
+         LIMIT $4`,
+        [String(query || "").trim(), queryPattern(query), batteryOnly, normalizeLimit(limit)]
       );
       const linesByInvoice = await invoiceLines(result.rows.map((row) => row.invoiceId));
       return result.rows.map((invoice) => ({ ...invoice, lines: linesByInvoice.get(invoice.invoiceId) || [] }));

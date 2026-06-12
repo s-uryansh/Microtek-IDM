@@ -8,14 +8,18 @@ const rootPackageJson = JSON.parse(readFileSync(resolve(import.meta.dirname, "..
 const serverPackageJson = JSON.parse(readFileSync(resolve(import.meta.dirname, "../package.json"), "utf8"));
 
 describe("development seed data", () => {
-  test("keeps seeded invoices large enough for 10-unit invoice testing", () => {
+  test("keeps realistic small invoice quantities with ample warehouse stock", () => {
+    // Plenty of in-stock serials per product remain available to dispatch...
     expect(seedSource).toContain("MTK-INV1K-0010");
     expect(seedSource).toContain("MTK-SOL300-0010");
     expect(seedSource).toContain("MTK-BAT100-0010");
-    expect(seedSource).toContain("MTK-RET-0010");
     expect(seedSource).toContain("MTK-ACCCHG-0010");
-    expect(seedSource).toContain("INV-001 lines: 5x Microtek Inverter 1KVA, 5x Microtek Solar Panel 300W");
-    expect(seedSource).toContain("INV-002 lines: 3x Microtek Inverter 2KVA, 2x Microtek Solar Panel 500W, 5x Microtek Charge Controller");
+    // ...while invoices order realistic quantities (1-2 units), and the return
+    // invoice has exactly its two dispatched serials.
+    expect(seedSource).toContain("MTK-RET-0002");
+    expect(seedSource).not.toContain("MTK-RET-0010");
+    expect(seedSource).toContain("INV-001 lines: 2x Microtek Inverter 1KVA, 1x Microtek Solar Panel 300W");
+    expect(seedSource).toContain("INV-002 lines: 2x Microtek Inverter 2KVA, 2x Microtek Solar Panel 500W, 1x Microtek Charge Controller");
   });
 
   test("uses realistic Microtek product codes and serial identifiers", () => {

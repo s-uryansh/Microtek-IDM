@@ -4,10 +4,9 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { BarChart } from "../../components/charts/BarChart.jsx";
 import { DataTable } from "../../components/data/DataTable.jsx";
-import { Input } from "../../components/ui/Input.jsx";
 import { ErrorState } from "../../components/ui/ErrorState.jsx";
+import { WarehouseSelector } from "../../components/operations/WarehouseSelector.jsx";
 import { fetchAgeingReport, fetchAgeingBucketProducts } from "../../api/modules/ageing.js";
-import { useAuth } from "../../auth/useAuth.js";
 
 const columns = [
   { key: "label", label: "Age Bucket" },
@@ -25,7 +24,6 @@ function toChartData(summary) {
 }
 
 export function AgeingPage() {
-  const { user } = useAuth();
   const [warehouseId, setWarehouseId] = useState("");
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -35,13 +33,6 @@ export function AgeingPage() {
   const [bucketProducts, setBucketProducts] = useState(null);
   const [bucketLoading, setBucketLoading] = useState(false);
   const [selectedBucket, setSelectedBucket] = useState(null);
-
-  useEffect(() => {
-    const assignedWarehouseId = user?.defaultWarehouseId ?? user?.warehouseIds?.[0];
-    if (!warehouseId && assignedWarehouseId) {
-      setWarehouseId(String(assignedWarehouseId));
-    }
-  }, [user, warehouseId]);
 
   const load = useCallback(
     async (id, { signal } = {}) => {
@@ -109,15 +100,8 @@ export function AgeingPage() {
         title="Ageing Report"
         subtitle="Inventory ageing by warehouse"
         actions={
-          <div style={{ width: 200 }}>
-            <Input
-              label="Warehouse ID"
-              value={warehouseId}
-              onChange={setWarehouseId}
-              type="number"
-              inputMode="numeric"
-              placeholder="Filter by warehouse"
-            />
+          <div style={{ minWidth: 240 }}>
+            <WarehouseSelector label="Warehouse" value={warehouseId} onChange={setWarehouseId} />
           </div>
         }
       />
@@ -156,11 +140,11 @@ export function AgeingPage() {
               data={chartData}
               loading={loading}
               emptyMessage="No ageing data available"
-              onBarClick={selectedBucket ? undefined : handleBarClick}
+              onBarClick={handleBarClick}
             />
-            {chartData.length > 0 && !selectedBucket && (
+            {chartData.length > 0 && (
               <p style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "var(--space-2)", textAlign: "center" }}>
-                Click a bar to see products in that bucket
+                Click a bar to see products in that bucket below
               </p>
             )}
           </Card>
@@ -177,41 +161,11 @@ export function AgeingPage() {
         </div>
       )}
 
-      {/* Drill-down modal */}
-      {selectedBucket && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "var(--space-4)"
-          }}
-          onClick={closeDrillDown}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Bucket products"
-        >
-          <div
-            style={{
-              backgroundColor: "var(--color-bg-surface)",
-              borderRadius: "var(--radius-lg)",
-              maxWidth: 800,
-              width: "100%",
-              maxHeight: "80vh",
-              overflow: "auto",
-              padding: "var(--space-6)",
-              boxShadow: "var(--shadow-lg)"
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
-              <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "1.125rem" }}>
-                {selectedBucket.label} — Products
-              </h2>
+      {/* Inline drill-down: products for the selected bucket, shown under the chart on the page */}
+      {showReport && !error && selectedBucket && (
+        <div style={{ marginTop: "var(--space-4)" }}>
+          <Card title={`${selectedBucket.label} — Products`}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-2)" }}>
               <Button variant="ghost" size="sm" onClick={closeDrillDown}>
                 Close
               </Button>
@@ -259,7 +213,7 @@ export function AgeingPage() {
                 </tbody>
               </table>
             )}
-          </div>
+          </Card>
         </div>
       )}
     </div>

@@ -8,14 +8,44 @@ export function createAdminRepository(pool) {
     async listWarehouses() {
       const result = await pool.query(`
         SELECT
-          warehouse_id AS "warehouseId",
-          code,
-          name,
-          type,
-          is_active AS "isActive",
-          created_at AS "createdAt"
-        FROM warehouse
-        ORDER BY code
+          w.warehouse_id AS "warehouseId",
+          w.code,
+          w.name,
+          w.type,
+          w.is_active AS "isActive",
+          w.created_at AS "createdAt",
+          COALESCE(s.unit_count, 0)::int AS "unitCount"
+        FROM warehouse w
+        LEFT JOIN (
+          SELECT current_warehouse_id, COUNT(*) AS unit_count
+          FROM serial_master
+          WHERE current_status = 'IN_STOCK'
+          GROUP BY current_warehouse_id
+        ) s ON s.current_warehouse_id = w.warehouse_id
+        ORDER BY w.code
+      `);
+      return result.rows;
+    },
+
+    async listWarehouseStock() {
+      // Every individual product unit (serial) currently in stock, with its
+      // product and the warehouse it physically sits in.
+      const result = await pool.query(`
+        SELECT
+          sm.serial_id AS "serialId",
+          sm.serial_no AS "serialNo",
+          sm.current_status AS "serialStatus",
+          p.product_id AS "productId",
+          p.product_code AS "productCode",
+          p.name AS "productName",
+          w.warehouse_id AS "warehouseId",
+          w.code AS "warehouseCode",
+          w.name AS "warehouseName"
+        FROM serial_master sm
+        JOIN product p ON p.product_id = sm.product_id
+        JOIN warehouse w ON w.warehouse_id = sm.current_warehouse_id
+        WHERE sm.current_status = 'IN_STOCK'
+        ORDER BY w.code, p.product_code, sm.serial_no
       `);
       return result.rows;
     },
@@ -485,20 +515,152 @@ export function createAdminRepository(pool) {
     },
 
     /* ── Invoices ── */
-    async listAllInvoices() {
+    async listAllInvoices({ query } = {}) {
+      const searchCondition = query
+        ? `WHERE (i.sap_invoice_ref ILIKE $1 OR CAST(i.invoice_id AS text) = $1 OR i.order_id ILIKE $1 OR i.customer_name ILIKE $1 OR i.billing_number ILIKE $1)`
+        : ``;
+      const params = query ? [`%${query}%`] : [];
       const result = await pool.query(`
         SELECT
           i.invoice_id AS "invoiceId",
           i.sap_invoice_ref AS "sapInvoiceRef",
-          i.warehouse_id AS "warehouseId",
-          w.code AS "warehouseCode",
           i.status,
-          i.created_at AS "createdAt"
+          i.created_at AS "createdAt",
+          i.created_at AS "uploadedDate",
+          i.order_id AS "orderId",
+          i.customer_name AS "customerName",
+          i.customer_code AS "customerCode",
+          i.billing_date::text AS "billingDate",
+          i.billing_number AS "billingNumber",
+          i.division,
+          i.total_sale_qty AS "totalSaleQty",
+          i.item_total AS "itemTotal",
+          i.total_amt AS "totalAmt",
+          i.transport_name AS "transportName",
+          i.lr_no AS "lrNo",
+          i.lr_date::text AS "lrDate",
+          i.dispatch_date::text AS "dispatchDate",
+          i.delivery_date::text AS "deliveryDate",
+          i.sales_order_qty AS "salesOrderQty",
+          i.pod_status AS "podStatus",
+          -- Units dispatched (completed dispatch) and units since returned, so
+          -- the admin panel can show a RETURNED / partial-return tag.
+          COALESCE((
+            SELECT COUNT(*) FROM dispatch_scan ds
+            JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
+            WHERE d.invoice_id = i.invoice_id AND d.status = 'DISPATCHED'
+          ), 0)::int AS "dispatchedQty",
+          COALESCE((
+            SELECT COUNT(*) FROM srn_scan ss
+            JOIN srn s ON s.srn_id = ss.srn_id
+            WHERE s.invoice_id = i.invoice_id
+          ), 0)::int AS "returnedQty"
         FROM invoice i
-        JOIN warehouse w ON w.warehouse_id = i.warehouse_id
+        ${searchCondition}
         ORDER BY i.created_at DESC
-      `);
+      `, params);
       return result.rows;
+    },
+
+    async getWarehouseByCode(code) {
+      const result = await pool.query(
+        `SELECT warehouse_id AS "warehouseId", code FROM warehouse WHERE code = $1`,
+        [code]
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async getProductByCode(productCode) {
+      const result = await pool.query(
+        `SELECT product_id AS "productId", product_code AS "productCode" FROM product WHERE product_code = $1`,
+        [productCode]
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async upsertInvoice({
+      sapInvoiceRef,
+      status,
+      orderId,
+      customerName,
+      customerCode,
+      billingDate,
+      billingNumber,
+      division,
+      totalSaleQty,
+      itemTotal,
+      totalAmt,
+      transportName,
+      lrNo,
+      lrDate,
+      dispatchDate,
+      deliveryDate,
+      salesOrderQty,
+      podStatus,
+      createdBy
+    }) {
+      const result = await pool.query(
+        `
+        INSERT INTO invoice (
+          sap_invoice_ref, status,
+          order_id, customer_name, customer_code, billing_date, billing_number, division,
+          total_sale_qty, item_total, total_amt, transport_name, lr_no, lr_date,
+          dispatch_date, delivery_date, sales_order_qty, pod_status, created_by
+        )
+        VALUES ($1, COALESCE($2, 'PENDING'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        ON CONFLICT (sap_invoice_ref) DO UPDATE
+        SET status = EXCLUDED.status,
+            order_id = EXCLUDED.order_id, customer_name = EXCLUDED.customer_name,
+            customer_code = EXCLUDED.customer_code, billing_date = EXCLUDED.billing_date,
+            billing_number = EXCLUDED.billing_number, division = EXCLUDED.division,
+            total_sale_qty = EXCLUDED.total_sale_qty, item_total = EXCLUDED.item_total,
+            total_amt = EXCLUDED.total_amt, transport_name = EXCLUDED.transport_name,
+            lr_no = EXCLUDED.lr_no, lr_date = EXCLUDED.lr_date,
+            dispatch_date = EXCLUDED.dispatch_date, delivery_date = EXCLUDED.delivery_date,
+            sales_order_qty = EXCLUDED.sales_order_qty, pod_status = EXCLUDED.pod_status,
+            updated_at = now(), updated_by = EXCLUDED.created_by
+        RETURNING invoice_id AS "invoiceId"`,
+        [
+          sapInvoiceRef, status ?? null,
+          orderId ?? null, customerName ?? null, customerCode ?? null, billingDate ?? null,
+          billingNumber ?? null, division ?? null, totalSaleQty ?? null, itemTotal ?? null,
+          totalAmt ?? null, transportName ?? null, lrNo ?? null, lrDate ?? null,
+          dispatchDate ?? null, deliveryDate ?? null, salesOrderQty ?? null, podStatus ?? null,
+          createdBy
+        ]
+      );
+      return result.rows[0];
+    },
+
+    async upsertInvoiceLine({
+      invoiceId,
+      lineNo,
+      productId,
+      requiredQuantity,
+      uom,
+      amount,
+      podSection,
+      podDocument,
+      createdBy
+    }) {
+      const result = await pool.query(
+        `
+        INSERT INTO invoice_line (
+          invoice_id, product_id, line_no, required_quantity, uom, amount, pod_section, pod_document, created_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (invoice_id, line_no) DO UPDATE
+        SET product_id = EXCLUDED.product_id, required_quantity = EXCLUDED.required_quantity,
+            uom = EXCLUDED.uom, amount = EXCLUDED.amount,
+            pod_section = EXCLUDED.pod_section, pod_document = EXCLUDED.pod_document,
+            updated_at = now(), updated_by = EXCLUDED.created_by
+        RETURNING invoice_line_id AS "invoiceLineId"`,
+        [
+          invoiceId, productId, lineNo, requiredQuantity,
+          uom ?? null, amount ?? null, podSection ?? null, podDocument ?? null, createdBy
+        ]
+      );
+      return result.rows[0];
     },
 
     async invoiceLines(invoiceIds) {
@@ -516,49 +678,88 @@ export function createAdminRepository(pool) {
           p.category,
           p.is_battery AS "isBattery",
           il.required_quantity AS "quantity",
-          COALESCE(
-            array_agg(DISTINCT sm.serial_no ORDER BY sm.serial_no) FILTER (WHERE sm.serial_no IS NOT NULL),
-            '{}'
-          ) AS "serialNos"
-        FROM invoice_line il
-        JOIN invoice i ON i.invoice_id = il.invoice_id
-        JOIN product p ON p.product_id = il.product_id
-        LEFT JOIN LATERAL (
-          SELECT serial_no
-          FROM (
-            SELECT sm.serial_no
-            FROM serial_master sm
-            WHERE sm.product_id = il.product_id
-              AND sm.current_warehouse_id = i.warehouse_id
-              AND sm.current_status = 'IN_STOCK'
-            UNION
-            SELECT dsm.serial_no
+          il.uom,
+          il.amount,
+          il.pod_section AS "podSection",
+          il.pod_document AS "podDocument",
+          -- Serials actually DISPATCHED for this invoice line (never in-stock
+          -- serials that were not dispatched).
+          COALESCE((
+            SELECT array_agg(dsm.serial_no ORDER BY dsm.serial_no)
             FROM dispatch_scan ds
             JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
             JOIN serial_master dsm ON dsm.serial_id = ds.serial_id
             WHERE ds.invoice_line_id = il.invoice_line_id
               AND d.invoice_id = il.invoice_id
-          ) serial_pool
-          ORDER BY serial_no
-          LIMIT il.required_quantity
-        ) sm ON TRUE
+          ), '{}') AS "serialNos",
+          -- Serials from this line that have since been RETURNED (SRN), matched
+          -- back to the line via the original dispatch scan.
+          COALESCE((
+            SELECT array_agg(rsm.serial_no ORDER BY rsm.serial_no)
+            FROM srn_scan ss
+            JOIN dispatch_scan ds2 ON ds2.dispatch_scan_id = ss.original_dispatch_scan_id
+            JOIN serial_master rsm ON rsm.serial_id = ss.serial_id
+            WHERE ds2.invoice_line_id = il.invoice_line_id
+          ), '{}') AS "returnedSerialNos"
+        FROM invoice_line il
+        JOIN product p ON p.product_id = il.product_id
         WHERE il.invoice_id = ANY($1::bigint[])
-        GROUP BY
-          il.invoice_line_id,
-          il.invoice_id,
-          il.line_no,
-          il.product_id,
-          i.warehouse_id,
-          p.product_code,
-          p.name,
-          p.segment,
-          p.category,
-          p.is_battery,
-          il.required_quantity
         ORDER BY il.invoice_id, il.line_no`,
         [invoiceIds]
       );
       return result.rows;
+    },
+
+    /* ── Inbound stock (SAP dispatch documents) ── */
+    async listDispatchDocs() {
+      const result = await pool.query(`
+        SELECT
+          sdd.sap_dispatch_doc_id AS "sapDispatchDocId",
+          sdd.external_ref AS "externalRef",
+          sdd.status,
+          sdd.created_at AS "createdAt",
+          sdd.source_warehouse_id AS "sourceWarehouseId",
+          sw.code AS "sourceWarehouseCode",
+          sw.name AS "sourceWarehouseName",
+          sdd.destination_warehouse_id AS "destinationWarehouseId",
+          dw.code AS "destinationWarehouseCode",
+          dw.name AS "destinationWarehouseName"
+        FROM sap_dispatch_doc sdd
+        JOIN warehouse dw ON dw.warehouse_id = sdd.destination_warehouse_id
+        LEFT JOIN warehouse sw ON sw.warehouse_id = sdd.source_warehouse_id
+        ORDER BY sdd.created_at DESC, sdd.sap_dispatch_doc_id DESC
+      `);
+      return result.rows.map((row) => ({
+        ...row,
+        sapDispatchDocId: Number(row.sapDispatchDocId),
+        sourceWarehouseId: row.sourceWarehouseId === null ? null : Number(row.sourceWarehouseId),
+        destinationWarehouseId: Number(row.destinationWarehouseId)
+      }));
+    },
+
+    async dispatchDocLines(docIds) {
+      if (!docIds.length) return [];
+      const result = await pool.query(
+        `
+        SELECT
+          sl.sap_dispatch_doc_id AS "sapDispatchDocId",
+          sl.line_no AS "lineNo",
+          sl.product_id AS "productId",
+          p.product_code AS "productCode",
+          p.name AS "productName",
+          sm.serial_no AS "serialNo",
+          sm.current_status AS "serialStatus"
+        FROM sap_dispatch_line sl
+        JOIN serial_master sm ON sm.serial_id = sl.serial_id
+        JOIN product p ON p.product_id = sl.product_id
+        WHERE sl.sap_dispatch_doc_id = ANY($1::bigint[])
+        ORDER BY sl.sap_dispatch_doc_id, sl.line_no`,
+        [docIds]
+      );
+      return result.rows.map((row) => ({
+        ...row,
+        sapDispatchDocId: Number(row.sapDispatchDocId)
+      }));
     }
   };
 }

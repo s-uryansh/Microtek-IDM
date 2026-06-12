@@ -51,15 +51,10 @@ export function createLookupRoutes({ lookupService }) {
 
   router.get("/invoices", async (request, response, next) => {
     try {
-      const warehouseIds = scopedWarehouseIds(lookupService, request);
-      if (!warehouseIds?.length) {
-        forbidden(response);
-        return;
-      }
-
+      // Invoices are not warehouse-scoped — an operator looks one up by id or
+      // SAP ref regardless of which warehouse they are assigned to.
       const items = await lookupService.searchInvoices({
         query: request.query.query,
-        warehouseIds,
         batteryOnly: booleanParam(request.query.batteryOnly),
         limit: request.query.limit
       });

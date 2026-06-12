@@ -13,7 +13,6 @@ export function createInvoiceRepository(pool) {
     };
 
     if (row.invoiceId !== undefined) mapped.invoiceId = toNumber(row.invoiceId);
-    if (row.warehouseId !== undefined) mapped.warehouseId = toNumber(row.warehouseId);
 
     return mapped;
   }
@@ -23,7 +22,6 @@ export function createInvoiceRepository(pool) {
     return {
       ...row,
       invoiceId: toNumber(row.invoiceId),
-      warehouseId: toNumber(row.warehouseId),
       lines
     };
   }
@@ -51,11 +49,9 @@ export function createInvoiceRepository(pool) {
            il.invoice_id AS "invoiceId",
            il.product_id AS "productId",
            il.required_quantity AS "quantity",
-           p.is_battery AS "isBattery",
-           i.warehouse_id AS "warehouseId"
+           p.is_battery AS "isBattery"
          FROM invoice_line il
          JOIN product p ON p.product_id = il.product_id
-         JOIN invoice i ON i.invoice_id = il.invoice_id
          WHERE il.invoice_line_id = $1`,
         [invoiceLineId]
       );
@@ -67,7 +63,6 @@ export function createInvoiceRepository(pool) {
       const result = await pool.query(
         `SELECT
            invoice_id AS "invoiceId",
-           warehouse_id AS "warehouseId",
            status
          FROM invoice
          WHERE invoice_id = $1`,

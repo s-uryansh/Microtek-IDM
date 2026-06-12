@@ -11,8 +11,8 @@ function queryString(params) {
   return text ? `?${text}` : "";
 }
 
-export function searchInvoices({ query, warehouseId, batteryOnly, signal } = {}) {
-  return get(`/lookups/invoices${queryString({ query, warehouseId, batteryOnly })}`, { signal });
+export function searchInvoices({ query, batteryOnly, signal } = {}) {
+  return get(`/lookups/invoices${queryString({ query, batteryOnly })}`, { signal });
 }
 
 export function searchDispatchDocs({ query, warehouseId, signal } = {}) {

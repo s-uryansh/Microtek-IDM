@@ -50,15 +50,55 @@ function createRepository() {
 }
 
 describe("admin repository invoice serial aggregation", () => {
-  test("includes available warehouse serial numbers for each invoice line", async () => {
+  test("shows only dispatched serial numbers for each invoice line", async () => {
     const { repository, calls } = createRepository();
 
     const lines = await repository.invoiceLines([10]);
 
-    expect(calls[0].sql).toContain("JOIN invoice i ON i.invoice_id = il.invoice_id");
-    expect(calls[0].sql).toContain("serial_master");
-    expect(calls[0].sql).toContain("sm.current_warehouse_id = i.warehouse_id");
-    expect(calls[0].sql).toContain("sm.current_status = 'IN_STOCK'");
+    // Serials come exclusively from dispatch_scan — an undispatched invoice
+    // shows no serials, and we never surface in-stock serials that were never
+    // dispatched.
+    expect(calls[0].sql).toContain("dispatch_scan ds");
+    expect(calls[0].sql).toContain("ds.invoice_line_id = il.invoice_line_id");
+    expect(calls[0].sql).not.toContain("sm.current_status = 'IN_STOCK'");
+    expect(calls[0].sql).not.toContain("sm.product_id = il.product_id");
     expect(lines[0].serialNos).toEqual(["SN-001", "SN-002"]);
+  });
+});
+
+describe("admin repository warehouse stock", () => {
+  test("lists every in-stock unit with its product and warehouse", async () => {
+    const calls = [];
+    const repository = createAdminRepository({
+      async query(sql) {
+        calls.push({ sql });
+        return {
+          rows: [
+            {
+              serialId: 50,
+              serialNo: "SN-001",
+              serialStatus: "IN_STOCK",
+              productId: 7,
+              productCode: "MTK-7",
+              productName: "Product 7",
+              warehouseId: 3,
+              warehouseCode: "RW-01",
+              warehouseName: "Region West 01"
+            }
+          ]
+        };
+      }
+    });
+
+    const stock = await repository.listWarehouseStock();
+
+    expect(calls[0].sql).toContain("FROM serial_master sm");
+    expect(calls[0].sql).toContain("sm.current_status = 'IN_STOCK'");
+    expect(calls[0].sql).toContain("JOIN warehouse w ON w.warehouse_id = sm.current_warehouse_id");
+    expect(stock[0]).toMatchObject({
+      serialNo: "SN-001",
+      productCode: "MTK-7",
+      warehouseCode: "RW-01"
+    });
   });
 });

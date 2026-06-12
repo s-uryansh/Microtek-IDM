@@ -5,11 +5,25 @@ import { BatteryPage } from "../../src/features/battery/BatteryPage.jsx";
 
 const commitMock = vi.fn();
 const statusMock = vi.fn();
+const searchInvoicesMock = vi.fn();
 
 vi.mock("../../src/api/modules/battery.js", () => ({
   commitBatterySerial: (...args) => commitMock(...args),
   fetchBatteryCommitStatus: (...args) => statusMock(...args)
 }));
+
+vi.mock("../../src/api/modules/lookups.js", () => ({
+  searchInvoices: (...args) => searchInvoicesMock(...args)
+}));
+
+const batteryInvoice = {
+  invoiceId: 2,
+  sapInvoiceRef: "MTK-INVOICE-BATTERY-001",
+  status: "PENDING",
+  lines: [
+    { invoiceLineId: 5, lineNo: 1, productId: 50, productCode: "MTK-BATTERY-100AH", productName: "Microtek Battery 100AH", quantity: 2, isBattery: true }
+  ]
+};
 
 function renderPage() {
   return render(
@@ -19,68 +33,56 @@ function renderPage() {
   );
 }
 
+async function loadInvoice() {
+  searchInvoicesMock.mockResolvedValue({ items: [batteryInvoice] });
+  statusMock.mockResolvedValue({ invoiceId: 2, committedQuantity: 0 });
+  fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "2" } });
+  fireEvent.click(screen.getByRole("button", { name: "Load" }));
+  await waitFor(() => expect(screen.getByText(/MTK-INVOICE-BATTERY-001/)).toBeVisible());
+}
+
 beforeEach(() => {
   commitMock.mockReset();
   statusMock.mockReset();
+  searchInvoicesMock.mockReset();
 });
 
-describe("BatteryPage — happy path", () => {
-  test("commits a battery serial through the shared scan session", async () => {
-    commitMock.mockResolvedValue({ valid: true, status: "COMMITTED", serial: { serialId: 1, serialNo: "BAT-001" } });
+describe("BatteryPage", () => {
+  test("loads a battery invoice then commits a scanned serial", async () => {
     renderPage();
-    expect(screen.getByText("Battery Pre-Billing")).toBeVisible();
-    fireEvent.change(screen.getByLabelText("Invoice Line ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Scan Serial"), { target: { value: "BAT-001" } });
+    await loadInvoice();
+
+    expect(screen.getByText(/Microtek Battery 100AH/)).toBeVisible();
+
+    commitMock.mockResolvedValue({ valid: true, status: "COMMITTED" });
+    fireEvent.change(screen.getByLabelText("Scan Serial"), { target: { value: "EB100-0001" } });
     fireEvent.keyDown(screen.getByLabelText("Scan Serial"), { key: "Enter" });
-    await waitFor(() => expect(screen.getByText("COMMITTED")).toBeVisible());
-    expect(screen.getByText("Battery serial committed")).toBeVisible();
+
+    await waitFor(() => expect(screen.getByText("Battery serial committed")).toBeVisible());
+    expect(commitMock).toHaveBeenCalledWith({ invoiceId: 2, serialNo: "EB100-0001" });
   });
 
-  test("fetches commit status and renders the count", async () => {
-    statusMock.mockResolvedValue({ invoiceId: 1, committedQuantity: 3 });
+  test("surfaces a commit rejection from the API", async () => {
     renderPage();
-    fireEvent.change(screen.getAllByLabelText("Invoice ID")[0], { target: { value: "1" } });
-    fireEvent.click(screen.getByText("Check Status"));
-    await waitFor(() => expect(screen.getByText("serials committed")).toBeVisible());
-    expect(screen.getByText("3")).toBeVisible();
-  });
-});
+    await loadInvoice();
 
-describe("BatteryPage — error states", () => {
-  test("commit failure shows alert message from API", async () => {
     commitMock.mockResolvedValue({
       valid: false,
-      alert: { ruleCode: "ALREADY_COMMITTED", message: "Serial is already committed to another invoice." }
+      alert: { ruleCode: "NOT_BATTERY_LINE", message: "This serial's product is not a battery item on the selected invoice." }
     });
-    renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice Line ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Scan Serial"), { target: { value: "BAT-001" } });
+    fireEvent.change(screen.getByLabelText("Scan Serial"), { target: { value: "MTK-SOL300-0001" } });
     fireEvent.keyDown(screen.getByLabelText("Scan Serial"), { key: "Enter" });
-    await waitFor(() => expect(screen.getByText("Serial is already committed to another invoice.")).toBeVisible());
+
+    await waitFor(() =>
+      expect(screen.getByText("This serial's product is not a battery item on the selected invoice.")).toBeVisible()
+    );
   });
 
-  test("commit network failure is recorded in scan history", async () => {
-    commitMock.mockRejectedValue(new Error("Network unreachable"));
+  test("shows an error when no battery invoice matches", async () => {
+    searchInvoicesMock.mockResolvedValue({ items: [] });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice Line ID"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Scan Serial"), { target: { value: "BAT-001" } });
-    fireEvent.keyDown(screen.getByLabelText("Scan Serial"), { key: "Enter" });
-    await waitFor(() => expect(screen.getByText("Network unreachable")).toBeVisible());
-  });
-
-  test("status fetch failure shows thrown error", async () => {
-    statusMock.mockRejectedValue(new Error("Request failed with status 404"));
-    renderPage();
-    fireEvent.change(screen.getAllByLabelText("Invoice ID")[0], { target: { value: "1" } });
-    fireEvent.click(screen.getByText("Check Status"));
-    await waitFor(() => expect(screen.getByText("Request failed with status 404")).toBeVisible());
-  });
-
-  test("handles missing committedQuantity gracefully (renders 0)", async () => {
-    statusMock.mockResolvedValue({ invoiceId: 1 });
-    renderPage();
-    fireEvent.change(screen.getAllByLabelText("Invoice ID")[0], { target: { value: "1" } });
-    fireEvent.click(screen.getByText("Check Status"));
-    await waitFor(() => expect(screen.getByText("0")).toBeVisible());
+    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "999" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    await waitFor(() => expect(screen.getByText(/No battery invoice found/)).toBeVisible());
   });
 });

@@ -1,11 +1,11 @@
 export function createSrnRepository(pool) {
   return {
-    async create({ receivingWarehouseId, createdBy }) {
+    async create({ receivingWarehouseId, invoiceId, returnProductIds, createdBy }) {
       const result = await pool.query(
-        `INSERT INTO srn (receiving_warehouse_id, created_by)
-         VALUES ($1, $2)
-         RETURNING srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", status`,
-        [receivingWarehouseId, createdBy]
+        `INSERT INTO srn (receiving_warehouse_id, invoice_id, return_product_ids, created_by)
+         VALUES ($1, $2, $3::jsonb, $4)
+         RETURNING srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", status`,
+        [receivingWarehouseId, invoiceId, JSON.stringify(returnProductIds || []), createdBy]
       );
 
       return result.rows[0];
@@ -13,7 +13,7 @@ export function createSrnRepository(pool) {
 
     async findById(srnId) {
       const result = await pool.query(
-        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", status
+        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", status
          FROM srn
          WHERE srn_id = $1`,
         [srnId]
@@ -24,7 +24,7 @@ export function createSrnRepository(pool) {
 
     async lockById(srnId) {
       const result = await pool.query(
-        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", status
+        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", status
          FROM srn
          WHERE srn_id = $1
          FOR UPDATE`,
@@ -43,16 +43,59 @@ export function createSrnRepository(pool) {
     },
 
     async findOriginalDispatchScan(serialId) {
+      // Only serials from a COMPLETED dispatch count as "dispatched and mapped
+      // to an invoice" — an in-progress dispatch session is not yet done, so its
+      // scans are not a valid origin for a return.
       const result = await pool.query(
-        `SELECT dispatch_scan_id AS "dispatchScanId", serial_id AS "serialId"
-         FROM dispatch_scan
-         WHERE serial_id = $1
-         ORDER BY scanned_at DESC
+        `SELECT ds.dispatch_scan_id AS "dispatchScanId",
+                ds.serial_id AS "serialId",
+                d.invoice_id AS "invoiceId"
+         FROM dispatch_scan ds
+         JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
+         WHERE ds.serial_id = $1
+           AND d.status = 'DISPATCHED'
+         ORDER BY ds.scanned_at DESC
          LIMIT 1`,
         [serialId]
       );
 
       return result.rows[0] ?? null;
+    },
+
+    async findOriginalDispatchScanBySerialAndProducts(serialId, productIds) {
+      const result = await pool.query(
+        `SELECT ds.dispatch_scan_id AS "dispatchScanId",
+                ds.serial_id AS "serialId",
+                d.invoice_id AS "invoiceId"
+         FROM dispatch_scan ds
+         JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
+         JOIN serial_master sm ON sm.serial_id = ds.serial_id
+         WHERE ds.serial_id = $1
+           AND sm.product_id = ANY($2::int[])
+           AND d.status = 'DISPATCHED'
+         ORDER BY ds.scanned_at DESC
+         LIMIT 1`,
+        [serialId, productIds]
+      );
+
+      return result.rows[0] ?? null;
+    },
+
+    async invoiceHasDispatchedSerials(invoiceId) {
+      // True only when the invoice has at least one serial dispatched through a
+      // COMPLETED dispatch — i.e. products were actually mapped to it after
+      // dispatch was done. This is the gate for allowing a return (SRN).
+      const result = await pool.query(
+        `SELECT 1
+         FROM dispatch_scan ds
+         JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
+         WHERE d.invoice_id = $1
+           AND d.status = 'DISPATCHED'
+         LIMIT 1`,
+        [invoiceId]
+      );
+
+      return result.rowCount > 0;
     },
 
     async hasReturnedSerial(serialId) {

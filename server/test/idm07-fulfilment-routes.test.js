@@ -20,7 +20,7 @@ function makeApp({ invoice }) {
     createFulfilmentStatusRoutes({
       fulfilmentStatusService: {
         async getInvoiceStatus() {
-          return invoice ? { invoiceId: invoice.invoiceId, warehouseId: invoice.warehouseId, status: "PENDING" } : null;
+          return invoice ? { invoiceId: invoice.invoiceId, status: "PENDING" } : null;
         }
       },
       repositories: {}
@@ -30,20 +30,22 @@ function makeApp({ invoice }) {
 }
 
 describe("IDM-07 fulfilment routes", () => {
-  test("denies invoice status outside caller warehouse scope", async () => {
-    const app = makeApp({ invoice: { invoiceId: 100, warehouseId: 5 } });
-
-    const res = await request(app).get("/api/idm-07/orders/100/status");
-
-    expect(res.status).toBe(403);
-  });
-
-  test("allows invoice status inside caller warehouse scope", async () => {
-    const app = makeApp({ invoice: { invoiceId: 100, warehouseId: 3 } });
+  test("returns fulfilment status for a permitted caller (not warehouse-scoped)", async () => {
+    // Invoices carry no warehouse, so fulfilment status is gated by the
+    // fulfilment:read permission only — any permitted role sees it.
+    const app = makeApp({ invoice: { invoiceId: 100 } });
 
     const res = await request(app).get("/api/idm-07/orders/100/status");
 
     expect(res.status).toBe(200);
-    expect(res.body.warehouseId).toBe(3);
+    expect(res.body.invoiceId).toBe(100);
+  });
+
+  test("returns 404 when the invoice has no fulfilment record", async () => {
+    const app = makeApp({ invoice: null });
+
+    const res = await request(app).get("/api/idm-07/orders/100/status");
+
+    expect(res.status).toBe(404);
   });
 });

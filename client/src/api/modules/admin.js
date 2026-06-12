@@ -92,6 +92,23 @@ export function importProductsCsv({ csvContent, signal }) {
 }
 
 /* ── Invoices ── */
-export function fetchAllInvoices({ signal } = {}) {
-  return get("/admin/invoices", { signal });
+export function fetchAllInvoices({ query, signal } = {}) {
+  return get(`/admin/invoices${query ? `?query=${encodeURIComponent(query)}` : ""}`, { signal });
+}
+
+export function exportInvoicesCsv({ signal } = {}) {
+  return get("/admin/invoices/export", { signal });
+}
+
+export function importInvoicesCsv({ csvContent, signal }) {
+  return post("/admin/invoices/import", { csvContent }, { signal });
+}
+
+/* ── Inbound stock (SAP dispatch documents) ── */
+export function fetchInboundDispatches({ signal } = {}) {
+  return get("/admin/inbound-dispatches", { signal });
+}
+
+export function fetchWarehouseStock({ signal } = {}) {
+  return get("/admin/warehouse-stock", { signal });
 }

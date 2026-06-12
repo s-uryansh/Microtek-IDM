@@ -9,7 +9,8 @@ function createRepositories({
   validationResult,
   insertScanResult,
   updateSerialResult = true,
-  availableStockQuantity = 10
+  availableStockQuantity = 10,
+  batteryCommit = null
 }) {
   const calls = {
     createDispatch: [],
@@ -19,6 +20,7 @@ function createRepositories({
     appendEvent: [],
     updateDispatchStatus: [],
     updateInvoiceStatus: [],
+    createException: [],
     transaction: []
   };
 
@@ -95,9 +97,20 @@ function createRepositories({
         calls.appendEvent.push(event);
       }
     },
+    batteryPreBilling: {
+      async findCommitBySerial() {
+        return batteryCommit;
+      }
+    },
     validationService: {
       async validateSerial() {
         return validationResult;
+      }
+    },
+    exceptionsRepo: {
+      async createException(input) {
+        calls.createException.push(input);
+        return { exceptionId: calls.createException.length, ruleCode: input.ruleCode, status: "OPEN" };
       }
     }
   };
@@ -139,7 +152,7 @@ describe("IDM-05 dispatch service", () => {
     });
   });
 
-  test("starts a dispatch with a per-session quantity cap selected by the operator", async () => {
+  test("dispatches the full remaining invoice quantity when stock is sufficient", async () => {
     const repositories = createRepositories({ invoice });
     const service = createDispatchService({
       repositories,
@@ -149,7 +162,6 @@ describe("IDM-05 dispatch service", () => {
     const result = await service.startDispatch({
       invoiceId: 100,
       warehouseId: 5,
-      dispatchQuantity: 1,
       userId: "operator_1"
     });
 
@@ -157,50 +169,55 @@ describe("IDM-05 dispatch service", () => {
       dispatchId: 10,
       invoiceId: 100,
       warehouseId: 5,
-      dispatchQuantity: 1,
-      targetQuantity: 1,
+      dispatchQuantity: 2,
+      targetQuantity: 2,
       remainingInvoiceQuantity: 2,
-      currentWarehouseStockQty: 10
+      currentWarehouseStockQty: 10,
+      partial: false
     });
     expect(repositories.calls.createDispatch[0]).toMatchObject({
       invoiceId: 100,
       warehouseId: 5,
-      targetQuantity: 1
+      targetQuantity: 2
     });
+    expect(repositories.calls.createException).toHaveLength(0);
     expect(repositories.calls.countAvailableStock).toEqual({ warehouseId: 5, productIds: [7] });
   });
 
-  test("rejects dispatch quantity greater than current matching warehouse stock", async () => {
+  test("partially dispatches available stock and raises a SHORT exception when stock is insufficient", async () => {
     const repositories = createRepositories({ invoice, availableStockQuantity: 1 });
     const service = createDispatchService({
       repositories,
       fulfilmentStatusService: createFulfilmentStatusService()
     });
 
-    await expect(service.startDispatch({
+    const result = await service.startDispatch({
       invoiceId: 100,
       warehouseId: 5,
-      dispatchQuantity: 2,
       userId: "operator_1"
-    })).rejects.toMatchObject({
-      status: 409,
-      code: "INSUFFICIENT_WAREHOUSE_STOCK"
+    });
+
+    expect(result).toMatchObject({
+      dispatchId: 10,
+      dispatchQuantity: 1,
+      targetQuantity: 1,
+      remainingInvoiceQuantity: 2,
+      currentWarehouseStockQty: 1,
+      partial: true
+    });
+    expect(result.partialException).toMatchObject({ ruleCode: "SHORT", status: "OPEN" });
+    expect(repositories.calls.createDispatch[0]).toMatchObject({ targetQuantity: 1 });
+    expect(repositories.calls.createException[0]).toMatchObject({
+      ruleCode: "SHORT",
+      contextType: "DISPATCH",
+      contextId: 10,
+      warehouseId: 5,
+      raisedBy: "operator_1"
     });
   });
 
-  test("rejects a dispatch quantity greater than invoice remaining quantity", async () => {
-    const repositories = createRepositories({
-      invoice,
-      dispatch: {
-        dispatchId: 10,
-        invoiceId: 100,
-        warehouseId: 5,
-        status: "IN_PROGRESS",
-        targetQuantity: 1,
-        lines: invoice.lines,
-        scans: [{ dispatchScanId: 1, invoiceLineId: 200, serialId: 1 }]
-      }
-    });
+  test("rejects when there is no stock available at all", async () => {
+    const repositories = createRepositories({ invoice, availableStockQuantity: 0 });
     const service = createDispatchService({
       repositories,
       fulfilmentStatusService: createFulfilmentStatusService()
@@ -209,15 +226,14 @@ describe("IDM-05 dispatch service", () => {
     await expect(service.startDispatch({
       invoiceId: 100,
       warehouseId: 5,
-      dispatchQuantity: 2,
       userId: "operator_1"
     })).rejects.toMatchObject({
       status: 409,
-      code: "DISPATCH_QUANTITY_EXCEEDS_REMAINING"
+      code: "NO_WAREHOUSE_STOCK"
     });
   });
 
-  test("resumes by adding selected quantity to already scanned invoice quantity", async () => {
+  test("resumes an existing partial dispatch for the remaining invoice quantity once stock arrives", async () => {
     const repositories = createRepositories({
       invoice: {
         ...invoice,
@@ -244,18 +260,19 @@ describe("IDM-05 dispatch service", () => {
     const result = await service.startDispatch({
       invoiceId: 100,
       warehouseId: 5,
-      dispatchQuantity: 1,
       userId: "operator_1"
     });
 
+    // 4 required - 2 already scanned = 2 remaining; stock (10) covers it, so full.
     expect(result).toMatchObject({
       dispatchId: 10,
-      dispatchQuantity: 1,
-      targetQuantity: 3,
+      dispatchQuantity: 2,
+      targetQuantity: 4,
       alreadyScannedQuantity: 2,
-      remainingInvoiceQuantity: 2
+      remainingInvoiceQuantity: 2,
+      partial: false
     });
-    expect(repositories.calls.setDispatchTargetQuantity).toEqual({ dispatchId: 10, targetQuantity: 3 });
+    expect(repositories.calls.setDispatchTargetQuantity).toEqual({ dispatchId: 10, targetQuantity: 4 });
   });
 
   test("starts a dispatch when repository ids are returned as strings", async () => {
@@ -390,6 +407,64 @@ describe("IDM-05 dispatch service", () => {
       referenceId: 10,
       createdBy: "operator_1"
     });
+  });
+
+  test("blocks dispatch of a battery serial that was not pre-billed", async () => {
+    const dispatch = {
+      dispatchId: 10,
+      invoiceId: 100,
+      warehouseId: 5,
+      status: "PENDING",
+      targetQuantity: 1,
+      lines: [{ invoiceLineId: 200, productId: 7, quantity: 1, isBattery: true }],
+      scans: []
+    };
+    const repositories = createRepositories({
+      dispatch,
+      batteryCommit: null, // not pre-billed
+      validationResult: {
+        valid: true,
+        serial: { serialId: 1, serialNo: "EB100-0001", productId: 7, currentStatus: "IN_STOCK", currentWarehouseId: 5 },
+        alert: null,
+        exception: null
+      }
+    });
+    const service = createDispatchService({ repositories, fulfilmentStatusService: createFulfilmentStatusService() });
+
+    const result = await service.scanSerial({ dispatchId: 10, serialNo: "EB100-0001", userId: "operator_1" });
+
+    expect(result.valid).toBe(false);
+    expect(result.alert.ruleCode).toBe("BATTERY_NOT_PREBILLED");
+    expect(repositories.calls.updateSerial).toHaveLength(0);
+    expect(repositories.calls.insertScan).toHaveLength(0);
+  });
+
+  test("allows dispatch of a battery serial once it has been pre-billed", async () => {
+    const dispatch = {
+      dispatchId: 10,
+      invoiceId: 100,
+      warehouseId: 5,
+      status: "PENDING",
+      targetQuantity: 1,
+      lines: [{ invoiceLineId: 200, productId: 7, quantity: 1, isBattery: true }],
+      scans: []
+    };
+    const repositories = createRepositories({
+      dispatch,
+      batteryCommit: { batteryPreBillingId: 1, serialId: 1 },
+      validationResult: {
+        valid: true,
+        serial: { serialId: 1, serialNo: "EB100-0001", productId: 7, currentStatus: "IN_STOCK", currentWarehouseId: 5 },
+        alert: null,
+        exception: null
+      }
+    });
+    const service = createDispatchService({ repositories, fulfilmentStatusService: createFulfilmentStatusService() });
+
+    const result = await service.scanSerial({ dispatchId: 10, serialNo: "EB100-0001", userId: "operator_1" });
+
+    expect(result.valid).toBe(true);
+    expect(result.status).toBe("DISPATCHED");
   });
 
   test("blocks scans once the selected dispatch quantity is reached", async () => {

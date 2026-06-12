@@ -33,11 +33,13 @@ function makeApp(lookupService) {
 }
 
 describe("lookup routes", () => {
-  test("lists scoped invoices with lines", async () => {
+  test("lists invoices with lines (not warehouse-scoped)", async () => {
     const app = makeApp({
       async searchInvoices(input) {
-        expect(input).toMatchObject({ query: "INV", warehouseIds: [3], batteryOnly: false });
-        return [{ invoiceId: 10, sapInvoiceRef: "INV-10", warehouseId: 3, lines: [] }];
+        // Invoices are warehouse-agnostic — no warehouseIds are passed through.
+        expect(input).toMatchObject({ query: "INV", batteryOnly: false });
+        expect(input.warehouseIds).toBeUndefined();
+        return [{ invoiceId: 10, sapInvoiceRef: "INV-10", lines: [] }];
       }
     });
 
@@ -47,16 +49,18 @@ describe("lookup routes", () => {
     expect(res.body.items[0].sapInvoiceRef).toBe("INV-10");
   });
 
-  test("denies invoice lookup when requested warehouse is outside scope", async () => {
+  test("invoice lookup ignores any warehouse scope and still returns results", async () => {
     const app = makeApp({
       async searchInvoices() {
-        throw new Error("service should not be called");
+        return [{ invoiceId: 11, sapInvoiceRef: "INV-11", lines: [] }];
       }
     });
 
+    // A warehouse outside the operator's scope must not block an invoice lookup.
     const res = await request(app).get("/api/lookups/invoices?warehouseId=5");
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.items[0].sapInvoiceRef).toBe("INV-11");
   });
 
   test("lists scoped SAP dispatch documents", async () => {

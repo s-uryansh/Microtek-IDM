@@ -1,7 +1,7 @@
 import { get, post } from "../client.js";
 
-export function createDispatch({ invoiceId, warehouseId, dispatchQuantity, signal }) {
-  return post("/idm-05/dispatches", { invoiceId, warehouseId, dispatchQuantity }, { signal });
+export function createDispatch({ invoiceId, warehouseId, signal }) {
+  return post("/idm-05/dispatches", { invoiceId, warehouseId }, { signal });
 }
 
 export function fetchDispatchAvailability({ invoiceId, warehouseId, signal }) {

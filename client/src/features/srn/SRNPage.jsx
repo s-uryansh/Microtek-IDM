@@ -1,37 +1,80 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
-import { Input } from "../../components/ui/Input.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
-import { LookupSelector } from "../../components/operations/LookupSelector.jsx";
+import { WarehouseSelector } from "../../components/operations/WarehouseSelector.jsx";
 import { createSrn, scanSrnSerial } from "../../api/modules/srn.js";
-import { searchDispatches, searchInvoices } from "../../api/modules/lookups.js";
-import { useAuth } from "../../auth/useAuth.js";
+import { searchInvoices } from "../../api/modules/lookups.js";
 
 const CONDITION_TAGS = ["SALEABLE", "DEFECTIVE", "REPAIR"];
 
 export function SRNPage() {
-  const { user } = useAuth();
+  const [invoiceInput, setInvoiceInput] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
+  const [invoice, setInvoice] = useState(null);
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [selectedProductIds, setSelectedProductIds] = useState(new Set());
   const [conditionTag, setConditionTag] = useState("SALEABLE");
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    const assignedWarehouseId = user?.defaultWarehouseId ?? user?.warehouseIds?.[0];
-    if (!warehouseId && assignedWarehouseId) {
-      setWarehouseId(String(assignedWarehouseId));
+  function handleToggleProduct(productId) {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  }
+
+  async function handleLoadInvoice() {
+    setLoadError(null);
+    setLoadingInvoice(true);
+    setSelectedProductIds(new Set());
+    try {
+      // Operator enters a specific invoice ID (or full SAP ref) — load the exact
+      // match, not a fuzzy ILIKE hit on another ref with the same digits.
+      const query = invoiceInput.trim();
+      const result = await searchInvoices({ query });
+      const found = (result?.items || []).find(
+        (item) => String(item.invoiceId) === query || item.sapInvoiceRef?.toUpperCase() === query.toUpperCase()
+      );
+      if (!found) {
+        setLoadError("Invoice not found");
+        return;
+      }
+      // A return is only valid for an invoice that was dispatched. A PENDING
+      // invoice was never dispatched, so there is nothing legitimate to return.
+      // (Partial dispatches show IN_PROGRESS and are allowed; the server makes
+      // the final check that dispatched serials exist.)
+      if (found.status === "PENDING") {
+        setLoadError("This invoice has not been dispatched; there is nothing to return.");
+        return;
+      }
+      setInvoice(found);
+    } catch (err) {
+      setLoadError(err?.message || "Failed to load invoice");
+    } finally {
+      setLoadingInvoice(false);
     }
-  }, [user, warehouseId]);
+  }
 
   async function handleCreate() {
     setError(null);
     setCreating(true);
     try {
-      const result = await createSrn({ warehouseId: Number(warehouseId) });
-      setSession(result);
+      const result = await createSrn({
+        warehouseId: Number(warehouseId),
+        invoiceId: Number(invoice.invoiceId),
+        returnProductIds: Array.from(selectedProductIds)
+      });
+      setSession({ ...result, invoiceRef: invoice.sapInvoiceRef });
     } catch (err) {
       setError(err?.message || "Failed to create SRN");
     } finally {
@@ -65,6 +108,19 @@ export function SRNPage() {
         <PageHeader title="Customer Returns" subtitle="Scan and process returned serials" />
         <Card title={`SRN #${session.srnId ?? "—"}`}>
           <div className="scan-workflow-form scan-workflow-form--compact">
+            <div className="input-group">
+              <label className="input-group__label">Invoice</label>
+              <div className="input" aria-readonly="true"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  color: "var(--color-text-secondary)",
+                  backgroundColor: "var(--color-surface-subtle)"
+                }}
+              >
+                {session.invoiceRef || `Invoice #${session.invoiceId}`}
+              </div>
+            </div>
             <ConditionTagSelect value={conditionTag} onChange={setConditionTag} />
           </div>
           <ScanSession
@@ -83,47 +139,91 @@ export function SRNPage() {
       <PageHeader title="Customer Returns" subtitle="Scan and process returned serials" />
       <Card title="Start Return Session">
         <div className="scan-workflow-form">
-          <LookupSelector
-            title="Search Original Invoice"
-            placeholder="Invoice reference or invoice ID"
-            search={(query) => searchInvoices({ query })}
-            onSelect={(invoice) => setWarehouseId(String(invoice.warehouseId))}
-            renderItem={(invoice) => (
-              <>
-                <span className="operation-panel__result-title">{invoice.sapInvoiceRef}</span>
-                <span className="operation-panel__result-meta">
-                  Invoice #{invoice.invoiceId} · Receiving warehouse {invoice.warehouseCode || invoice.warehouseId}
-                </span>
-              </>
-            )}
-          />
-          <LookupSelector
-            title="Search Original Dispatch"
-            placeholder="Dispatch ID or invoice reference"
-            search={(query) => searchDispatches({ query })}
-            onSelect={(dispatch) => setWarehouseId(String(dispatch.warehouseId))}
-            renderItem={(dispatch) => (
-              <>
-                <span className="operation-panel__result-title">Dispatch #{dispatch.dispatchId}</span>
-                <span className="operation-panel__result-meta">
-                  Invoice {dispatch.sapInvoiceRef} · Warehouse {dispatch.warehouseCode || dispatch.warehouseId}
-                </span>
-              </>
-            )}
-          />
-          <Input
-            label="Receiving Warehouse ID"
+          {/* Returns are received INTO the operator's assigned warehouse. The
+              invoice itself carries no warehouse. */}
+          <WarehouseSelector
+            label="Receiving warehouse"
             value={warehouseId}
             onChange={setWarehouseId}
-            type="number"
-            inputMode="numeric"
-            placeholder="Enter warehouse ID"
+            helperText="Returned stock is received into this warehouse."
           />
-          <ConditionTagSelect value={conditionTag} onChange={setConditionTag} />
-          {error && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</p>}
-          <Button onClick={handleCreate} disabled={!warehouseId || creating}>
-            {creating ? "Creating..." : "Start SRN"}
-          </Button>
+          <div className="input-group">
+            <label className="input-group__label" htmlFor="srn-invoice-input">Invoice ID</label>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
+              <input
+                id="srn-invoice-input"
+                className="input"
+                type="text"
+                value={invoiceInput}
+                onChange={(e) => setInvoiceInput(e.target.value)}
+                placeholder="Enter invoice ID"
+                style={{ flex: 1 }}
+              />
+              <Button onClick={handleLoadInvoice} disabled={!invoiceInput || loadingInvoice}>
+                {loadingInvoice ? "Loading..." : "Load"}
+              </Button>
+            </div>
+          </div>
+
+          {loadError && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{loadError}</p>}
+
+          {invoice && (
+            <>
+              <div className="input-group">
+                <label className="input-group__label">Invoice</label>
+                <div className="input" aria-readonly="true"
+                  style={{
+                    color: "var(--color-text-secondary)",
+                    backgroundColor: "var(--color-surface-subtle)"
+                  }}
+                >
+                  {invoice.sapInvoiceRef} · Invoice #{invoice.invoiceId}
+                </div>
+              </div>
+
+              {invoice.lines?.length > 0 && (
+                <div className="input-group">
+                  <label className="input-group__label">Items on Invoice</label>
+                  <div style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "var(--color-surface-subtle)", textAlign: "left" }}>
+                          <th style={{ padding: "var(--space-2) var(--space-3)", width: "40px" }}></th>
+                          <th style={{ padding: "var(--space-2) var(--space-3)" }}>#</th>
+                          <th style={{ padding: "var(--space-2) var(--space-3)" }}>Product</th>
+                          <th style={{ padding: "var(--space-2) var(--space-3)" }}>Code</th>
+                          <th style={{ padding: "var(--space-2) var(--space-3)" }}>Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoice.lines.map((line) => (
+                          <tr key={line.invoiceLineId} style={{ borderTop: "1px solid var(--color-border)" }}>
+                            <td style={{ padding: "var(--space-2) var(--space-3)" }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedProductIds.has(line.productId)}
+                                onChange={() => handleToggleProduct(line.productId)}
+                              />
+                            </td>
+                            <td style={{ padding: "var(--space-2) var(--space-3)" }}>{line.lineNo}</td>
+                            <td style={{ padding: "var(--space-2) var(--space-3)" }}>{line.productName}</td>
+                            <td style={{ padding: "var(--space-2) var(--space-3)" }}>{line.productCode}</td>
+                            <td style={{ padding: "var(--space-2) var(--space-3)" }}>{line.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <ConditionTagSelect value={conditionTag} onChange={setConditionTag} />
+              {error && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</p>}
+              <Button onClick={handleCreate} disabled={creating || !warehouseId || selectedProductIds.size === 0}>
+                {creating ? "Creating..." : "Start SRN"}
+              </Button>
+            </>
+          )}
         </div>
       </Card>
     </div>

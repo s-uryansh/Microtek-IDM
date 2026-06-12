@@ -11,3 +11,5 @@ npm-debug.log*
 /.claude
 /graphify-out
 AGENTS.md
+CLAUDE.md
+/.opencode

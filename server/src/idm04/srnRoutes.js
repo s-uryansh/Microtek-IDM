@@ -44,10 +44,16 @@ export function createSrnRoutes({ srnService }) {
       try {
         const result = await srnService.createSrn({
           receivingWarehouseId: request.body.warehouseId,
+          invoiceId: request.body.invoiceId ? Number.parseInt(request.body.invoiceId, 10) : null,
+          returnProductIds: request.body.returnProductIds,
           userId: request.auth.userId
         });
         response.status(201).json(result);
       } catch (error) {
+        if (error.status === 409) {
+          sendError(response, 409, error.code || "CONFLICT", error.message);
+          return;
+        }
         next(error);
       }
     }

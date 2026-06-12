@@ -1,18 +1,17 @@
 export function createGrnRepository(pool) {
   return {
-    async create({ sapDispatchDocId, receivingWarehouseId, createdBy }) {
+    async create({ receivingWarehouseId, createdBy }) {
+      // Warehouse-scoped GRN: stock is received into the warehouse, not against a
+      // single SAP dispatch document, so sap_dispatch_doc_id is left NULL.
       const result = await pool.query(
-        `INSERT INTO grn (sap_dispatch_doc_id, receiving_warehouse_id, created_by)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (sap_dispatch_doc_id) DO UPDATE
-         SET updated_at = now(),
-             updated_by = EXCLUDED.created_by
+        `INSERT INTO grn (receiving_warehouse_id, created_by)
+         VALUES ($1, $2)
          RETURNING
            grn_id AS "grnId",
            sap_dispatch_doc_id AS "sapDispatchDocId",
            receiving_warehouse_id AS "receivingWarehouseId",
            status`,
-        [sapDispatchDocId, receivingWarehouseId, createdBy]
+        [receivingWarehouseId, createdBy]
       );
 
       return result.rows[0];
@@ -58,6 +57,8 @@ export function createGrnRepository(pool) {
     },
 
     async findExpectedLine(grnId, serialId) {
+      // Expected = the serial appears in a SAP dispatch record destined for this
+      // GRN's receiving warehouse.
       const result = await pool.query(
         `SELECT
            sdl.sap_dispatch_line_id AS "sapDispatchLineId",
@@ -66,10 +67,11 @@ export function createGrnRepository(pool) {
            sdd.destination_warehouse_id AS "destinationWarehouseId",
            sdd.source_warehouse_id AS "sourceWarehouseId"
          FROM grn g
-         JOIN sap_dispatch_line sdl ON sdl.sap_dispatch_doc_id = g.sap_dispatch_doc_id
-         JOIN sap_dispatch_doc sdd ON sdd.sap_dispatch_doc_id = sdl.sap_dispatch_doc_id
+         JOIN sap_dispatch_doc sdd ON sdd.destination_warehouse_id = g.receiving_warehouse_id
+         JOIN sap_dispatch_line sdl ON sdl.sap_dispatch_doc_id = sdd.sap_dispatch_doc_id
          WHERE g.grn_id = $1
-           AND sdl.serial_id = $2`,
+           AND sdl.serial_id = $2
+         LIMIT 1`,
         [grnId, serialId]
       );
 
@@ -77,6 +79,7 @@ export function createGrnRepository(pool) {
     },
 
     async findSerialInOtherDispatch(grnId, serialId) {
+      // The serial is in a SAP dispatch record, but destined for a different warehouse.
       const result = await pool.query(
         `SELECT
            sdl.serial_id AS "serialId",
@@ -85,7 +88,7 @@ export function createGrnRepository(pool) {
          JOIN sap_dispatch_doc sdd ON sdd.sap_dispatch_doc_id = sdl.sap_dispatch_doc_id
          JOIN grn g ON g.grn_id = $1
          WHERE sdl.serial_id = $2
-           AND sdl.sap_dispatch_doc_id <> g.sap_dispatch_doc_id
+           AND sdd.destination_warehouse_id <> g.receiving_warehouse_id
          LIMIT 1`,
         [grnId, serialId]
       );
@@ -132,34 +135,18 @@ export function createGrnRepository(pool) {
       );
     },
 
-    async findMissingExpectedLines(grnId) {
+    async summarize(grnId) {
       const result = await pool.query(
         `SELECT
-           sm.serial_id AS "serialId",
-           sm.serial_no AS "serialNo"
-         FROM grn g
-         JOIN sap_dispatch_line sdl ON sdl.sap_dispatch_doc_id = g.sap_dispatch_doc_id
-         JOIN serial_master sm ON sm.serial_id = sdl.serial_id
-         LEFT JOIN grn_scan gs ON gs.grn_id = g.grn_id
-          AND gs.serial_id = sdl.serial_id
-          AND gs.match_status = 'MATCHED'
-         WHERE g.grn_id = $1
-           AND gs.grn_scan_id IS NULL`,
+           COUNT(*)::int AS "scannedCount",
+           COUNT(*) FILTER (WHERE match_status = 'MATCHED')::int AS "matchedCount",
+           COUNT(*) FILTER (WHERE match_status <> 'MATCHED')::int AS "exceptionCount"
+         FROM grn_scan
+         WHERE grn_id = $1`,
         [grnId]
       );
 
-      return result.rows;
-    },
-
-    async markShort({ grnId, serialId, serialNo, createdBy }) {
-      await this.insertScan({
-        grnId,
-        serialId,
-        serialNo,
-        matchStatus: "SHORT",
-        scannedBy: createdBy,
-        createdBy
-      });
+      return result.rows[0] ?? { scannedCount: 0, matchedCount: 0, exceptionCount: 0 };
     }
   };
 }

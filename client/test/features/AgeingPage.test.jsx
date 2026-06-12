@@ -2,25 +2,40 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { AgeingPage } from "../../src/features/ageing/AgeingPage.jsx";
+import { AuthContext } from "../../src/auth/AuthProvider.jsx";
 
 const mockFetch = vi.fn();
 const mockFetchVariance = vi.fn();
+const searchWarehousesMock = vi.fn();
 vi.mock("../../src/api/modules/ageing.js", () => ({
   fetchAgeingReport: (...args) => mockFetch(...args),
   fetchReconciliationVariance: (...args) => mockFetchVariance(...args)
 }));
+vi.mock("../../src/api/modules/lookups.js", () => ({
+  searchWarehouses: (...args) => searchWarehousesMock(...args)
+}));
 
-function renderPage() {
+// Admin user: WarehouseSelector renders a dropdown, so the warehouse can be chosen.
+function renderPage(user = { userId: "1", role: "admin", warehouseIds: [3] }) {
   return render(
-    <MemoryRouter>
-      <AgeingPage />
-    </MemoryRouter>
+    <AuthContext.Provider value={{ user }}>
+      <MemoryRouter>
+        <AgeingPage />
+      </MemoryRouter>
+    </AuthContext.Provider>
   );
+}
+
+async function selectWarehouse() {
+  await screen.findByRole("option", { name: /RW-01/ });
+  fireEvent.change(screen.getByLabelText("Warehouse"), { target: { value: "3" } });
 }
 
 beforeEach(() => {
   mockFetch.mockReset();
   mockFetchVariance.mockReset();
+  searchWarehousesMock.mockReset();
+  searchWarehousesMock.mockResolvedValue({ items: [{ warehouseId: 3, code: "RW-01", name: "Regional 1" }] });
   mockFetchVariance.mockResolvedValue({ rows: [] });
 });
 
@@ -43,7 +58,7 @@ describe("AgeingPage", () => {
       dataQuality: { missingReceivedAtCount: 0 }
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
+    await selectWarehouse();
     await waitFor(() => {
       const labels = screen.getAllByText("0-30");
       expect(labels.length).toBe(2);
@@ -56,7 +71,7 @@ describe("AgeingPage", () => {
       dataQuality: { missingReceivedAtCount: 0 }
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
+    await selectWarehouse();
     await waitFor(() => {
       expect(screen.getByText("No ageing data available")).toBeVisible();
     });
@@ -68,7 +83,7 @@ describe("AgeingPage", () => {
       dataQuality: { missingReceivedAtCount: 5 }
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
+    await selectWarehouse();
     await waitFor(() => {
       expect(screen.getByText(/5 in-stock serials are missing receipt dates/)).toBeVisible();
     });
@@ -80,7 +95,7 @@ describe("AgeingPage", () => {
       dataQuality: { missingReceivedAtCount: 0 }
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
+    await selectWarehouse();
     await waitFor(() => {
       expect(screen.getByText("Unable to load ageing report")).toBeVisible();
     });
@@ -94,7 +109,7 @@ describe("AgeingPage", () => {
   test("does NOT crash on null summary", async () => {
     mockFetch.mockResolvedValue({ filters: {}, summary: null, dataQuality: { missingReceivedAtCount: 0 } });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Warehouse ID"), { target: { value: "3" } });
+    await selectWarehouse();
     await waitFor(() => {
       expect(screen.getByText("No ageing data available")).toBeVisible();
     });

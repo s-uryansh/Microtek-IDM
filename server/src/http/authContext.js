@@ -41,6 +41,17 @@ export async function requireAuthContext(request, response, next) {
   }
 }
 
+// Hard role gate: only users whose role is literally "admin" pass, regardless of
+// any permissions a non-admin role may have been granted. Used for sensitive bulk
+// operations (e.g. invoice CSV import/export).
+export function requireAdminRole(request, response, next) {
+  if (request.auth?.role !== "admin") {
+    sendError(response, 403, "FORBIDDEN", "Administrator role required");
+    return;
+  }
+  next();
+}
+
 export function requirePermission(permission, { warehouseIdFromBody = false, warehouseIdFromQuery = false } = {}) {
   return async (request, response, next) => {
     try {

@@ -48,12 +48,12 @@ describe("API modules", () => {
   });
 
   describe("battery", () => {
-    test("commitBatterySerial calls POST with invoiceLineId and serialNo", async () => {
+    test("commitBatterySerial calls POST with invoiceId and serialNo", async () => {
       mockClient.__mockPost.mockResolvedValue({ valid: true, status: "COMMITTED" });
-      await commitBatterySerial({ invoiceLineId: 1, serialNo: "TEST-001" });
+      await commitBatterySerial({ invoiceId: 2, serialNo: "TEST-001" });
       expect(mockClient.__mockPost).toHaveBeenCalledWith(
         "/idm-03/battery/commit",
-        { invoiceLineId: 1, serialNo: "TEST-001" },
+        { invoiceId: 2, serialNo: "TEST-001" },
         expect.any(Object)
       );
     });
@@ -66,10 +66,10 @@ describe("API modules", () => {
 
     test("createDispatch calls POST", async () => {
       mockClient.__mockPost.mockResolvedValue({ dispatchId: 1 });
-      await createDispatch({ invoiceId: 1, warehouseId: 3, dispatchQuantity: 2 });
+      await createDispatch({ invoiceId: 1, warehouseId: 3 });
       expect(mockClient.__mockPost).toHaveBeenCalledWith(
         "/idm-05/dispatches",
-        { invoiceId: 1, warehouseId: 3, dispatchQuantity: 2 },
+        { invoiceId: 1, warehouseId: 3 },
         expect.any(Object)
       );
     });
@@ -139,10 +139,10 @@ describe("API modules", () => {
   describe("grn", () => {
     test("createGrn calls POST", async () => {
       mockClient.__mockPost.mockResolvedValue({ grnId: 1 });
-      await createGrn({ sapDispatchDocId: 1, warehouseId: 3 });
+      await createGrn({ warehouseId: 3 });
       expect(mockClient.__mockPost).toHaveBeenCalledWith(
         "/idm-02/grns",
-        { sapDispatchDocId: 1, warehouseId: 3 },
+        { warehouseId: 3 },
         expect.any(Object)
       );
     });
@@ -192,11 +192,11 @@ describe("API modules", () => {
   });
 
   describe("lookups", () => {
-    test("searchInvoices calls scoped lookup endpoint", async () => {
+    test("searchInvoices calls the (warehouse-agnostic) lookup endpoint", async () => {
       mockClient.__mockGet.mockResolvedValue({ items: [] });
-      await searchInvoices({ query: "INV", warehouseId: 3, batteryOnly: true });
+      await searchInvoices({ query: "INV", batteryOnly: true });
       expect(mockClient.__mockGet).toHaveBeenCalledWith(
-        "/lookups/invoices?query=INV&warehouseId=3&batteryOnly=true",
+        "/lookups/invoices?query=INV&batteryOnly=true",
         expect.any(Object)
       );
     });
@@ -239,7 +239,17 @@ describe("API modules", () => {
       await createSrn({ warehouseId: 3 });
       expect(mockClient.__mockPost).toHaveBeenCalledWith(
         "/idm-04/srns",
-        { warehouseId: 3 },
+        { warehouseId: 3, invoiceId: null },
+        expect.any(Object)
+      );
+    });
+
+    test("createSrn sends invoiceId when provided", async () => {
+      mockClient.__mockPost.mockResolvedValue({ srnId: 1 });
+      await createSrn({ warehouseId: 3, invoiceId: 10 });
+      expect(mockClient.__mockPost).toHaveBeenCalledWith(
+        "/idm-04/srns",
+        { warehouseId: 3, invoiceId: 10 },
         expect.any(Object)
       );
     });

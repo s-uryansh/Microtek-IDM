@@ -3,12 +3,6 @@ import { Router } from "express";
 import { requireAuthContext, requirePermission } from "../http/authContext.js";
 import { sendError } from "../http/errorResponse.js";
 
-function canReadHistory(request, warehouseIds = []) {
-  if (request.auth.role === "admin") return true;
-  if (!warehouseIds.length) return false;
-  return warehouseIds.some((warehouseId) => request.auth.warehouseIds.includes(warehouseId));
-}
-
 export function createSerialHistoryRoutes({ serialHistoryService }) {
   const router = Router();
 
@@ -18,15 +12,13 @@ export function createSerialHistoryRoutes({ serialHistoryService }) {
     requirePermission("serial-history:read"),
     async (request, response, next) => {
       try {
+        // Serial history is a global audit trail of a serial's lifecycle across
+        // warehouses. It is gated by the serial-history:read permission (granted
+        // to admin/supervisor), not by the caller's warehouse assignment.
         const result = await serialHistoryService.getSerialHistory({ serialNo: request.params.serialNo });
 
         if (!result.found) {
           sendError(response, 404, "NOT_FOUND", "Serial not found");
-          return;
-        }
-
-        if (!canReadHistory(request, result.warehouseIds)) {
-          sendError(response, 403, "FORBIDDEN", "Insufficient permission");
           return;
         }
 

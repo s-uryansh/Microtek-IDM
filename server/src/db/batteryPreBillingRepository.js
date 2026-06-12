@@ -11,6 +11,24 @@ export function createBatteryPreBillingRepository(pool) {
       return result.rows[0];
     },
 
+    async findBatteryLine(invoiceId, productId) {
+      // Resolve the battery invoice line a scanned serial belongs to, by its
+      // product — so the operator never has to pick a line by hand.
+      const result = await pool.query(
+        `SELECT il.invoice_line_id AS "invoiceLineId", il.product_id AS "productId"
+         FROM invoice_line il
+         JOIN product p ON p.product_id = il.product_id
+         WHERE il.invoice_id = $1
+           AND il.product_id = $2
+           AND p.is_battery = TRUE
+         ORDER BY il.line_no
+         LIMIT 1`,
+        [invoiceId, productId]
+      );
+
+      return result.rows[0] || null;
+    },
+
     async findCommitBySerial(serialId) {
       const result = await pool.query(
         `SELECT

@@ -87,7 +87,6 @@ describe("Sidebar", () => {
     expect(screen.getByText("Ageing Report")).toBeVisible();
     expect(screen.getByText("Serial History")).toBeVisible();
     expect(screen.getByText("Exceptions")).toBeVisible();
-    expect(screen.getByText("Import Monitor")).toBeVisible();
   });
 
   test("renders section headers", () => {
@@ -102,7 +101,7 @@ describe("Sidebar", () => {
     renderSidebar({ user: { name: "Alice", role: "supervisor" }, permissions: SUPERVISOR_PERMISSIONS });
 
     // Supervisor lacks integration:import and admin:access, so the whole section drops.
-    expect(screen.queryByText("Admin Panel")).toBeNull();
+    expect(screen.queryByText("Masters")).toBeNull();
     expect(screen.queryByText("Import Monitor")).toBeNull();
     expect(screen.queryByText("Administration")).toBeNull();
     // But permitted links remain.
@@ -122,10 +121,10 @@ describe("Sidebar", () => {
     expect(screen.getByText("Fulfilment")).toBeVisible();
   });
 
-  test("shows the admin panel link for admin users", () => {
+  test("shows the masters link for admin users", () => {
     renderSidebar({ user: { name: "Admin", role: "admin" } });
 
-    expect(screen.getByText("Admin Panel")).toBeVisible();
+    expect(screen.getByText("Masters")).toBeVisible();
   });
 
   test("renders user info in footer", () => {

@@ -43,7 +43,6 @@ export function createGrnRoutes({ grnService }) {
     async (request, response, next) => {
       try {
         const result = await grnService.startGrn({
-          sapDispatchDocId: request.body.sapDispatchDocId,
           receivingWarehouseId: request.body.warehouseId,
           userId: request.auth.userId
         });

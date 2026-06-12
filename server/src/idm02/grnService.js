@@ -30,9 +30,8 @@ function exceptionResult({ matchStatus, ruleCode, message, exception }) {
 
 export function createGrnService({ repositories }) {
   return {
-    async startGrn({ sapDispatchDocId, receivingWarehouseId, userId }) {
+    async startGrn({ receivingWarehouseId, userId }) {
       return repositories.grns.create({
-        sapDispatchDocId,
         receivingWarehouseId,
         createdBy: userId
       });
@@ -192,6 +191,9 @@ export function createGrnService({ repositories }) {
     },
 
     async completeGrn({ grnId, userId }) {
+      // Warehouse-scoped GRN: closing simply finalises the session. There is no single
+      // expected document to reconcile against, so completion never invents SHORT
+      // exceptions — only the per-scan exceptions raised while scanning are kept.
       return repositories.withTransaction(async (txRepositories) => {
         const grn = await txRepositories.grns.lockById(grnId);
 
@@ -199,32 +201,13 @@ export function createGrnService({ repositories }) {
           throw new Error("GRN not found");
         }
 
-        const missingLines = await txRepositories.grns.findMissingExpectedLines(grnId);
-
-        for (const line of missingLines) {
-          await txRepositories.grns.markShort({
-            grnId,
-            serialId: line.serialId,
-            serialNo: line.serialNo,
-            createdBy: userId
-          });
-          await createException(txRepositories, {
-            serialNo: line.serialNo,
-            ruleCode: "SHORT",
-            grnId,
-            userId
-          });
-        }
-
-        const status = missingLines.length > 0 ? "EXCEPTION" : "MATCHED";
-        await txRepositories.grns.updateStatus(grnId, status, userId);
+        const summary = await txRepositories.grns.summarize(grnId);
+        await txRepositories.grns.updateStatus(grnId, "CLOSED", userId);
 
         return {
           grnId,
-          status,
-          summary: {
-            short: missingLines.length
-          }
+          status: "CLOSED",
+          summary
         };
       });
     }

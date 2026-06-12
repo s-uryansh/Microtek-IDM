@@ -60,12 +60,30 @@ function formatCompletedSerialRow(row) {
 }
 
 export function createDispatchService({ repositories, fulfilmentStatusService }) {
+  function lineCapResolver(dispatch) {
+    // When the operator picked per-line quantities, dispatch_line rows give each line a
+    // target_quantity. Lines the operator did NOT pick have no target and therefore a cap
+    // of 0 (cannot be dispatched). Legacy dispatches (no per-line targets at all) fall back
+    // to the full invoice line quantity for every line.
+    const usesLineTargets = dispatch.lines.some(
+      (line) => line.targetQuantity !== null && line.targetQuantity !== undefined
+    );
+
+    return (line) => {
+      if (!usesLineTargets) {
+        return Number(line.quantity);
+      }
+      return Number(line.targetQuantity) || 0;
+    };
+  }
+
   async function findAvailableLine(txRepositories, dispatch, serialProductId) {
     const candidateLines = dispatch.lines.filter((line) => String(line.productId) === String(serialProductId));
+    const capFor = lineCapResolver(dispatch);
 
     for (const line of candidateLines) {
       const lineScanCount = await txRepositories.dispatches.countScansForLine(dispatch.dispatchId, line.invoiceLineId);
-      if (lineScanCount < line.quantity) {
+      if (lineScanCount < capFor(line)) {
         return { line, lineScanCount };
       }
     }
@@ -85,7 +103,10 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
     async getAvailability({ invoiceId, warehouseId }) {
       const invoice = await repositories.invoices.findById(invoiceId);
 
-      if (!invoice || String(invoice.warehouseId) !== String(warehouseId)) {
+      // Invoices are warehouse-agnostic. Availability is computed against the
+      // operator's own warehouse (warehouseId); the invoice only supplies the
+      // products and required quantities.
+      if (!invoice) {
         throw Object.assign(new Error("Invoice not found"), { status: 404 });
       }
 
@@ -111,11 +132,22 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
       };
     },
 
-    async startDispatch({ invoiceId, warehouseId, dispatchQuantity, userId }) {
+    async startDispatch({ invoiceId, warehouseId, userId }) {
       const invoice = await repositories.invoices.findById(invoiceId);
 
-      if (!invoice || String(invoice.warehouseId) !== String(warehouseId)) {
+      // Any operator may dispatch any invoice from their assigned warehouse.
+      // The dispatch row records that warehouse; per-serial validation later
+      // enforces that each scanned serial physically lives there.
+      if (!invoice) {
         throw Object.assign(new Error("Invoice not found"), { status: 404 });
+      }
+
+      // An invoice already fully dispatched cannot be dispatched again.
+      if (invoice.status === "DISPATCHED") {
+        throw Object.assign(new Error("Invoice has already been fully dispatched."), {
+          status: 409,
+          code: "INVOICE_ALREADY_DISPATCHED"
+        });
       }
 
       const totalRequiredQuantity = requiredQuantity(invoice.lines);
@@ -124,14 +156,6 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
         ? await repositories.dispatches.countScans(existingDispatch.dispatchId)
         : 0;
       const remainingInvoiceQuantity = Math.max(totalRequiredQuantity - alreadyScannedQuantity, 0);
-      const requestedDispatchQuantity = normalizePositiveInteger(dispatchQuantity) ?? remainingInvoiceQuantity;
-      const currentWarehouseStockQty = repositories.serials.countAvailableStock
-        ? await repositories.serials.countAvailableStock({
-            warehouseId,
-            productIds: productIdsForInvoice(invoice)
-          })
-        : remainingInvoiceQuantity;
-      const targetQuantity = alreadyScannedQuantity + requestedDispatchQuantity;
 
       if (remainingInvoiceQuantity <= 0) {
         throw Object.assign(new Error("Invoice has already been fully dispatched."), {
@@ -141,63 +165,86 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
         });
       }
 
-      if (requestedDispatchQuantity > remainingInvoiceQuantity) {
-        throw Object.assign(new Error("Dispatch quantity exceeds remaining invoice quantity."), {
+      const currentWarehouseStockQty = repositories.serials.countAvailableStock
+        ? await repositories.serials.countAvailableStock({
+            warehouseId,
+            productIds: productIdsForInvoice(invoice)
+          })
+        : remainingInvoiceQuantity;
+
+      if (currentWarehouseStockQty <= 0) {
+        throw Object.assign(new Error("No stock is available in the warehouse for this invoice."), {
           status: 409,
-          code: "DISPATCH_QUANTITY_EXCEEDS_REMAINING",
-          remainingInvoiceQuantity
+          code: "NO_WAREHOUSE_STOCK",
+          currentWarehouseStockQty: 0
         });
       }
 
-      if (requestedDispatchQuantity > currentWarehouseStockQty) {
-        throw Object.assign(new Error("Insufficient stock in the selected warehouse."), {
-          status: 409,
-          code: "INSUFFICIENT_WAREHOUSE_STOCK",
-          currentWarehouseStockQty
-        });
-      }
+      // Dispatch the full remaining invoice quantity. Only when the warehouse cannot
+      // cover it do we fall back to a partial dispatch of whatever stock is available —
+      // and that shortfall is flagged with an exception. The operator never chooses a
+      // smaller quantity by hand when stock is sufficient.
+      const isPartial = currentWarehouseStockQty < remainingInvoiceQuantity;
+      const dispatchQuantity = isPartial ? currentWarehouseStockQty : remainingInvoiceQuantity;
+      const targetQuantity = alreadyScannedQuantity + dispatchQuantity;
+
+      let dispatchRow;
+      let createdNew = false;
 
       if (existingDispatch) {
-        const resumedDispatch = repositories.dispatches.setDispatchTargetQuantity
+        dispatchRow = repositories.dispatches.setDispatchTargetQuantity
           ? await repositories.dispatches.setDispatchTargetQuantity(existingDispatch.dispatchId, targetQuantity, userId)
           : { ...existingDispatch, targetQuantity };
-
-        return {
-          ...resumedDispatch,
-          dispatchQuantity: requestedDispatchQuantity,
-          targetQuantity,
-          alreadyScannedQuantity,
-          currentWarehouseStockQty,
-          remainingInvoiceQuantity
-        };
+      } else {
+        try {
+          dispatchRow = await repositories.dispatches.createDispatch({
+            invoiceId,
+            warehouseId,
+            targetQuantity,
+            createdBy: userId
+          });
+          createdNew = true;
+        } catch (error) {
+          if (error.code === "23505" && error.constraint === "ux_dispatch_invoice_once") {
+            throw Object.assign(new Error("A dispatch already exists for this invoice."), {
+              status: 409,
+              code: "DISPATCH_ALREADY_EXISTS"
+            });
+          }
+          throw error;
+        }
       }
 
-      try {
-        const dispatch = await repositories.dispatches.createDispatch({
-          invoiceId,
+      // Raise a SHORT exception for a brand-new partial dispatch so the shortfall is
+      // tracked. (Resuming an existing dispatch does not re-raise.)
+      let partialException = null;
+      if (isPartial && createdNew && repositories.exceptionsRepo) {
+        const exception = await repositories.exceptionsRepo.createException({
+          serialNo: null,
+          ruleCode: "SHORT",
+          contextType: "DISPATCH",
+          contextId: dispatchRow.dispatchId,
           warehouseId,
-          targetQuantity,
+          raisedBy: userId,
           createdBy: userId
         });
-
-        return {
-          ...dispatch,
-          dispatchQuantity: requestedDispatchQuantity,
-          targetQuantity,
-          alreadyScannedQuantity,
-          currentWarehouseStockQty,
-          remainingInvoiceQuantity
+        partialException = {
+          exceptionId: exception.exceptionId,
+          ruleCode: exception.ruleCode,
+          status: exception.status ?? "OPEN"
         };
-      } catch (error) {
-        if (error.code === "23505" && error.constraint === "ux_dispatch_invoice_once") {
-          throw Object.assign(new Error("A dispatch already exists for this invoice."), {
-            status: 409,
-            code: "DISPATCH_ALREADY_EXISTS"
-          });
-        }
-
-        throw error;
       }
+
+      return {
+        ...dispatchRow,
+        dispatchQuantity,
+        targetQuantity,
+        alreadyScannedQuantity,
+        remainingInvoiceQuantity,
+        currentWarehouseStockQty,
+        partial: isPartial,
+        partialException
+      };
     },
 
     async scanSerial({ dispatchId, serialNo, userId }) {
@@ -277,6 +324,28 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
             "Serial product does not match the invoice or invoice line quantity is already scanned.",
             exception
           );
+        }
+
+        // Battery gate: a battery unit must be pre-billed (committed in IDM-03)
+        // before it can be dispatched. Block any battery serial that has no
+        // pre-billing commit.
+        if (lockedLine.isBattery && txRepositories.batteryPreBilling?.findCommitBySerial) {
+          const committed = await txRepositories.batteryPreBilling.findCommitBySerial(
+            validationResult.serial.serialId
+          );
+          if (!committed) {
+            const exception = await recordDispatchException(txRepositories, {
+              serialNo,
+              ruleCode: "BATTERY_NOT_PREBILLED",
+              dispatchId,
+              userId
+            });
+            return invalidScanWithException(
+              "BATTERY_NOT_PREBILLED",
+              "Battery must be pre-billed before dispatch. Commit this serial in Battery Pre-Billing first.",
+              exception
+            );
+          }
         }
 
         const serialUpdated = await txRepositories.serials.updateStatusIfCurrent(

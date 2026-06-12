@@ -75,7 +75,6 @@ export function createDispatchRoutes({ dispatchService }) {
         const result = await dispatchService.startDispatch({
           invoiceId: request.body.invoiceId,
           warehouseId: request.body.warehouseId,
-          dispatchQuantity: request.body.dispatchQuantity,
           userId: request.auth.userId
         });
         response.status(201).json(result);

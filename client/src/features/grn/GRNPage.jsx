@@ -1,41 +1,26 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
-import { Input } from "../../components/ui/Input.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
-import { LookupSelector } from "../../components/operations/LookupSelector.jsx";
+import { WarehouseSelector } from "../../components/operations/WarehouseSelector.jsx";
 import { createGrn, scanGrnSerial, completeGrn } from "../../api/modules/grn.js";
-import { searchDispatchDocs } from "../../api/modules/lookups.js";
-import { useAuth } from "../../auth/useAuth.js";
 
 function safeNumber(value, fallback = 0) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 export function GRNPage() {
-  const { user } = useAuth();
-  const [sapDispatchDocId, setSapDispatchDocId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    const assignedWarehouseId = user?.defaultWarehouseId ?? user?.warehouseIds?.[0];
-    if (!warehouseId && assignedWarehouseId) {
-      setWarehouseId(String(assignedWarehouseId));
-    }
-  }, [user, warehouseId]);
-
   async function handleCreate() {
     setError(null);
     setCreating(true);
     try {
-      const result = await createGrn({
-        sapDispatchDocId: Number(sapDispatchDocId),
-        warehouseId: Number(warehouseId)
-      });
+      const result = await createGrn({ warehouseId: Number(warehouseId) });
       setSession(result);
     } catch (err) {
       setError(err?.message || "Failed to create GRN");
@@ -47,7 +32,7 @@ export function GRNPage() {
   async function handleScan(serialNo) {
     const result = (await scanGrnSerial({ grnId: session?.grnId, serialNo })) || {};
     if (result.valid) {
-      return { status: result.matchStatus || "MATCHED", message: "Serial matched", state: "success" };
+      return { status: result.matchStatus || "MATCHED", message: "Serial received", state: "success" };
     }
     return {
       status: result.alert?.ruleCode || "REJECTED",
@@ -88,42 +73,21 @@ export function GRNPage() {
       <PageHeader title="Goods Receipt Note" subtitle="Scan and verify incoming stock" />
       <Card title="Start GRN Session">
         <div className="scan-workflow-form">
-          <LookupSelector
-            title="Search Dispatch Document"
-            placeholder="SAP dispatch reference or document ID"
-            search={(query) => searchDispatchDocs({ query, warehouseId })}
-            onSelect={(doc) => {
-              setSapDispatchDocId(String(doc.sapDispatchDocId));
-              setWarehouseId(String(doc.destinationWarehouseId));
-            }}
-            renderItem={(doc) => (
-              <>
-                <span className="operation-panel__result-title">{doc.externalRef}</span>
-                <span className="operation-panel__result-meta">
-                  Doc #{doc.sapDispatchDocId} · Destination {doc.destinationWarehouseCode || doc.destinationWarehouseId}
-                </span>
-              </>
-            )}
-          />
-          <Input
-            label="SAP Dispatch Document ID"
-            value={sapDispatchDocId}
-            onChange={setSapDispatchDocId}
-            type="number"
-            inputMode="numeric"
-            placeholder="Enter dispatch document ID"
-          />
-          <Input
-            label="Receiving Warehouse ID"
+          {/* Step 1 — Receiving warehouse (locked for staff, dropdown for admin) */}
+          <WarehouseSelector
+            label="Receiving Warehouse"
             value={warehouseId}
             onChange={setWarehouseId}
-            type="number"
-            inputMode="numeric"
-            placeholder="Enter warehouse ID"
+            helperText="Incoming stock is received into this warehouse."
           />
+          <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", margin: 0 }}>
+            Start the session, then scan each received serial. Every serial is checked
+            against IDM and the SAP dispatch records — valid serials are received, and
+            anything unknown or scanned twice is logged as an exception.
+          </p>
           {error && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</p>}
-          <Button onClick={handleCreate} disabled={!sapDispatchDocId || !warehouseId || creating}>
-            {creating ? "Creating..." : "Start GRN"}
+          <Button onClick={handleCreate} disabled={!warehouseId || creating}>
+            {creating ? "Starting..." : "Start GRN"}
           </Button>
         </div>
       </Card>

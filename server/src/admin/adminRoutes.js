@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { requireAuthContext, requirePermission } from "../http/authContext.js";
+import { requireAuthContext, requirePermission, requireAdminRole } from "../http/authContext.js";
 import { sendError } from "../http/errorResponse.js";
 
 function parseId(value) {
@@ -283,11 +283,67 @@ export function createAdminRoutes({ adminService }) {
      INVOICE LISTING
      ───────────────────────────────── */
 
-  router.get("/invoices", async (_request, response, next) => {
+  router.get("/invoices", async (request, response, next) => {
     try {
-      const invoices = await adminService.listAllInvoices();
+      const invoices = await adminService.listAllInvoices({ query: request.query.query });
       response.status(200).json({ items: invoices });
     } catch (error) {
+      next(error);
+    }
+  });
+
+  /* ─────────────────────────────────
+     INBOUND STOCK (SAP dispatch documents → warehouses)
+     ───────────────────────────────── */
+
+  router.get("/inbound-dispatches", async (_request, response, next) => {
+    try {
+      const items = await adminService.listInboundDispatches();
+      response.status(200).json({ items });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/warehouse-stock", async (_request, response, next) => {
+    try {
+      const items = await adminService.listWarehouseStock();
+      response.status(200).json({ items });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  /* ─────────────────────────────────
+     INVOICE CSV IMPORT / EXPORT — admin role only
+     ───────────────────────────────── */
+
+  router.get("/invoices/export", requireAdminRole, async (_request, response, next) => {
+    try {
+      const csv = await adminService.exportInvoicesCsv();
+      response.status(200).json({ csv });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/invoices/import", requireAdminRole, async (request, response, next) => {
+    try {
+      const { csvContent } = request.body;
+      if (!csvContent || typeof csvContent !== "string" || !csvContent.trim()) {
+        sendError(response, 400, "VALIDATION_ERROR", "csvContent is required");
+        return;
+      }
+      const result = await adminService.importInvoicesCsv({
+        csvContent,
+        userId: request.auth.userId
+      });
+      response.status(200).json(result);
+    } catch (error) {
+      if (error.status) {
+        sendError(response, error.status, "VALIDATION_ERROR", error.message);
+        return;
+      }
       next(error);
     }
   });

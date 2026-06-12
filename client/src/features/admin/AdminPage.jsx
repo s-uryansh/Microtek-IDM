@@ -20,8 +20,13 @@ import {
   fetchProducts,
   importProductsCsv,
   exportProductsCsv,
-  fetchAllInvoices
+  fetchAllInvoices,
+  exportInvoicesCsv,
+  importInvoicesCsv,
+  fetchInboundDispatches,
+  fetchWarehouseStock
 } from "../../api/modules/admin.js";
+import { useAuth } from "../../auth/useAuth.js";
 
 const PRODUCT_IMPORT_TEMPLATE = [
   "product_code,name,segment,category,is_battery,is_active",
@@ -29,20 +34,23 @@ const PRODUCT_IMPORT_TEMPLATE = [
   "MTK-0002,Demo Battery,BATTERY,BATTERY,true,true"
 ].join("\n");
 
+const INVOICE_IMPORT_TEMPLATE = [
+  "sap_invoice_ref,status,order_id,customer_name,customer_code,billing_date,billing_number,division,total_sale_qty,item_total,total_amt,transport_name,lr_no,lr_date,dispatch_date,delivery_date,sales_order_qty,pod_status,line_no,material_code,bill_qty,uom,amount,pod_section,pod_document",
+  "MTK-INVOICE-DEMO-001,PENDING,SO-DEMO-1,Demo Customer,CUST-9001,2026-06-01,BILL-9001,POWER PRODUCTS,15,1,75951,Bluedart,LR-9001,2026-06-02,2026-06-02,2026-06-05,15,PENDING,1,899-95N-1075,15,NOS,75951,SEC-A,"
+].join("\n");
+
 const TABS = [
   { key: "warehouses", label: "Warehouses" },
   { key: "members", label: "Members" },
   { key: "roles", label: "Roles" },
   { key: "products", label: "Products" },
-  { key: "invoices", label: "Invoices" }
+  { key: "invoices", label: "Invoices" },
+  { key: "inbound", label: "Inbound Stock" },
+  { key: "stock", label: "Warehouse Stock" }
 ];
 
 function toArray(value) {
   return Array.isArray(value) ? value : [];
-}
-
-function serialList(value) {
-  return Array.isArray(value) && value.length > 0 ? value.join(", ") : "—";
 }
 
 /* ================================================================
@@ -54,6 +62,7 @@ const warehouseColumns = [
   { key: "code", label: "Code" },
   { key: "name", label: "Name" },
   { key: "type", label: "Type" },
+  { key: "unitCount", label: "Units in stock" },
   { key: "isActive", label: "Status" },
   { key: "createdAt", label: "Created" }
 ];
@@ -67,6 +76,7 @@ function WarehousesTab() {
   const [whType, setWhType] = useState("REGIONAL");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -108,7 +118,15 @@ function WarehousesTab() {
     }
   }
 
-  const rows = toArray(warehouses?.items).map((wh) => ({
+  const query = search.trim().toLowerCase();
+  const filteredItems = toArray(warehouses?.items).filter((wh) => {
+    if (!query) return true;
+    return [wh.code, wh.name, wh.type, wh.warehouseId, wh.unitCount].some((value) =>
+      String(value ?? "").toLowerCase().includes(query)
+    );
+  });
+
+  const rows = filteredItems.map((wh) => ({
     ...wh,
     isActive: wh.isActive ? (
       <span style={{ color: "var(--color-success)", fontWeight: 600 }}>Active</span>
@@ -164,6 +182,14 @@ function WarehousesTab() {
 
       <div style={{ marginTop: "var(--space-4)" }}>
         <Card title="Warehouse List">
+          <div style={{ maxWidth: 360, marginBottom: "var(--space-3)" }}>
+            <Input
+              label="Search warehouses"
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by code, name, type or units"
+            />
+          </div>
           <DataTable
             columns={displayColumns}
             data={rows}
@@ -840,22 +866,84 @@ function RolesTab() {
 const invoiceColumns = [
   { key: "invoiceId", label: "ID" },
   { key: "sapInvoiceRef", label: "Reference" },
-  { key: "warehouseCode", label: "Warehouse" },
+  { key: "orderId", label: "Order ID" },
+  { key: "customerName", label: "Customer" },
+  { key: "billingNumber", label: "Billing No." },
   { key: "_productSummary", label: "Products", sortable: false },
   { key: "status", label: "Status" },
-  { key: "createdAt", label: "Created" }
+  { key: "createdAt", label: "Uploaded" }
 ];
 
+function fmtDate(value) {
+  return value ? new Date(value).toLocaleDateString() : "—";
+}
+
+/* Detail-view formatters that mirror the reference layout (N/A placeholders, plain
+   numbers, ISO dates, and a date+time "Uploaded Date"). */
+function orNA(value) {
+  return value === null || value === undefined || value === "" ? "N/A" : value;
+}
+
+function fmtNumberPlain(value) {
+  return value === null || value === undefined || value === "" ? "N/A" : Number(value);
+}
+
+function fmtDateTime(value) {
+  if (!value) return "N/A";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "N/A";
+  const date = d
+    .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    .replace(/ /g, "-");
+  const time = d.toLocaleTimeString("en-GB", { hour12: false });
+  return `${date} , ${time}`;
+}
+
+function fmtLrNoAndDate(lrNo, lrDate) {
+  if (lrNo && lrDate) return `${lrNo} / ${lrDate}`;
+  return lrNo || lrDate || "N/A";
+}
+
+/* Display-only POD Document panel (matches the reference layout). Upload is not
+   wired up yet — the edit button just surfaces that it's coming. */
+function PodDocumentBox() {
+  const [showNote, setShowNote] = useState(false);
+  return (
+    <Card title="POD Document">
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-2)" }}>
+        <Button variant="secondary" size="sm" onClick={() => setShowNote(true)} aria-label="Edit POD document">
+          ✎
+        </Button>
+      </div>
+      <p style={{ textAlign: "center", color: "var(--color-text-muted)", padding: "var(--space-6) 0", margin: 0 }}>
+        Currently No Document Found...
+      </p>
+      {showNote && (
+        <p style={{ textAlign: "center", fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
+          Document upload isn’t enabled yet.
+        </p>
+      )}
+    </Card>
+  );
+}
+
 function InvoicesTab() {
+  const { user } = useAuth();
+  const isAdmin = (user?.role || user?.roleCode) === "admin";
   const [invoices, setInvoices] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(null);
+  const [csvText, setCsvText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const fileInputRef = useRef(null);
 
-  const load = useCallback(() => {
+  const load = useCallback((query) => {
     setLoading(true);
     setError(null);
-    fetchAllInvoices()
+    fetchAllInvoices({ query: query || undefined })
       .then((data) => setInvoices(data ?? { items: [] }))
       .catch((err) => setError(err?.message || "Failed to load invoices"))
       .finally(() => setLoading(false));
@@ -863,93 +951,517 @@ function InvoicesTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const rows = toArray(invoices?.items).map((inv) => ({
+  function handleSearch(value) {
+    setSearchQuery(value);
+    load(value);
+  }
+
+  async function handleExport() {
+    try {
+      const result = await exportInvoicesCsv();
+      const blob = new Blob([result.csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "invoices-export.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err?.message || "Export failed");
+    }
+  }
+
+  async function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setCsvText(text);
+  }
+
+  async function handleImport() {
+    if (!csvText.trim()) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const result = await importInvoicesCsv({ csvContent: csvText });
+      setImportResult(result);
+      load();
+      setCsvText("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      setImportResult({ imported: 0, errors: [{ row: 0, message: err?.message || "Import failed" }] });
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function handleDownloadTemplate() {
+    const blob = new Blob([INVOICE_IMPORT_TEMPLATE], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "invoice-import-template.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const rows = toArray(invoices?.items).map((inv) => {
+    const dispatchedQty = Number(inv.dispatchedQty || 0);
+    const returnedQty = Number(inv.returnedQty || 0);
+    // All dispatched units returned → show RETURNED instead of DISPATCHED.
+    // Some (but not all) returned → keep the status tag + a small returned note.
+    const fullyReturned = dispatchedQty > 0 && returnedQty >= dispatchedQty;
+    const partialReturn = returnedQty > 0 && returnedQty < dispatchedQty;
+    return {
     invoiceId: inv.invoiceId,
     sapInvoiceRef: inv.sapInvoiceRef,
-    warehouseCode: inv.warehouseCode || `WH-${inv.warehouseId}`,
-    status: <StatusBadge status={inv.status} />,
-    createdAt: new Date(inv.createdAt).toLocaleDateString(),
+    orderId: inv.orderId || "—",
+    customerName: inv.customerName || "—",
+    billingNumber: inv.billingNumber || "—",
+    status: fullyReturned ? (
+      <StatusBadge status="RETURNED" />
+    ) : (
+      <span style={{ display: "inline-flex", gap: "var(--space-1)", alignItems: "center", flexWrap: "wrap" }}>
+        <StatusBadge status={inv.status} />
+        {partialReturn && (
+          <span
+            className="status-badge status-badge--returned"
+            style={{ fontSize: "0.6875rem" }}
+            title={`${returnedQty} of ${dispatchedQty} dispatched unit(s) returned`}
+          >
+            ↩ {returnedQty} returned
+          </span>
+        )}
+      </span>
+    ),
+    createdAt: fmtDate(inv.uploadedDate || inv.createdAt),
     _productSummary: (
       <span style={{ fontSize: "0.8125rem", color: "var(--color-text-secondary)" }}>
         {inv.lines?.length || 0} line{(inv.lines?.length || 0) !== 1 ? "s" : ""}
       </span>
     ),
+    _invoice: inv,
     _lines: inv.lines || []
-  }));
+    };
+  });
 
   const displayColumns = [...invoiceColumns];
 
   return (
     <div>
-      <Card title="All Invoices">
+      {isAdmin && (
+        <Card title="Invoice Bulk CSV (Admin only)">
+          <div className="scan-workflow-form" style={{ maxWidth: 640 }}>
+            <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", margin: 0 }}>
+              Import or export invoices in bulk. One CSV row per invoice line; invoice header
+              columns repeat for each line of the same <code>sap_invoice_ref</code>.
+            </p>
+            <Button variant="secondary" onClick={handleDownloadTemplate}>
+              Download Template
+            </Button>
+            <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end" }}>
+              <Button variant="secondary" onClick={handleExport}>
+                Export CSV
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                style={{ display: "none" }}
+              />
+              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                Choose CSV File
+              </Button>
+            </div>
+            {csvText && (
+              <div>
+                <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
+                  File loaded ({csvText.length} chars). Click Import to process.
+                </p>
+                <Button onClick={handleImport} disabled={importing}>
+                  {importing ? "Importing..." : "Import Invoices"}
+                </Button>
+              </div>
+            )}
+            {importResult && (
+              <div
+                style={{
+                  padding: "var(--space-3)",
+                  borderRadius: "var(--radius-md)",
+                  backgroundColor:
+                    importResult.errors?.length > 0
+                      ? "var(--color-warning-subtle)"
+                      : "var(--color-success-subtle)",
+                  fontSize: "0.875rem"
+                }}
+              >
+                <p>
+                  Imported: {importResult.imported} invoice{importResult.imported !== 1 ? "s" : ""}
+                  {importResult.importedLines !== undefined ? `, ${importResult.importedLines} line items` : ""}
+                </p>
+                {importResult.errors?.length > 0 && (
+                  <div style={{ marginTop: "var(--space-2)" }}>
+                    <p style={{ fontWeight: 600 }}>Errors:</p>
+                    {importResult.errors.map((err, i) => (
+                      <p key={i} style={{ color: "var(--color-error)", fontSize: "0.8125rem" }}>
+                        Row {err.row}: {err.message}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      <div style={{ marginTop: isAdmin ? "var(--space-4)" : 0 }}>
+        <Card title="All Invoices">
+          <div style={{ marginBottom: "var(--space-3)" }}>
+            <Input label="Search Invoices" value={searchQuery} onChange={handleSearch} placeholder="Invoice ref, ID, order ID, customer name..." />
+          </div>
+          <DataTable
+            columns={displayColumns}
+            data={rows}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            pageSize={15}
+            sortable={true}
+            onRowClick={(row) => setExpanded(expanded === row.invoiceId ? null : row.invoiceId)}
+          />
+        </Card>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: "var(--space-4)" }}>
+          {rows
+            .filter((r) => r.invoiceId === expanded)
+            .map((row) => {
+              const inv = row._invoice;
+              const basicInfo = [
+                ["Uploaded Date", fmtDateTime(inv.uploadedDate || inv.createdAt)],
+                ["Order ID", orNA(inv.orderId)],
+                ["Customer Name", orNA(inv.customerName)],
+                ["Customer Code", orNA(inv.customerCode)],
+                ["Billing Date", orNA(inv.billingDate)],
+                ["Billing Number", orNA(inv.billingNumber)],
+                ["Division", orNA(inv.division)],
+                ["Total Sale QTY", fmtNumberPlain(inv.totalSaleQty)],
+                ["Item Total", fmtNumberPlain(inv.itemTotal)],
+                ["Total Amt", fmtNumberPlain(inv.totalAmt)],
+                ["Transport Name", orNA(inv.transportName)],
+                ["LR no and Date", fmtLrNoAndDate(inv.lrNo, inv.lrDate)],
+                ["Dispatch Date", orNA(inv.dispatchDate)],
+                ["Delivery Date", orNA(inv.deliveryDate)],
+                ["Sales Order QTY", fmtNumberPlain(inv.salesOrderQty)],
+                ["POD Status", orNA(inv.podStatus)]
+              ];
+              return (
+                <div key={row.invoiceId}>
+                  <Card title={`Invoice #${row.invoiceId} — Basic Information`}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                        gap: "var(--space-3)"
+                      }}
+                    >
+                      {basicInfo.map(([label, value]) => (
+                        <div key={label}>
+                          <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>{label}</div>
+                          <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <div style={{ marginTop: "var(--space-4)" }}>
+                    <Card title="Item Information">
+                      <table className="data-table__table" style={{ width: "100%" }}>
+                        <thead>
+                          <tr>
+                            <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>S.No.</th>
+                            <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Material Name</th>
+                            <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Material Code</th>
+                            <th className="data-table__th" style={{ textAlign: "right", padding: "var(--space-2)" }}>Bill QTY</th>
+                            <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>UOM</th>
+                            <th className="data-table__th" style={{ textAlign: "right", padding: "var(--space-2)" }}>Amount</th>
+                            <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Serial Numbers</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {row._lines.length === 0 && (
+                            <tr className="data-table__row">
+                              <td colSpan={7} style={{ padding: "var(--space-3)", textAlign: "center", color: "var(--color-text-muted)" }}>
+                                No line items
+                              </td>
+                            </tr>
+                          )}
+                          {row._lines.flatMap((line) => {
+                            const serials = Array.isArray(line.serialNos) ? line.serialNos : [];
+                            const returnedSet = new Set(Array.isArray(line.returnedSerialNos) ? line.returnedSerialNos : []);
+                            const rowCount = Math.max(serials.length, 1);
+                            return Array.from({ length: rowCount }).map((_, serialIndex) => (
+                              <tr key={`${line.invoiceLineId}-${serials[serialIndex] || serialIndex}`} className="data-table__row">
+                                {serialIndex === 0 && (
+                                  <>
+                                    <td rowSpan={rowCount} style={{ padding: "var(--space-2)" }}>{line.lineNo}</td>
+                                    <td rowSpan={rowCount} style={{ padding: "var(--space-2)", fontWeight: 600 }}>{line.productName}</td>
+                                    <td rowSpan={rowCount} style={{ padding: "var(--space-2)", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}>
+                                      {line.productCode}
+                                    </td>
+                                    <td rowSpan={rowCount} style={{ padding: "var(--space-2)", textAlign: "right", fontFamily: "var(--font-mono)" }}>
+                                      {Number(line.quantity).toFixed(3)}
+                                    </td>
+                                    <td rowSpan={rowCount} style={{ padding: "var(--space-2)" }}>{line.uom || "—"}</td>
+                                    <td rowSpan={rowCount} style={{ padding: "var(--space-2)", textAlign: "right", fontFamily: "var(--font-mono)" }}>
+                                      {fmtNumberPlain(line.amount)}
+                                    </td>
+                                  </>
+                                )}
+                                <td style={{ padding: "var(--space-2)", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}>
+                                  {serials[serialIndex] || "—"}
+                                  {serials[serialIndex] && returnedSet.has(serials[serialIndex]) && (
+                                    <span
+                                      className="status-badge status-badge--returned"
+                                      style={{ marginLeft: "var(--space-2)", fontSize: "0.6875rem", fontFamily: "var(--font-sans)" }}
+                                    >
+                                      returned
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ));
+                          })}
+                        </tbody>
+                      </table>
+                    </Card>
+                  </div>
+
+                  <div style={{ marginTop: "var(--space-4)" }}>
+                    <PodDocumentBox />
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================
+   INBOUND STOCK TAB — which stock was sent to which warehouse
+   ================================================================ */
+
+const inboundColumns = [
+  { key: "externalRef", label: "Dispatch Doc" },
+  { key: "sourceWarehouseCode", label: "From" },
+  { key: "destinationWarehouseCode", label: "To (Warehouse)" },
+  { key: "_products", label: "Products", sortable: false },
+  { key: "totalQuantity", label: "Total Qty" },
+  { key: "status", label: "Status" },
+  { key: "createdAt", label: "Imported" }
+];
+
+function InboundTab() {
+  const [docs, setDocs] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [expanded, setExpanded] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    fetchInboundDispatches()
+      .then((data) => setDocs(data ?? { items: [] }))
+      .catch((err) => setError(err?.message || "Failed to load inbound stock"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const rows = toArray(docs?.items).map((doc) => ({
+    sapDispatchDocId: doc.sapDispatchDocId,
+    externalRef: doc.externalRef,
+    sourceWarehouseCode: doc.sourceWarehouseCode || (doc.sourceWarehouseId ? `WH-${doc.sourceWarehouseId}` : "—"),
+    destinationWarehouseCode: `${doc.destinationWarehouseCode || `WH-${doc.destinationWarehouseId}`}${doc.destinationWarehouseName ? ` · ${doc.destinationWarehouseName}` : ""}`,
+    totalQuantity: doc.totalQuantity,
+    status: <StatusBadge status={doc.status} />,
+    createdAt: fmtDate(doc.createdAt),
+    _products: (
+      <span style={{ fontSize: "0.8125rem", color: "var(--color-text-secondary)" }}>
+        {toArray(doc.products).map((p) => `${p.productName} ×${p.quantity}`).join(", ") || "—"}
+      </span>
+    ),
+    _doc: doc
+  }));
+
+  return (
+    <div>
+      <Card title="Inbound Stock — sent to each warehouse">
+        <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", marginTop: 0 }}>
+          SAP dispatch documents: which stock was shipped to which warehouse. Click a row to
+          see every serial. These are the serials a GRN at the destination warehouse expects.
+        </p>
         <DataTable
-          columns={displayColumns}
+          columns={inboundColumns}
           data={rows}
           loading={loading}
           error={error}
           onRetry={load}
           pageSize={15}
           sortable={true}
-          onRowClick={(row) => setExpanded(expanded === row.invoiceId ? null : row.invoiceId)}
+          onRowClick={(row) => setExpanded(expanded === row.sapDispatchDocId ? null : row.sapDispatchDocId)}
         />
       </Card>
 
       {expanded && (
         <div style={{ marginTop: "var(--space-4)" }}>
-          <Card title={`Invoice #${expanded} — Line Items`}>
-            {rows
-              .filter((r) => r.invoiceId === expanded)
-              .map((inv) => (
-                <div key={inv.invoiceId}>
-                  <table className="data-table__table" style={{ width: "100%" }}>
-                    <thead>
-                      <tr>
-                        <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Line</th>
-                        <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Product</th>
-                        <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Category</th>
-                        <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Segment</th>
-                        <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Serial Numbers</th>
-                        <th className="data-table__th" style={{ textAlign: "right", padding: "var(--space-2)" }}>Qty</th>
+          {rows
+            .filter((r) => r.sapDispatchDocId === expanded)
+            .map((row) => (
+              <Card key={row.sapDispatchDocId} title={`${row._doc.externalRef} — Serials`}>
+                <table className="data-table__table" style={{ width: "100%" }}>
+                  <thead>
+                    <tr>
+                      <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>S.No.</th>
+                      <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Material Name</th>
+                      <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Material Code</th>
+                      <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Serial Number</th>
+                      <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Serial Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {toArray(row._doc.lines).length === 0 && (
+                      <tr className="data-table__row">
+                        <td colSpan={5} style={{ padding: "var(--space-3)", textAlign: "center", color: "var(--color-text-muted)" }}>
+                          No serials on this document
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {inv._lines.length === 0 && (
-                        <tr className="data-table__row">
-                          <td colSpan={6} style={{ padding: "var(--space-3)", textAlign: "center", color: "var(--color-text-muted)" }}>
-                            No line items
-                          </td>
-                        </tr>
-                      )}
-                      {inv._lines.map((line) => (
-                        <tr key={line.invoiceLineId} className="data-table__row">
-                          <td style={{ padding: "var(--space-2)" }}>{line.lineNo}</td>
-                          <td style={{ padding: "var(--space-2)" }}>
-                            <span style={{ fontWeight: 600 }}>{line.productCode}</span>
-                            <span style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem", display: "block" }}>
-                              {line.productName}
-                            </span>
-                          </td>
-                          <td style={{ padding: "var(--space-2)" }}>
-                            <span className="badge">{line.category || line.segment || "—"}</span>
-                          </td>
-                          <td style={{ padding: "var(--space-2)" }}>{line.segment}</td>
-                          <td style={{ padding: "var(--space-2)" }}>
-                            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}>
-                              {serialList(line.serialNos)}
-                            </span>
-                          </td>
-                          <td style={{ padding: "var(--space-2)", textAlign: "right", fontFamily: "var(--font-mono)" }}>
-                            {line.quantity}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
-          </Card>
+                    )}
+                    {toArray(row._doc.lines).map((line) => (
+                      <tr key={`${row.sapDispatchDocId}-${line.lineNo}`} className="data-table__row">
+                        <td style={{ padding: "var(--space-2)" }}>{line.lineNo}</td>
+                        <td style={{ padding: "var(--space-2)", fontWeight: 600 }}>{line.productName}</td>
+                        <td style={{ padding: "var(--space-2)", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}>
+                          {line.productCode}
+                        </td>
+                        <td style={{ padding: "var(--space-2)", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}>
+                          {line.serialNo}
+                        </td>
+                        <td style={{ padding: "var(--space-2)" }}>
+                          <span className="badge">{line.serialStatus || "—"}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ================================================================
+   WAREHOUSE STOCK TAB — every product unit (serial) in each warehouse
+   ================================================================ */
+
+const stockColumns = [
+  { key: "warehouseCode", label: "Warehouse" },
+  { key: "productName", label: "Product" },
+  { key: "productCode", label: "Code" },
+  { key: "serialNo", label: "Serial Number" },
+  { key: "serialStatus", label: "Status" }
+];
+
+function StockTab() {
+  const [stock, setStock] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [warehouseFilter, setWarehouseFilter] = useState("");
+  const [search, setSearch] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    fetchWarehouseStock()
+      .then((data) => setStock(data ?? { items: [] }))
+      .catch((err) => setError(err?.message || "Failed to load warehouse stock"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const items = toArray(stock?.items);
+
+  // Distinct warehouses present in the stock, for the filter dropdown.
+  const warehouseOptions = [...new Map(
+    items.map((unit) => [unit.warehouseId, { warehouseId: unit.warehouseId, code: unit.warehouseCode, name: unit.warehouseName }])
+  ).values()];
+
+  const query = search.trim().toLowerCase();
+  const rows = items
+    .filter((unit) => !warehouseFilter || String(unit.warehouseId) === String(warehouseFilter))
+    .filter((unit) => {
+      if (!query) return true;
+      return [unit.serialNo, unit.productName, unit.productCode, unit.warehouseCode].some((value) =>
+        String(value ?? "").toLowerCase().includes(query)
+      );
+    })
+    .map((unit) => ({
+      ...unit,
+      warehouseCode: `${unit.warehouseCode}${unit.warehouseName ? ` · ${unit.warehouseName}` : ""}`,
+      serialStatus: <span className="badge">{unit.serialStatus || "—"}</span>
+    }));
+
+  return (
+    <div>
+      <Card title="Warehouse Stock — every unit currently in stock">
+        <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", marginTop: 0 }}>
+          Each individual product unit (serial number) that is currently IN_STOCK, and the
+          warehouse it physically sits in.
+        </p>
+        <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
+          <div className="input-group" style={{ minWidth: 220 }}>
+            <label className="input-group__label">Warehouse</label>
+            <select
+              className="input"
+              aria-label="Filter by warehouse"
+              value={warehouseFilter}
+              onChange={(e) => setWarehouseFilter(e.target.value)}
+            >
+              <option value="">All warehouses</option>
+              {warehouseOptions.map((wh) => (
+                <option key={wh.warehouseId} value={wh.warehouseId}>
+                  {wh.code}{wh.name ? ` · ${wh.name}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ minWidth: 260, flex: 1 }}>
+            <Input
+              label="Search"
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by serial, product or code"
+            />
+          </div>
+        </div>
+        <DataTable
+          columns={stockColumns}
+          data={rows}
+          loading={loading}
+          error={error}
+          onRetry={load}
+          pageSize={20}
+          sortable={true}
+        />
+      </Card>
     </div>
   );
 }
@@ -963,7 +1475,7 @@ export function AdminPage() {
 
   return (
     <div>
-      <PageHeader title="Admin Panel" subtitle="Warehouse, product, and invoice management" />
+      <PageHeader title="Masters" subtitle="Warehouse, product, and invoice management" />
 
       <div style={{ display: "flex", gap: "var(--space-1)", marginBottom: "var(--space-4)", borderBottom: "1px solid var(--color-border)" }}>
         {TABS.map((tab) => (
@@ -991,6 +1503,8 @@ export function AdminPage() {
       {activeTab === "roles" && <RolesTab />}
       {activeTab === "products" && <ProductsTab />}
       {activeTab === "invoices" && <InvoicesTab />}
+      {activeTab === "inbound" && <InboundTab />}
+      {activeTab === "stock" && <StockTab />}
     </div>
   );
 }

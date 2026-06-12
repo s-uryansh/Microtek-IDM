@@ -1,7 +1,7 @@
 import { post, get } from "../client.js";
 
-export function createGrn({ sapDispatchDocId, warehouseId, signal }) {
-  return post("/idm-02/grns", { sapDispatchDocId, warehouseId }, { signal });
+export function createGrn({ warehouseId, signal }) {
+  return post("/idm-02/grns", { warehouseId }, { signal });
 }
 
 export function scanGrnSerial({ grnId, serialNo, signal }) {

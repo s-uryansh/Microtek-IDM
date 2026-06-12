@@ -53,8 +53,7 @@ describe("business module repository SQL contracts", () => {
             invoiceId: "2",
             productId: "3",
             quantity: "2",
-            isBattery: true,
-            warehouseId: "3"
+            isBattery: true
           }]
         };
       }
@@ -66,8 +65,7 @@ describe("business module repository SQL contracts", () => {
       invoiceLineId: 2,
       invoiceId: 2,
       productId: 3,
-      quantity: 2,
-      warehouseId: 3
+      quantity: 2
     });
   });
 

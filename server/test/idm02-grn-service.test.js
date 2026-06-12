@@ -45,14 +45,8 @@ function createRepositories({ grn, expectedLine, otherDispatchLine = null, exist
         return { grnScanId: calls.insertScan.length, ...input };
       },
       async updateStatus() {},
-      async findMissingExpectedLines() {
-        return [
-          { serialId: 1, serialNo: "MTKSHORT0001" },
-          { serialId: 2, serialNo: "MTKSHORT0002" }
-        ];
-      },
-      async markShort(input) {
-        calls.markShort.push(input);
+      async summarize() {
+        return { scannedCount: 1, matchedCount: 1, exceptionCount: 0 };
       }
     },
     serials: {
@@ -184,7 +178,7 @@ describe("IDM-02 GRN service", () => {
     expect(repositories.calls.appendEvent).toHaveLength(0);
   });
 
-  test("T02-02 completion creates short exceptions for missing expected serials", async () => {
+  test("T02-02 completion closes the warehouse-scoped GRN without inventing SHORT exceptions", async () => {
     const repositories = createRepositories({
       grn: { grnId: 10, receivingWarehouseId: 5, status: "IN_PROGRESS" },
       validationResult: null
@@ -193,8 +187,8 @@ describe("IDM-02 GRN service", () => {
 
     const result = await service.completeGrn({ grnId: 10, userId: "operator_1" });
 
-    expect(result.status).toBe("EXCEPTION");
-    expect(result.summary.short).toBe(2);
-    expect(repositories.calls.createException.map((call) => call.ruleCode)).toEqual(["SHORT", "SHORT"]);
+    expect(result.status).toBe("CLOSED");
+    expect(result.summary).toMatchObject({ scannedCount: 1 });
+    expect(repositories.calls.createException).toHaveLength(0);
   });
 });

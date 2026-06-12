@@ -383,6 +383,9 @@
 .status-badge--corrected { background: var(--color-success-subtle); color: var(--color-success); }
 .status-badge--corrected::before { background: var(--color-success); }
 
+.status-badge--returned { background: var(--color-info-subtle); color: var(--color-info); }
+.status-badge--returned::before { background: var(--color-info); }
+
 .status-badge--closed { background: var(--color-bg-elevated); color: var(--color-text-muted); }
 .status-badge--closed::before { background: var(--color-text-muted); }
 

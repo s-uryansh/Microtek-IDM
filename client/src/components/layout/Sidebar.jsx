@@ -27,8 +27,7 @@ const navSections = [
   {
     title: "Administration",
     items: [
-      { label: "Import Monitor", path: "/imports", icon: "import", permission: "integration:import" },
-      { label: "Admin Panel", path: "/admin", icon: "chart", permission: "admin:access" }
+      { label: "Masters", path: "/admin", icon: "chart", permission: "admin:access" }
     ]
   }
 ];
