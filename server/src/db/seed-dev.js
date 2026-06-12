@@ -19,10 +19,6 @@ async function upsertOne(client, sql, values) {
   return result.rows[0];
 }
 
-/* ============================================================
-   WAREHOUSES, PRODUCTS, ROLES
-   ============================================================ */
-
 async function seedReferences(client) {
   const warehouses = {};
   for (const wh of [
@@ -44,12 +40,6 @@ async function seedReferences(client) {
     warehouses[wh[0]] = row.warehouseId;
   }
 
-  /* Products with categories:
-     INVERTER  → MTK-INVERTER-1KVA, MTK-INVERTER-2KVA, 899-95N-1075
-     BATTERY   → MTK-BATTERY-100AH, MTK-BATTERY-150AH
-     SOLAR     → MTK-SOLAR-300W, MTK-SOLAR-500W
-     ACCESSORY → MTK-CHARGE-CONTROLLER
-  */
   const products = {};
   for (const prod of [
     ["MTK-INVERTER-1KVA",  "Microtek Inverter 1KVA",     "INVERTER",  false, "INVERTER"],
@@ -245,10 +235,6 @@ async function seedStaffUsers(client, { warehouses }) {
 
   return created;
 }
-
-/* ============================================================
-   SERIALS — broad Microtek stock across products & statuses
-   ============================================================ */
 
 async function seedSerial(client, { serialNo, productId, status, warehouseId, receivedAt, sourceInvoiceRef }) {
   const row = await upsertOne(client, `
@@ -452,10 +438,6 @@ async function seedProductionAndHistory(client, { warehouses, products }) {
   return serials;
 }
 
-/* ============================================================
-   SAP DISPATCH DOCS
-   ============================================================ */
-
 async function seedDispatchDocs(client, { warehouses, products, serials }) {
   const cleanDoc = await upsertOne(client, `
     INSERT INTO sap_dispatch_doc (external_ref, source_warehouse_id, destination_warehouse_id, created_by)
@@ -491,10 +473,6 @@ async function seedDispatchDocs(client, { warehouses, products, serials }) {
 
   return { cleanDocId: cleanDoc.sapDispatchDocId };
 }
-
-/* ============================================================
-   INVOICES — with multiple product lines per invoice, all V014 fields
-   ============================================================ */
 
 async function seedInvoiceRow(client, ref, header, status = "PENDING") {
   return upsertOne(client, `
@@ -894,10 +872,6 @@ async function seedInvoicesAndDispatch(client, { warehouses, products, serials }
   };
 }
 
-/* ============================================================
-   REPORTS & EXCEPTIONS
-   ============================================================ */
-
 async function seedReportsAndExceptions(client, { warehouses, products, serials }) {
   const run = await upsertOne(client, `
     INSERT INTO opening_stock_reconciliation_run (warehouse_id, source_ref, status, created_by)
@@ -962,17 +936,9 @@ async function seedReportsAndExceptions(client, { warehouses, products, serials 
   };
 }
 
-/* ============================================================
-   REFRESH MATERIALIZED VIEW
-   ============================================================ */
-
 async function refreshAgeingSnapshot(client) {
   await client.query("REFRESH MATERIALIZED VIEW ageing_serial_snapshot");
 }
-
-/* ============================================================
-   MAIN SEED
-   ============================================================ */
 
 async function seed(client) {
   await teardown(client);

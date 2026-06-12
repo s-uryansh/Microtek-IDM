@@ -53,10 +53,6 @@ function toArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-/* ================================================================
-   WAREHOUSES TAB
-   ================================================================ */
-
 const warehouseColumns = [
   { key: "warehouseId", label: "ID" },
   { key: "code", label: "Code" },
@@ -204,10 +200,6 @@ function WarehousesTab() {
     </div>
   );
 }
-
-/* ================================================================
-   PRODUCTS TAB
-   ================================================================ */
 
 const productColumns = [
   { key: "productCode", label: "Code" },
@@ -389,10 +381,6 @@ function ProductsTab() {
     </div>
   );
 }
-
-/* ================================================================
-   MEMBERS TAB
-   ================================================================ */
 
 const memberColumns = [
   { key: "username", label: "Username" },
@@ -642,10 +630,6 @@ function MembersTab() {
   );
 }
 
-/* ================================================================
-   ROLES TAB
-   ================================================================ */
-
 const roleColumns = [
   { key: "code", label: "Code" },
   { key: "name", label: "Name" },
@@ -858,10 +842,6 @@ function RolesTab() {
     </div>
   );
 }
-
-/* ================================================================
-   INVOICES TAB
-   ================================================================ */
 
 const invoiceColumns = [
   { key: "invoiceId", label: "ID" },
@@ -1252,10 +1232,6 @@ function InvoicesTab() {
   );
 }
 
-/* ================================================================
-   INBOUND STOCK TAB — which stock was sent to which warehouse
-   ================================================================ */
-
 const inboundColumns = [
   { key: "externalRef", label: "Dispatch Doc" },
   { key: "sourceWarehouseCode", label: "From" },
@@ -1367,10 +1343,6 @@ function InboundTab() {
   );
 }
 
-/* ================================================================
-   WAREHOUSE STOCK TAB — every product unit (serial) in each warehouse
-   ================================================================ */
-
 const stockColumns = [
   { key: "warehouseCode", label: "Warehouse" },
   { key: "productName", label: "Product" },
@@ -1465,10 +1437,6 @@ function StockTab() {
     </div>
   );
 }
-
-/* ================================================================
-   ADMIN PAGE
-   ================================================================ */
 
 export function AdminPage() {
   const [activeTab, setActiveTab] = useState("warehouses");
