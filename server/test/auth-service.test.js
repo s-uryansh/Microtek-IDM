@@ -160,4 +160,30 @@ describe("auth service", () => {
       permissions: staticPermissionsForRole("admin")
     });
   });
+
+  test("returns database-resolved permission sets to the client", async () => {
+    const user = {
+      userId: "2",
+      username: "supervisor_1",
+      passwordHash: await hashPassword("admin123"),
+      role: "supervisor",
+      isActive: true,
+      warehouseIds: [3]
+    };
+    const repository = createRepository({ user });
+    const service = createAuthService({
+      authRepository: repository,
+      tokenSecret: "test-secret-that-is-long-enough",
+      logger: { info: vi.fn(), warn: vi.fn() },
+      resolvePermissions: vi.fn().mockResolvedValue(new Set(["invoice:read"]))
+    });
+
+    const result = await service.login({
+      username: "supervisor_1",
+      password: "admin123",
+      ipAddress: "127.0.0.1"
+    });
+
+    expect(result.user.permissions).toEqual(["invoice:read"]);
+  });
 });

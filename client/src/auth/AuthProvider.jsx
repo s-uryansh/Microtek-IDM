@@ -91,7 +91,7 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated: Boolean(user?.userId && user?.role),
     permissions,
-    hasPermission: (permission) => permissionSet.has(permission),
+    hasPermission: (permission) => user?.role === "admin" || permissionSet.has(permission),
     async login(credentials) {
       const result = await loginRequest(credentials);
       setUser(result.user);

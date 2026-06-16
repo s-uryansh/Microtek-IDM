@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { ProtectedRoute } from "./auth/ProtectedRoute.jsx";
-import { AdminRoute } from "./auth/AdminRoute.jsx";
+import { PermissionRoute } from "./auth/PermissionRoute.jsx";
 import { AppShell } from "./components/layout/AppShell.jsx";
 import { RouteErrorFallback } from "./components/errors/RouteErrorFallback.jsx";
 import { ErrorBoundary } from "./components/errors/ErrorBoundary.jsx";
@@ -14,7 +14,15 @@ import { FulfilmentPage } from "./features/fulfilment/FulfilmentPage.jsx";
 import { AgeingPage } from "./features/ageing/AgeingPage.jsx";
 import { SerialHistoryPage } from "./features/serials/SerialHistoryPage.jsx";
 import { ExceptionsPage } from "./features/exceptions/ExceptionsPage.jsx";
-import { AdminPage } from "./features/admin/AdminPage.jsx";
+import {
+  InboundPage,
+  InvoicesPage,
+  MembersPage,
+  ProductsPage,
+  RolesPage,
+  StockPage,
+  WarehousesPage
+} from "./features/admin/AdminPage.jsx";
 import { LoginPage } from "./features/auth/LoginPage.jsx";
 
 function withBoundary(node) {
@@ -50,12 +58,67 @@ export const router = createBrowserRouter([
       { path: "ageing", element: withBoundary(<AgeingPage />), errorElement: <RouteErrorFallback /> },
       { path: "serials", element: withBoundary(<SerialHistoryPage />), errorElement: <RouteErrorFallback /> },
       { path: "exceptions", element: withBoundary(<ExceptionsPage />), errorElement: <RouteErrorFallback /> },
+      { path: "admin", element: <Navigate to="/admin/warehouses" replace /> },
       {
-        path: "admin",
+        path: "admin/warehouses",
         element: (
-          <AdminRoute>
-            {withBoundary(<AdminPage />)}
-          </AdminRoute>
+          <PermissionRoute permission="admin:access">
+            {withBoundary(<WarehousesPage />)}
+          </PermissionRoute>
+        ),
+        errorElement: <RouteErrorFallback />
+      },
+      {
+        path: "admin/members",
+        element: (
+          <PermissionRoute permission="admin:access">
+            {withBoundary(<MembersPage />)}
+          </PermissionRoute>
+        ),
+        errorElement: <RouteErrorFallback />
+      },
+      {
+        path: "admin/roles",
+        element: (
+          <PermissionRoute permission="admin:access">
+            {withBoundary(<RolesPage />)}
+          </PermissionRoute>
+        ),
+        errorElement: <RouteErrorFallback />
+      },
+      {
+        path: "admin/products",
+        element: (
+          <PermissionRoute permission="admin:access">
+            {withBoundary(<ProductsPage />)}
+          </PermissionRoute>
+        ),
+        errorElement: <RouteErrorFallback />
+      },
+      {
+        path: "admin/invoices",
+        element: (
+          <PermissionRoute permission="invoice:read">
+            {withBoundary(<InvoicesPage />)}
+          </PermissionRoute>
+        ),
+        errorElement: <RouteErrorFallback />
+      },
+      {
+        path: "admin/inbound",
+        element: (
+          <PermissionRoute permission="admin:access">
+            {withBoundary(<InboundPage />)}
+          </PermissionRoute>
+        ),
+        errorElement: <RouteErrorFallback />
+      },
+      {
+        path: "admin/stock",
+        element: (
+          <PermissionRoute permission="admin:access">
+            {withBoundary(<StockPage />)}
+          </PermissionRoute>
         ),
         errorElement: <RouteErrorFallback />
       }

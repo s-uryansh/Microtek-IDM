@@ -73,7 +73,6 @@ export function SerialHistoryPage() {
       throw err;
     }
   }
-
   const timeline = toArray(history?.timeline);
 
   return (

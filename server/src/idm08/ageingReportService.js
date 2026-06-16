@@ -21,7 +21,7 @@ const BUCKET_RANGES = {
   "B31_60":      { minDays: 31, maxDays: 60 },
   "B61_90":      { minDays: 61, maxDays: 90 },
   "B91_PLUS":    { minDays: 91, maxDays: null },
-  // "MISSING_RECEIVED_AT": { minDays: null, maxDays: null }
+  "MISSING_RECEIVED_AT": { minDays: null, maxDays: null }
 };
 
 export function createAgeingReportService({ repositories, bucketService }) {

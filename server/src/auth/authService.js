@@ -17,6 +17,16 @@ function publicUser(user, permissions = []) {
   };
 }
 
+function normalizePermissions(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (value instanceof Set) {
+    return Array.from(value);
+  }
+  return null;
+}
+
 function isLocked(user, now = new Date()) {
   return user?.lockedUntil && new Date(user.lockedUntil).getTime() > now.getTime();
 }
@@ -37,8 +47,9 @@ export function createAuthService({
     if (resolvePermissions) {
       try {
         const resolved = await resolvePermissions(role);
-        if (Array.isArray(resolved) && resolved.length > 0) {
-          return resolved;
+        const permissions = normalizePermissions(resolved);
+        if (permissions) {
+          return permissions;
         }
       } catch (error) {
         logger.warn?.({ role, error }, "Permission resolution failed; using static fallback");

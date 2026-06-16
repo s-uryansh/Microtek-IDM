@@ -16,6 +16,8 @@ const foundationPermissionsByRole = new Map([
       "exception:correct",
       "battery:write",
       "battery:read",
+      "invoice:read",
+      "invoice:export",
       "admin:access"
     ])
   ],
@@ -78,6 +80,10 @@ export function createRbacPolicy({
 } = {}) {
   return {
     can({ role, permission, userWarehouseIds = [], resourceWarehouseId }) {
+      if (role === "admin") {
+        return true;
+      }
+
       const resolvedPermissions = resolvePermissionsForRole
         ? resolvePermissionsForRole(role)
         : null;

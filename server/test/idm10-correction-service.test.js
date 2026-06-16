@@ -6,7 +6,9 @@ function createRepositories({
   exception,
   correctResult,
   findAllResult,
-  serial
+  serial,
+  dispatch,
+  invoice
 } = {}) {
   const calls = {
     findById: [],
@@ -14,6 +16,8 @@ function createRepositories({
     correctException: [],
     findBySerialNo: [],
     appendEvent: [],
+    findDispatchById: [],
+    findInvoiceById: [],
     transaction: []
   };
 
@@ -68,6 +72,18 @@ function createRepositories({
       },
       async appendSerialEvent(event) {
         calls.appendEvent.push(event);
+      }
+    },
+    dispatches: {
+      async findById(dispatchId) {
+        calls.findDispatchById.push(dispatchId);
+        return dispatch ?? null;
+      }
+    },
+    invoices: {
+      async findById(invoiceId) {
+        calls.findInvoiceById.push(invoiceId);
+        return invoice ?? null;
       }
     }
   };
@@ -263,6 +279,66 @@ describe("IDM-10 exception correction service", () => {
     expect(result.status).toBe("CORRECTED");
     expect(repositories.calls.findBySerialNo).toEqual(["ORPHAN-001"]);
     expect(repositories.calls.appendEvent).toHaveLength(0);
+  });
+
+  test("rejects dispatch exception correction until the related invoice is dispatched", async () => {
+    const exception = {
+      exceptionId: 7,
+      serialNo: "WRONG-SERIAL-001",
+      ruleCode: "WRONG_SERIAL",
+      contextType: "DISPATCH",
+      contextId: 70,
+      status: "OPEN",
+      raisedAt: "2026-01-02T01:00:00.000Z",
+      raisedBy: "operator_1"
+    };
+    const repositories = createRepositories({
+      exception,
+      dispatch: { dispatchId: 70, invoiceId: 700, status: "IN_PROGRESS" },
+      invoice: { invoiceId: 700, status: "IN_PROGRESS", lines: [] }
+    });
+    const service = createExceptionCorrectionService({ repositories });
+
+    await expect(
+      service.correctException({
+        exceptionId: 7,
+        correctionReason: "Wrong serial was later fixed.",
+        userId: "supervisor_1"
+      })
+    ).rejects.toThrow("Dispatch exception can only be corrected after the invoice is dispatched");
+    expect(repositories.calls.correctException).toHaveLength(0);
+    expect(repositories.calls.transaction).toEqual([]);
+  });
+
+  test("allows dispatch exception correction after the related invoice is dispatched", async () => {
+    const exception = {
+      exceptionId: 8,
+      serialNo: "WRONG-SERIAL-002",
+      ruleCode: "WRONG_SERIAL",
+      contextType: "DISPATCH",
+      contextId: 80,
+      status: "OPEN",
+      raisedAt: "2026-01-02T01:00:00.000Z",
+      raisedBy: "operator_1"
+    };
+    const repositories = createRepositories({
+      exception,
+      dispatch: { dispatchId: 80, invoiceId: 800, status: "DISPATCHED" },
+      invoice: { invoiceId: 800, status: "DISPATCHED", lines: [] },
+      serial: { serialId: 80, serialNo: "WRONG-SERIAL-002" }
+    });
+    const service = createExceptionCorrectionService({ repositories });
+
+    const result = await service.correctException({
+      exceptionId: 8,
+      correctionReason: "Invoice was dispatched after valid serial scan.",
+      userId: "supervisor_1"
+    });
+
+    expect(result.status).toBe("CORRECTED");
+    expect(repositories.calls.findDispatchById).toEqual([80]);
+    expect(repositories.calls.findInvoiceById).toEqual([800]);
+    expect(repositories.calls.transaction).toEqual(["begin", "commit"]);
   });
 
   test("lists exceptions with default pagination", async () => {

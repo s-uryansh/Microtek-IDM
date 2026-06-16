@@ -13,6 +13,29 @@ const columns = [
   { key: "quantity", label: "Quantity" }
 ];
 
+const productColumns = [
+  { key: "serialNo", label: "Serial" },
+  {
+    key: "product",
+    label: "Product",
+    filterValue: (row) => row.productCode,
+    render: (_value, row) => (
+      <>
+        <span style={{ fontWeight: 600 }}>{row.productCode}</span>
+        <span style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem", display: "block" }}>
+          {row.productName}
+        </span>
+      </>
+    )
+  },
+  {
+    key: "category",
+    label: "Category",
+    render: (value) => <span className="badge">{value || "—"}</span>
+  },
+  { key: "age", label: "Age" }
+];
+
 function toArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -174,44 +197,18 @@ export function AgeingPage() {
               <p style={{ color: "var(--color-text-muted)" }}>Loading products...</p>
             )}
             {!bucketLoading && bucketProducts && (
-              <table className="data-table__table" style={{ width: "100%" }}>
-                <thead>
-                  <tr>
-                    <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Serial</th>
-                    <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Product</th>
-                    <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Category</th>
-                    <th className="data-table__th" style={{ textAlign: "right", padding: "var(--space-2)" }}>Age</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(!bucketProducts.items || bucketProducts.items.length === 0) && (
-                    <tr className="data-table__row">
-                      <td colSpan={4} style={{ padding: "var(--space-3)", textAlign: "center", color: "var(--color-text-muted)" }}>
-                        No products in this bucket
-                      </td>
-                    </tr>
-                  )}
-                  {toArray(bucketProducts.items).map((item) => (
-                    <tr key={item.serialId} className="data-table__row">
-                      <td style={{ padding: "var(--space-2)", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}>
-                        {item.serialNo}
-                      </td>
-                      <td style={{ padding: "var(--space-2)" }}>
-                        <span style={{ fontWeight: 600 }}>{item.productCode}</span>
-                        <span style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem", display: "block" }}>
-                          {item.productName}
-                        </span>
-                      </td>
-                      <td style={{ padding: "var(--space-2)" }}>
-                        <span className="badge">{item.category || item.segment || "—"}</span>
-                      </td>
-                      <td style={{ padding: "var(--space-2)", textAlign: "right", fontFamily: "var(--font-mono)" }}>
-                        {item.ageDays !== null && item.ageDays !== undefined ? `${item.ageDays}d` : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <DataTable
+                columns={productColumns}
+                data={toArray(bucketProducts.items).map((item) => ({
+                  ...item,
+                  product: item.productCode,
+                  category: item.category || item.segment || "—",
+                  age: item.ageDays !== null && item.ageDays !== undefined ? `${item.ageDays}d` : "—"
+                }))}
+                pageSize={10}
+                emptyTitle="No products in this bucket"
+                sortable={true}
+              />
             )}
           </Card>
         </div>

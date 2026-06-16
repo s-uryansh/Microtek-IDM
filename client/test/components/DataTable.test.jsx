@@ -81,7 +81,7 @@ describe("DataTable", () => {
     const nameHeader = screen.getByLabelText(/Sort by Name/);
     fireEvent.click(nameHeader);
 
-    const cells = screen.getAllByText(/Alpha|Beta|Gamma/);
+    const cells = screen.getAllByRole("cell").filter((cell) => /Alpha|Beta|Gamma/.test(cell.textContent));
     expect(cells[0]).toHaveTextContent("Alpha");
   });
 
@@ -93,7 +93,18 @@ describe("DataTable", () => {
     fireEvent.click(nameHeader);
     fireEvent.click(nameHeader);
 
-    const cells = screen.getAllByText(/Alpha|Beta|Gamma/);
+    const cells = screen.getAllByRole("cell").filter((cell) => /Alpha|Beta|Gamma/.test(cell.textContent));
     expect(cells[0]).toHaveTextContent("Gamma");
+  });
+
+  test("filters by multiple columns at the same time", () => {
+    render(<DataTable columns={columns} data={data} />);
+
+    fireEvent.change(screen.getByLabelText("Filter Name"), { target: { value: "Alpha" } });
+    fireEvent.change(screen.getByLabelText("Filter Status"), { target: { value: "OPEN" } });
+
+    expect(screen.getByText("Alpha")).toBeVisible();
+    expect(screen.queryByText("Beta")).toBeNull();
+    expect(screen.queryByText("Gamma")).toBeNull();
   });
 });

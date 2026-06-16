@@ -5,10 +5,12 @@ import { AgeingPage } from "../../src/features/ageing/AgeingPage.jsx";
 import { AuthContext } from "../../src/auth/AuthProvider.jsx";
 
 const mockFetch = vi.fn();
+const mockFetchBucketProducts = vi.fn();
 const mockFetchVariance = vi.fn();
 const searchWarehousesMock = vi.fn();
 vi.mock("../../src/api/modules/ageing.js", () => ({
   fetchAgeingReport: (...args) => mockFetch(...args),
+  fetchAgeingBucketProducts: (...args) => mockFetchBucketProducts(...args),
   fetchReconciliationVariance: (...args) => mockFetchVariance(...args)
 }));
 vi.mock("../../src/api/modules/lookups.js", () => ({
@@ -33,6 +35,7 @@ async function selectWarehouse() {
 
 beforeEach(() => {
   mockFetch.mockReset();
+  mockFetchBucketProducts.mockReset();
   mockFetchVariance.mockReset();
   searchWarehousesMock.mockReset();
   searchWarehousesMock.mockResolvedValue({ items: [{ warehouseId: 3, code: "RW-01", name: "Regional 1" }] });
@@ -113,5 +116,30 @@ describe("AgeingPage", () => {
     await waitFor(() => {
       expect(screen.getByText("No ageing data available")).toBeVisible();
     });
+  });
+
+  test("supports multi-filtering the bucket drill-down product table", async () => {
+    mockFetch.mockResolvedValue({
+      filters: { warehouseIds: [3] },
+      summary: [{ bucketCode: "B0_30", label: "0-30", quantity: 2 }],
+      dataQuality: { missingReceivedAtCount: 0 }
+    });
+    mockFetchBucketProducts.mockResolvedValue({
+      items: [
+        { serialId: 1, serialNo: "SER-ALPHA", productCode: "INV-001", productName: "Alpha Inverter", category: "INVERTER", ageDays: 12 },
+        { serialId: 2, serialNo: "SER-BETA", productCode: "BAT-001", productName: "Beta Battery", category: "BATTERY", ageDays: 28 }
+      ]
+    });
+
+    renderPage();
+    await selectWarehouse();
+    fireEvent.click(await screen.findByLabelText(/0-30: 2.*Click for details/));
+    await waitFor(() => expect(screen.getByText("SER-ALPHA")).toBeVisible());
+
+    fireEvent.change(screen.getByLabelText("Filter Product"), { target: { value: "INV-001" } });
+    fireEvent.change(screen.getByLabelText("Filter Category"), { target: { value: "INVERTER" } });
+
+    expect(screen.getByText("SER-ALPHA")).toBeVisible();
+    expect(screen.queryByText("SER-BETA")).toBeNull();
   });
 });

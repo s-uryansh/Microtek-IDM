@@ -71,6 +71,31 @@ export function WarehouseSelector({ value, onChange, label = "Warehouse", helper
       </div>
     );
   }
+  if(isAdmin){
+    return(
+      <div className="input-group">
+        <label className="input-group_label">{label}</label>
+        <select
+          className="input"
+          aria-label={label}
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          >
+            <option value="" disabled>
+              Select Warehouse
+            </option>
+            {warehouses.map((w) => (
+              <option key={w.warehouseId} value={w.warehouseId}>
+                {w.code} . {w.name}
+              </option>
+            ))}
+          </select>
+          {
+            error && <p style={{color: "var(--color-error)", fontSize: "0.8125rem"}}>{error}</p>
+          }
+      </div>
+    )
+  }
 
   return (
     <div className="input-group">
@@ -88,7 +113,7 @@ export function WarehouseSelector({ value, onChange, label = "Warehouse", helper
       >
         {selectedLabel}
       </div>
-      <p className="input-group__hint">Assigned to your account — not changeable.</p>
+      <p className="input-group__hint">Assigned to your account.</p>
     </div>
   );
 }

@@ -27,14 +27,20 @@ const navSections = [
   {
     title: "Administration",
     items: [
-      { label: "Masters", path: "/admin", icon: "chart", permission: "admin:access" }
+      { label: "Warehouses", path: "/admin/warehouses", icon: "box", permission: "admin:access" },
+      { label: "Members", path: "/admin/members", icon: "document", permission: "admin:access" },
+      { label: "Roles", path: "/admin/roles", icon: "document", permission: "admin:access" },
+      { label: "Products", path: "/admin/products", icon: "box", permission: "admin:access" },
+      { label: "Invoices", path: "/admin/invoices", icon: "document", permission: "invoice:read" },
+      { label: "Inbound Stock", path: "/admin/inbound", icon: "truck", permission: "admin:access" },
+      { label: "Warehouse Stock", path: "/admin/stock", icon: "search", permission: "admin:access" }
     ]
   }
 ];
 
 export function Sidebar({ open, onClose, user }) {
   const { user: authUser, logout, hasPermission } = useAuth();
-  const canAccess = (permission) => (typeof hasPermission === "function" ? hasPermission(permission) : false);
+  const canAccess = (permission) => authUser?.role === "admin" || (typeof hasPermission === "function" ? hasPermission(permission) : false);
   const displayUser = user ?? {
     name: authUser?.userId || "Unauthenticated",
     role: authUser?.role || "No role"

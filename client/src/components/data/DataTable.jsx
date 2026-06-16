@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { Children, isValidElement, useEffect, useMemo, useState } from "react";
 
 import { ColumnSortHeader } from "./ColumnSortHeader.jsx";
 import { Pagination } from "./Pagination.jsx";
@@ -18,15 +18,49 @@ export function DataTable({
   emptyTitle = "No data",
   emptyDescription = "",
   sortable = true,
+  filterable = true,
   className = "",
   onRowClick
 }) {
   const [sort, setSort] = useState({ key: null, direction: null });
   const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState({});
+
+  const filterableColumns = useMemo(() => (
+    columns.filter((col) => col.filterable !== false && col.key !== "_actions")
+  ), [columns]);
+
+  const filterOptions = useMemo(() => {
+    const rows = data || [];
+    return Object.fromEntries(
+      filterableColumns.map((col) => {
+        const values = [...new Set(
+          rows
+            .map((row) => getFilterText(row, col))
+            .filter((value) => value.length > 0)
+        )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        return [col.key, values];
+      })
+    );
+  }, [data, filterableColumns]);
+
+  const visibleFilterColumns = filterableColumns.filter((col) => (filterOptions[col.key] || []).length > 1);
+
+  const filtered = useMemo(() => {
+    const activeFilters = Object.entries(filters).filter(([, value]) => value);
+    if (activeFilters.length === 0) return data || [];
+    return (data || []).filter((row) =>
+      activeFilters.every(([key, value]) => {
+        const col = columns.find((column) => column.key === key);
+        if (!col) return true;
+        return getFilterText(row, col) === value;
+      })
+    );
+  }, [columns, data, filters]);
 
   const sorted = useMemo(() => {
-    if (!sort.key || !sort.direction) return data || [];
-    return [...(data || [])].sort((a, b) => {
+    if (!sort.key || !sort.direction) return filtered;
+    return [...filtered].sort((a, b) => {
       const aVal = a[sort.key];
       const bVal = b[sort.key];
       if (aVal == null) return 1;
@@ -36,7 +70,11 @@ export function DataTable({
         : aVal - bVal;
       return sort.direction === "asc" ? cmp : -cmp;
     });
-  }, [data, sort]);
+  }, [filtered, sort]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters, data]);
 
   const totalPages = Math.max(1, Math.ceil((sorted.length || 0) / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -49,6 +87,17 @@ export function DataTable({
 
   function handlePageChange(p) {
     setPage(p);
+  }
+
+  function handleFilterChange(key, value) {
+    setFilters((current) => ({
+      ...current,
+      [key]: value
+    }));
+  }
+
+  function clearFilters() {
+    setFilters({});
   }
 
   function handleRowKeyDown(event, row) {
@@ -102,6 +151,49 @@ export function DataTable({
 
   return (
     <div className={`data-table ${className}`.trim()}>
+      {filterable && visibleFilterColumns.length > 0 && (
+        <div
+          className="data-table__filters"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: "var(--space-3)",
+            marginBottom: "var(--space-3)"
+          }}
+        >
+          {visibleFilterColumns.map((col) => (
+            <div key={col.key} className="input-group">
+              <label className="input-group__label" htmlFor={`data-table-filter-${col.key}`}>
+                Filter {col.label}
+              </label>
+              <select
+                id={`data-table-filter-${col.key}`}
+                className="input"
+                value={filters[col.key] || ""}
+                onChange={(event) => handleFilterChange(col.key, event.target.value)}
+              >
+                <option value="">All {col.label}</option>
+                {filterOptions[col.key].map((value) => (
+                  <option key={value} value={value}>
+                    {col.label}: {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+          {Object.values(filters).some(Boolean) && (
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <button className="button button--secondary button--sm" type="button" onClick={clearFilters}>
+                Clear Filters
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {filtered.length === 0 ? (
+        <EmptyState title="No matching data" description="Adjust or clear the table filters." />
+      ) : (
+      <>
       <div className="data-table__wrapper">
         <table className="data-table__table">
           <thead>
@@ -147,6 +239,8 @@ export function DataTable({
         totalPages={totalPages}
         onPageChange={handlePageChange}
       />
+      </>
+      )}
     </div>
   );
 }
@@ -157,6 +251,34 @@ function renderCell(value) {
     return <StatusBadge status={value} />;
   }
   return value;
+}
+
+function getFilterText(row, col) {
+  if (typeof col.filterValue === "function") {
+    return normalizeFilterValue(col.filterValue(row));
+  }
+
+  const explicit = row?.[`${col.key}Filter`];
+  if (explicit !== undefined) {
+    return normalizeFilterValue(explicit);
+  }
+
+  return normalizeFilterValue(row?.[col.key]);
+}
+
+function normalizeFilterValue(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(normalizeFilterValue).filter(Boolean).join(" ");
+  }
+  if (isValidElement(value)) {
+    const propValue = value.props?.status ?? value.props?.children;
+    return normalizeFilterValue(Children.toArray(propValue));
+  }
+  return "";
 }
 
 const STATUS_VALUES = new Set([

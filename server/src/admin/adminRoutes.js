@@ -11,8 +11,32 @@ function parseId(value) {
 export function createAdminRoutes({ adminService }) {
   const router = Router();
 
-  /* All admin routes require admin:access */
-  router.use(requireAuthContext, requirePermission("admin:access"));
+  router.use(requireAuthContext);
+
+  /* ─────────────────────────────────
+     INVOICE LISTING / EXPORT
+     ───────────────────────────────── */
+
+  router.get("/invoices", requirePermission("invoice:read"), async (request, response, next) => {
+    try {
+      const invoices = await adminService.listAllInvoices({ query: request.query.query });
+      response.status(200).json({ items: invoices });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/invoices/export", requirePermission("invoice:export"), async (_request, response, next) => {
+    try {
+      const csv = await adminService.exportInvoicesCsv();
+      response.status(200).json({ csv });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  /* Everything below is sensitive master-data administration. */
+  router.use(requirePermission("admin:access"));
 
   /* ─────────────────────────────────
      WAREHOUSE MANAGEMENT
@@ -280,19 +304,6 @@ export function createAdminRoutes({ adminService }) {
   });
 
   /* ─────────────────────────────────
-     INVOICE LISTING
-     ───────────────────────────────── */
-
-  router.get("/invoices", async (request, response, next) => {
-    try {
-      const invoices = await adminService.listAllInvoices({ query: request.query.query });
-      response.status(200).json({ items: invoices });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  /* ─────────────────────────────────
      INBOUND STOCK (SAP dispatch documents → warehouses)
      ───────────────────────────────── */
 
@@ -315,17 +326,8 @@ export function createAdminRoutes({ adminService }) {
   });
 
   /* ─────────────────────────────────
-     INVOICE CSV IMPORT / EXPORT — admin role only
+     INVOICE CSV IMPORT — admin role only
      ───────────────────────────────── */
-
-  router.get("/invoices/export", requireAdminRole, async (_request, response, next) => {
-    try {
-      const csv = await adminService.exportInvoicesCsv();
-      response.status(200).json({ csv });
-    } catch (error) {
-      next(error);
-    }
-  });
 
   router.post("/invoices/import", requireAdminRole, async (request, response, next) => {
     try {

@@ -20,5 +20,9 @@
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"
+  },
+  "dependencies": {
+    "@openai/codex": "^0.140.0",
+    "g": "^2.0.1"
   }
 }

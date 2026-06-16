@@ -1,6 +1,28 @@
 import { listExceptionsSchema } from "../models/exceptionSchemas.js";
 
+const DISPATCH_CORRECTION_ERROR = "Dispatch exception can only be corrected after the invoice is dispatched";
+
 export function createExceptionCorrectionService({ repositories }) {
+  async function assertDispatchExceptionCorrectable(exception) {
+    if (exception.contextType !== "DISPATCH") {
+      return;
+    }
+
+    if (!exception.contextId || !repositories.dispatches?.findById) {
+      throw Object.assign(new Error(DISPATCH_CORRECTION_ERROR), { status: 409 });
+    }
+
+    const dispatch = await repositories.dispatches.findById(exception.contextId);
+    if (!dispatch?.invoiceId || !repositories.invoices?.findById) {
+      throw Object.assign(new Error(DISPATCH_CORRECTION_ERROR), { status: 409 });
+    }
+
+    const invoice = await repositories.invoices.findById(dispatch.invoiceId);
+    if (invoice?.status !== "DISPATCHED") {
+      throw Object.assign(new Error(DISPATCH_CORRECTION_ERROR), { status: 409 });
+    }
+  }
+
   return {
     async listExceptions(input = {}) {
       const parsed = listExceptionsSchema.parse(input);
@@ -48,6 +70,8 @@ export function createExceptionCorrectionService({ repositories }) {
       if (exception.status !== "OPEN") {
         throw new Error("Exception is already resolved");
       }
+
+      await assertDispatchExceptionCorrectable(exception);
 
       return repositories.withTransaction(async (txRepositories) => {
         const updated = await txRepositories.exceptionsRepo.correctException({

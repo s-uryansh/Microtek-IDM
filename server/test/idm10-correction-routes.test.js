@@ -36,6 +36,9 @@ function createCorrectionService({ listResult, correctResult, getResult } = {}) 
       if (correctResult === "NOT_FOUND") throw new Error("Exception not found");
       if (correctResult === "ALREADY_RESOLVED") throw new Error("Exception is already resolved");
       if (correctResult === "CONCURRENT") throw new Error("Exception was already corrected by another user");
+      if (correctResult === "DISPATCH_NOT_DISPATCHED") {
+        throw new Error("Dispatch exception can only be corrected after the invoice is dispatched");
+      }
       return correctResult ?? {
         exceptionId: params.exceptionId,
         status: "CORRECTED",
@@ -270,6 +273,30 @@ describe("IDM-10 exception correction route authorization", () => {
     });
 
     expect(response.status).toBe(409);
+  });
+
+  test("returns 409 when correcting a dispatch exception before invoice dispatch", async () => {
+    const correctionService = createCorrectionService({ correctResult: "DISPATCH_NOT_DISPATCHED" });
+    const app = createApp({
+      config,
+      services: {
+        exceptionCorrectionService: correctionService
+      }
+    });
+
+    const response = await inject(app, {
+      method: "POST",
+      url: "/api/idm-10/exceptions/1/correct",
+      headers: {
+        "x-user-id": "supervisor_1",
+        "x-user-role": "supervisor",
+        "x-warehouse-ids": "5"
+      },
+      body: { correctionReason: "Invoice not dispatched yet." }
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.message).toBe("Dispatch exception can only be corrected after the invoice is dispatched");
   });
 
   test("returns 400 when correction reason is missing", async () => {

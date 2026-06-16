@@ -146,7 +146,8 @@ export function createExceptionCorrectionRoutes({ exceptionCorrectionService }) 
 
         if (
           error.message === "Exception is already resolved" ||
-          error.message === "Exception was already corrected by another user"
+          error.message === "Exception was already corrected by another user" ||
+          error.message === "Dispatch exception can only be corrected after the invoice is dispatched"
         ) {
           sendError(response, 409, "CONFLICT", error.message);
           return;

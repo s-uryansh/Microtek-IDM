@@ -907,9 +907,22 @@ function PodDocumentBox() {
   );
 }
 
+function getInvoiceDispatchStatus(inv) {
+  const dispatchedQty = Number(inv.dispatchedQty || 0);
+  const returnedQty = Number(inv.returnedQty || 0);
+  if (dispatchedQty > 0 && returnedQty >= dispatchedQty) return "RETURNED";
+  if (returnedQty > 0 && returnedQty < dispatchedQty) return "PARTIAL_RETURN";
+  return inv.status || "PENDING";
+}
+
+function matchesText(value, query) {
+  return String(value ?? "").toLowerCase().includes(query);
+}
+
 function InvoicesTab() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const isAdmin = (user?.role || user?.roleCode) === "admin";
+  const canExportInvoices = isAdmin || hasPermission?.("invoice:export");
   const [invoices, setInvoices] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -917,13 +930,19 @@ function InvoicesTab() {
   const [csvText, setCsvText] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState({
+    search: "",
+    customer: "",
+    dispatchStatus: "",
+    billingNumber: "",
+    orderId: ""
+  });
   const fileInputRef = useRef(null);
 
-  const load = useCallback((query) => {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchAllInvoices({ query: query || undefined })
+    fetchAllInvoices()
       .then((data) => setInvoices(data ?? { items: [] }))
       .catch((err) => setError(err?.message || "Failed to load invoices"))
       .finally(() => setLoading(false));
@@ -931,9 +950,8 @@ function InvoicesTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  function handleSearch(value) {
-    setSearchQuery(value);
-    load(value);
+  function updateFilter(key, value) {
+    setFilters((current) => ({ ...current, [key]: value }));
   }
 
   async function handleExport() {
@@ -985,7 +1003,30 @@ function InvoicesTab() {
     URL.revokeObjectURL(url);
   }
 
-  const rows = toArray(invoices?.items).map((inv) => {
+  const invoiceItems = toArray(invoices?.items);
+  const customerOptions = [...new Set(invoiceItems.map((inv) => inv.customerName).filter(Boolean))].sort();
+  const billingOptions = [...new Set(invoiceItems.map((inv) => inv.billingNumber).filter(Boolean))].sort();
+  const orderOptions = [...new Set(invoiceItems.map((inv) => inv.orderId).filter(Boolean))].sort();
+  const dispatchStatusOptions = [...new Set(invoiceItems.map((inv) => getInvoiceDispatchStatus(inv)).filter(Boolean))].sort();
+  const searchQuery = filters.search.trim().toLowerCase();
+  const filteredInvoices = invoiceItems.filter((inv) => {
+    if (filters.customer && inv.customerName !== filters.customer) return false;
+    if (filters.dispatchStatus && getInvoiceDispatchStatus(inv) !== filters.dispatchStatus) return false;
+    if (filters.billingNumber && inv.billingNumber !== filters.billingNumber) return false;
+    if (filters.orderId && inv.orderId !== filters.orderId) return false;
+    if (!searchQuery) return true;
+    return [
+      inv.invoiceId,
+      inv.sapInvoiceRef,
+      inv.orderId,
+      inv.customerName,
+      inv.customerCode,
+      inv.billingNumber,
+      inv.status
+    ].some((value) => matchesText(value, searchQuery));
+  });
+
+  const rows = filteredInvoices.map((inv) => {
     const dispatchedQty = Number(inv.dispatchedQty || 0);
     const returnedQty = Number(inv.returnedQty || 0);
     // All dispatched units returned → show RETURNED instead of DISPATCHED.
@@ -1033,16 +1074,13 @@ function InvoicesTab() {
         <Card title="Invoice Bulk CSV (Admin only)">
           <div className="scan-workflow-form" style={{ maxWidth: 640 }}>
             <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", margin: 0 }}>
-              Import or export invoices in bulk. One CSV row per invoice line; invoice header
+              Import invoices in bulk. One CSV row per invoice line; invoice header
               columns repeat for each line of the same <code>sap_invoice_ref</code>.
             </p>
             <Button variant="secondary" onClick={handleDownloadTemplate}>
               Download Template
             </Button>
             <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end" }}>
-              <Button variant="secondary" onClick={handleExport}>
-                Export CSV
-              </Button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1098,8 +1136,86 @@ function InvoicesTab() {
 
       <div style={{ marginTop: isAdmin ? "var(--space-4)" : 0 }}>
         <Card title="All Invoices">
-          <div style={{ marginBottom: "var(--space-3)" }}>
-            <Input label="Search Invoices" value={searchQuery} onChange={handleSearch} placeholder="Invoice ref, ID, order ID, customer name..." />
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-3)", alignItems: "flex-end", marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
+            <div style={{ minWidth: 260, flex: 1 }}>
+              <Input
+                label="Search Invoices"
+                value={filters.search}
+                onChange={(value) => updateFilter("search", value)}
+                placeholder="Invoice ref, ID, order ID, customer name..."
+              />
+            </div>
+            {canExportInvoices && (
+              <Button variant="secondary" onClick={handleExport}>
+                Export CSV
+              </Button>
+            )}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "var(--space-3)", marginBottom: "var(--space-3)" }}>
+            <div className="input-group">
+              <label className="input-group__label" htmlFor="invoice-filter-customer">Customer</label>
+              <select
+                id="invoice-filter-customer"
+                className="input"
+                value={filters.customer}
+                onChange={(e) => updateFilter("customer", e.target.value)}
+              >
+                <option value="">All customers</option>
+                {customerOptions.map((customer) => (
+                  <option key={customer} value={customer}>{customer}</option>
+                ))}
+              </select>
+            </div>
+            <div className="input-group">
+              <label className="input-group__label" htmlFor="invoice-filter-dispatch-status">Dispatch Status</label>
+              <select
+                id="invoice-filter-dispatch-status"
+                className="input"
+                value={filters.dispatchStatus}
+                onChange={(e) => updateFilter("dispatchStatus", e.target.value)}
+              >
+                <option value="">All statuses</option>
+                {dispatchStatusOptions.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </div>
+            <div className="input-group">
+              <label className="input-group__label" htmlFor="invoice-filter-billing">Billing Number</label>
+              <select
+                id="invoice-filter-billing"
+                className="input"
+                value={filters.billingNumber}
+                onChange={(e) => updateFilter("billingNumber", e.target.value)}
+              >
+                <option value="">All billing numbers</option>
+                {billingOptions.map((billingNumber) => (
+                  <option key={billingNumber} value={billingNumber}>{billingNumber}</option>
+                ))}
+              </select>
+            </div>
+            <div className="input-group">
+              <label className="input-group__label" htmlFor="invoice-filter-order">Order ID</label>
+              <select
+                id="invoice-filter-order"
+                className="input"
+                value={filters.orderId}
+                onChange={(e) => updateFilter("orderId", e.target.value)}
+              >
+                <option value="">All order IDs</option>
+                {orderOptions.map((orderId) => (
+                  <option key={orderId} value={orderId}>{orderId}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <Button
+                variant="secondary"
+                onClick={() => setFilters({ search: "", customer: "", dispatchStatus: "", billingNumber: "", orderId: "" })}
+              >
+                Clear Filters
+              </Button>
+            </div>
           </div>
           <DataTable
             columns={displayColumns}
@@ -1435,6 +1551,71 @@ function StockTab() {
         />
       </Card>
     </div>
+  );
+}
+
+function AdminModulePage({ title, subtitle, children }) {
+  return (
+    <div>
+      <PageHeader title={title} subtitle={subtitle} />
+      {children}
+    </div>
+  );
+}
+
+export function WarehousesPage() {
+  return (
+    <AdminModulePage title="Warehouses" subtitle="Create, deactivate, and review warehouse masters">
+      <WarehousesTab />
+    </AdminModulePage>
+  );
+}
+
+export function MembersPage() {
+  return (
+    <AdminModulePage title="Members" subtitle="Manage IDM users, roles, and warehouse assignments">
+      <MembersTab />
+    </AdminModulePage>
+  );
+}
+
+export function RolesPage() {
+  return (
+    <AdminModulePage title="Roles" subtitle="Configure role names and permission grants">
+      <RolesTab />
+    </AdminModulePage>
+  );
+}
+
+export function ProductsPage() {
+  return (
+    <AdminModulePage title="Products" subtitle="Import, export, and review product masters">
+      <ProductsTab />
+    </AdminModulePage>
+  );
+}
+
+export function InvoicesPage() {
+  return (
+    <AdminModulePage title="Invoices" subtitle="Review invoices, apply stacked filters, and export CSV data">
+      <InvoicesTab />
+    </AdminModulePage>
+  );
+}
+
+export function InboundPage() {
+  return (
+    <AdminModulePage title="Inbound Stock" subtitle="Review SAP dispatch documents received by warehouses">
+      <InboundTab />
+    </AdminModulePage>
+  );
+}
+
+export function StockPage() {
+  return (
+    <AdminModulePage title="Warehouse Stock" subtitle="Review every serial currently in warehouse stock">
+      <StockTab />
+    </AdminModulePage>
   );
 }
 

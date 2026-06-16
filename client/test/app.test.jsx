@@ -16,7 +16,7 @@ vi.mock("../src/auth/useAuth.js", () => ({
 const ALL_PERMISSIONS = [
   "grn:write", "dispatch:write", "srn:write", "battery:read",
   "fulfilment:read", "ageing:read", "serial-history:read", "exception:read",
-  "integration:import", "admin:access"
+  "integration:import", "admin:access", "invoice:read", "invoice:export"
 ];
 const SUPERVISOR_PERMISSIONS = [
   "grn:write", "dispatch:write", "srn:write", "battery:read",
@@ -124,7 +124,41 @@ describe("Sidebar", () => {
   test("shows the masters link for admin users", () => {
     renderSidebar({ user: { name: "Admin", role: "admin" } });
 
-    expect(screen.getByText("Masters")).toBeVisible();
+    expect(screen.getByText("Warehouses")).toBeVisible();
+    expect(screen.getByText("Members")).toBeVisible();
+    expect(screen.getByText("Roles")).toBeVisible();
+    expect(screen.getByText("Invoices")).toBeVisible();
+  });
+
+  test("shows invoice navigation for admin even if the permission list is stale", () => {
+    const user = { userId: "1", username: "admin", role: "admin", warehouseIds: [1], permissions: ["admin:access"] };
+    useAuthMock.mockReturnValue({
+      user,
+      permissions: user.permissions,
+      hasPermission: hasPermissionFrom(user.permissions),
+      logout: vi.fn()
+    });
+
+    render(
+      <MemoryRouter>
+        <Sidebar open={false} onClose={() => {}} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Invoices")).toBeVisible();
+  });
+
+  test("shows invoices for a role with invoice permission without exposing other master links", () => {
+    renderSidebar({
+      user: { name: "Ivy", role: "supervisor" },
+      permissions: ["invoice:read"]
+    });
+
+    expect(screen.getByText("Administration")).toBeVisible();
+    expect(screen.getByText("Invoices")).toBeVisible();
+    expect(screen.queryByText("Warehouses")).toBeNull();
+    expect(screen.queryByText("Members")).toBeNull();
+    expect(screen.queryByText("Roles")).toBeNull();
   });
 
   test("renders user info in footer", () => {

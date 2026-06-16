@@ -93,9 +93,9 @@ function normalizePermissionCodes(permissionCodes) {
 
 export function createAdminService({ repositories, adminRepo }) {
   return {
-    /* ══════════════════════════════════════════
+    /* 
        WAREHOUSES
-       ══════════════════════════════════════════ */
+*/
 
     async listWarehouseStock() {
       return adminRepo.listWarehouseStock();
@@ -143,9 +143,9 @@ export function createAdminService({ repositories, adminRepo }) {
       return adminRepo.toggleWarehouseActive(warehouseId, true, userId);
     },
 
-    /* ══════════════════════════════════════════
+    /* 
        ROLES
-       ══════════════════════════════════════════ */
+*/
 
     async listRoles() {
       return adminRepo.listRoles();
@@ -215,9 +215,9 @@ export function createAdminService({ repositories, adminRepo }) {
       });
     },
 
-    /* ══════════════════════════════════════════
+    /* 
        MEMBERS
-       ══════════════════════════════════════════ */
+*/
 
     async listMembers({ query } = {}) {
       return adminRepo.listMembers({ query });
@@ -342,9 +342,9 @@ export function createAdminService({ repositories, adminRepo }) {
       });
     },
 
-    /* ══════════════════════════════════════════
+    /* 
        PRODUCTS — CSV IMPORT / EXPORT
-       ══════════════════════════════════════════ */
+*/
 
     VALID_PRODUCT_CATEGORIES: ["INVERTER", "BATTERY", "SOLAR", "ACCESSORY"],
 
@@ -438,9 +438,9 @@ export function createAdminService({ repositories, adminRepo }) {
       return { imported: imported.length, errors };
     },
 
-    /* ══════════════════════════════════════════
+    /* 
        INVOICES — admin listing
-       ══════════════════════════════════════════ */
+*/
 
     async listAllInvoices({ query } = {}) {
       const invoices = await adminRepo.listAllInvoices({ query });
@@ -461,9 +461,9 @@ export function createAdminService({ repositories, adminRepo }) {
       }));
     },
 
-    /* ══════════════════════════════════════════
+    /* 
        INVOICES — admin-only CSV import / export
-       ══════════════════════════════════════════ */
+*/
 
     async exportInvoicesCsv() {
       const invoices = await this.listAllInvoices();
@@ -590,10 +590,10 @@ export function createAdminService({ repositories, adminRepo }) {
       return { imported: importedInvoices, importedLines, errors };
     },
 
-    /* ══════════════════════════════════════════
+    /* 
        INBOUND STOCK — which stock was sent to which warehouse
        (SAP dispatch documents + their serials)
-       ══════════════════════════════════════════ */
+*/
 
     async listInboundDispatches() {
       const docs = await adminRepo.listDispatchDocs();

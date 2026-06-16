@@ -19,6 +19,8 @@ CROSS JOIN (VALUES
   ('exception:correct'),
   ('battery:write'),
   ('battery:read'),
+  ('invoice:read'),
+  ('invoice:export'),
   ('admin:access')
 ) AS p(permission_code)
 WHERE r.code = 'admin'

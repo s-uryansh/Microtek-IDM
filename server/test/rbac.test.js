@@ -27,6 +27,21 @@ describe("RBAC scaffold", () => {
     ).toBe(true);
   });
 
+  test("allows admin in database-backed mode even when a permission row is missing", async () => {
+    const dbBackedPolicy = createRbacPolicy({
+      resolvePermissionsForRole: async () => new Set(["admin:access"])
+    });
+
+    expect(
+      await dbBackedPolicy.can({
+        role: "admin",
+        permission: "invoice:read",
+        userWarehouseIds: [],
+        resourceWarehouseId: undefined
+      })
+    ).toBe(true);
+  });
+
   test("requires warehouse scope when a resource warehouse is provided", () => {
     expect(
       policy.can({
