@@ -1,7 +1,8 @@
 const BATTERY_ALERTS = {
   NOT_BATTERY_LINE: "This serial's product is not a battery item on the selected invoice.",
   ALREADY_COMMITTED: "Serial is already committed to an invoice.",
-  WRONG_WAREHOUSE: "Serial belongs to a different warehouse."
+  WRONG_WAREHOUSE: "Serial belongs to a different warehouse.",
+  QUANTITY_REACHED: "All battery units for this invoice line have already been pre-billed."
 };
 
 export function createBatteryPreBillingService({ repositories }) {
@@ -77,6 +78,19 @@ export function createBatteryPreBillingService({ repositories }) {
           status: null,
           alert: { ruleCode: "ALREADY_COMMITTED", message: BATTERY_ALERTS.ALREADY_COMMITTED }
         };
+      }
+
+      // Cap pre-billing to the invoice line quantity — you cannot commit more
+      // battery units than the invoice requires for that line.
+      if (line.requiredQuantity != null && repositories.batteryPreBilling.countCommitsForLine) {
+        const committedForLine = await repositories.batteryPreBilling.countCommitsForLine(line.invoiceLineId);
+        if (committedForLine >= Number(line.requiredQuantity)) {
+          return {
+            valid: false,
+            status: null,
+            alert: { ruleCode: "BATTERY_QUANTITY_REACHED", message: BATTERY_ALERTS.QUANTITY_REACHED }
+          };
+        }
       }
 
       return await repositories.withTransaction(async (txRepos) => {

@@ -2,6 +2,12 @@ function normalizePermissionRows(rows) {
   return rows.map((row) => row.permissionCode).filter(Boolean);
 }
 
+// Escape LIKE/ILIKE wildcards so a search term is matched literally (the values
+// are already passed as parameters; this only fixes match semantics, not safety).
+function escapeLike(value) {
+  return String(value).replace(/[\\%_]/g, "\\$&");
+}
+
 export function createAdminRepository(pool) {
   return {
     /* ── Warehouses ── */
@@ -266,7 +272,7 @@ export function createAdminRepository(pool) {
       const conditions = [];
 
       if (query?.trim()) {
-        values.push(`%${query.trim().toLowerCase()}%`);
+        values.push(`%${escapeLike(query.trim().toLowerCase())}%`);
         conditions.push(`(lower(au.username) LIKE $${values.length} OR lower(au.display_name) LIKE $${values.length})`);
       }
 
@@ -519,7 +525,7 @@ export function createAdminRepository(pool) {
       const searchCondition = query
         ? `WHERE (i.sap_invoice_ref ILIKE $1 OR CAST(i.invoice_id AS text) = $1 OR i.order_id ILIKE $1 OR i.customer_name ILIKE $1 OR i.billing_number ILIKE $1)`
         : ``;
-      const params = query ? [`%${query}%`] : [];
+      const params = query ? [`%${escapeLike(query)}%`] : [];
       const result = await pool.query(`
         SELECT
           i.invoice_id AS "invoiceId",

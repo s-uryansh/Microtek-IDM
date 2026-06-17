@@ -14,7 +14,7 @@ const columns = [
 ];
 
 const productColumns = [
-  { key: "serialNo", label: "Serial" },
+  { key: "serialNo", label: "Serial", filterable: false },
   {
     key: "product",
     label: "Product",
@@ -206,6 +206,8 @@ export function AgeingPage() {
                   age: item.ageDays !== null && item.ageDays !== undefined ? `${item.ageDays}d` : "—"
                 }))}
                 pageSize={10}
+                searchable
+                searchPlaceholder="Search by serial or product…"
                 emptyTitle="No products in this bucket"
                 sortable={true}
               />

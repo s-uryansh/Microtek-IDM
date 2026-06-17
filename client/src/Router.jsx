@@ -9,6 +9,7 @@ import { DashboardPage } from "./features/dashboard/DashboardPage.jsx";
 import { GRNPage } from "./features/grn/GRNPage.jsx";
 import { DispatchPage } from "./features/dispatch/DispatchPage.jsx";
 import { SRNPage } from "./features/srn/SRNPage.jsx";
+import { ConditionPage } from "./features/condition/ConditionPage.jsx";
 import { BatteryPage } from "./features/battery/BatteryPage.jsx";
 import { FulfilmentPage } from "./features/fulfilment/FulfilmentPage.jsx";
 import { AgeingPage } from "./features/ageing/AgeingPage.jsx";
@@ -53,6 +54,15 @@ export const router = createBrowserRouter([
       { path: "grn", element: withBoundary(<GRNPage />), errorElement: <RouteErrorFallback /> },
       { path: "dispatch", element: withBoundary(<DispatchPage />), errorElement: <RouteErrorFallback /> },
       { path: "srn", element: withBoundary(<SRNPage />), errorElement: <RouteErrorFallback /> },
+      {
+        path: "condition",
+        element: (
+          <PermissionRoute permission="condition:correct">
+            {withBoundary(<ConditionPage />)}
+          </PermissionRoute>
+        ),
+        errorElement: <RouteErrorFallback />
+      },
       { path: "battery", element: withBoundary(<BatteryPage />), errorElement: <RouteErrorFallback /> },
       { path: "fulfilment", element: withBoundary(<FulfilmentPage />), errorElement: <RouteErrorFallback /> },
       { path: "ageing", element: withBoundary(<AgeingPage />), errorElement: <RouteErrorFallback /> },

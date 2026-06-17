@@ -8,6 +8,13 @@ describe("sanitizeCsvCell", () => {
       expect(sanitizeCsvCell(`${char}cmd`)).toBe(`'${char}cmd`);
     });
 
+    test.each([
+      ["\t", "tab"],
+      ["\r", "carriage return"]
+    ])("prefixes a leading %s (%s) so it cannot start a formula", (char) => {
+      expect(sanitizeCsvCell(`${char}=cmd`)).toBe(`'${char}=cmd`);
+    });
+
     test("neutralizes a classic spreadsheet command injection by prefixing", () => {
       // The formula-prefix branch wins and returns early, so quotes are not
       // doubled here — the leading quote is what defuses the formula.

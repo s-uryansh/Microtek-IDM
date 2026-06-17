@@ -14,6 +14,7 @@ const foundationPermissionsByRole = new Map([
       "serial-history:read",
       "exception:read",
       "exception:correct",
+      "condition:correct",
       "battery:write",
       "battery:read",
       "invoice:read",
@@ -35,6 +36,7 @@ const foundationPermissionsByRole = new Map([
       "serial-history:read",
       "exception:read",
       "exception:correct",
+      "condition:correct",
       "battery:write",
       "battery:read"
     ])

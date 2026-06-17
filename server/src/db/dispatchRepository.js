@@ -71,7 +71,8 @@ export function createDispatchRepository(pool) {
          invoice_line_id AS "invoiceLineId",
          serial_id AS "serialId"
        FROM dispatch_scan
-       WHERE dispatch_id = $1`,
+       WHERE dispatch_id = $1
+         AND returned_at IS NULL`,
       [dispatchId]
     );
 
@@ -224,13 +225,28 @@ export function createDispatchRepository(pool) {
            created_by
          )
          VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (dispatch_id, serial_id) DO NOTHING
+         ON CONFLICT (dispatch_id, serial_id) WHERE returned_at IS NULL DO NOTHING
          RETURNING
            dispatch_scan_id AS "dispatchScanId"`,
         [dispatchId, invoiceLineId, serialId, scannedBy, createdBy]
       );
 
       return result.rows[0] ? { dispatchScanId: toNumber(result.rows[0].dispatchScanId) } : undefined;
+    },
+
+    async markScanReturned(dispatchScanId, returnedBy) {
+      // Soft-return the dispatch scan so it stops counting toward the dispatched
+      // quantity (re-opening the invoice) while preserving the row for audit.
+      const result = await pool.query(
+        `UPDATE dispatch_scan
+         SET returned_at = now(),
+             returned_by = $2
+         WHERE dispatch_scan_id = $1
+           AND returned_at IS NULL`,
+        [dispatchScanId, returnedBy]
+      );
+
+      return result.rowCount === 1;
     },
 
     async updateStatus(dispatchId, status) {
@@ -246,7 +262,7 @@ export function createDispatchRepository(pool) {
 
     async countScans(dispatchId) {
       const result = await pool.query(
-        "SELECT COUNT(*)::int AS count FROM dispatch_scan WHERE dispatch_id = $1",
+        "SELECT COUNT(*)::int AS count FROM dispatch_scan WHERE dispatch_id = $1 AND returned_at IS NULL",
         [dispatchId]
       );
 
@@ -258,7 +274,8 @@ export function createDispatchRepository(pool) {
         `SELECT COUNT(*)::int AS count
          FROM dispatch_scan
          WHERE dispatch_id = $1
-           AND invoice_line_id = $2`,
+           AND invoice_line_id = $2
+           AND returned_at IS NULL`,
         [dispatchId, invoiceLineId]
       );
 
@@ -270,7 +287,8 @@ export function createDispatchRepository(pool) {
         `SELECT COUNT(ds.dispatch_scan_id)::int AS count
          FROM dispatch_scan ds
          JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
-         WHERE d.invoice_id = $1`,
+         WHERE d.invoice_id = $1
+           AND ds.returned_at IS NULL`,
         [invoiceId]
       );
 

@@ -1,11 +1,11 @@
 export function createSrnRepository(pool) {
   return {
-    async create({ receivingWarehouseId, invoiceId, returnProductIds, createdBy }) {
+    async create({ receivingWarehouseId, invoiceId, returnProductIds, expectedQuantity, createdBy }) {
       const result = await pool.query(
-        `INSERT INTO srn (receiving_warehouse_id, invoice_id, return_product_ids, created_by)
-         VALUES ($1, $2, $3::jsonb, $4)
-         RETURNING srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", status`,
-        [receivingWarehouseId, invoiceId, JSON.stringify(returnProductIds || []), createdBy]
+        `INSERT INTO srn (receiving_warehouse_id, invoice_id, return_product_ids, expected_quantity, created_by)
+         VALUES ($1, $2, $3::jsonb, $4, $5)
+         RETURNING srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", expected_quantity AS "expectedQuantity", status`,
+        [receivingWarehouseId, invoiceId, JSON.stringify(returnProductIds || []), expectedQuantity ?? null, createdBy]
       );
 
       return result.rows[0];
@@ -13,7 +13,7 @@ export function createSrnRepository(pool) {
 
     async findById(srnId) {
       const result = await pool.query(
-        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", status
+        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", expected_quantity AS "expectedQuantity", status
          FROM srn
          WHERE srn_id = $1`,
         [srnId]
@@ -24,7 +24,7 @@ export function createSrnRepository(pool) {
 
     async lockById(srnId) {
       const result = await pool.query(
-        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", status
+        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", expected_quantity AS "expectedQuantity", status
          FROM srn
          WHERE srn_id = $1
          FOR UPDATE`,
@@ -98,9 +98,31 @@ export function createSrnRepository(pool) {
       return result.rowCount > 0;
     },
 
+    async countReturnableForInvoice(invoiceId) {
+      // Units still legitimately returnable for the invoice: serials dispatched
+      // through a COMPLETED dispatch that have not already been returned. This is
+      // the cumulative cap across all SRNs for the invoice (dispatched − returned).
+      const result = await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM dispatch_scan ds
+         JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
+         WHERE d.invoice_id = $1
+           AND d.status = 'DISPATCHED'
+           AND ds.returned_at IS NULL`,
+        [invoiceId]
+      );
+
+      return result.rows[0].count;
+    },
+
     async hasReturnedSerial(serialId) {
       const result = await pool.query("SELECT 1 FROM srn_scan WHERE serial_id = $1 LIMIT 1", [serialId]);
       return result.rowCount > 0;
+    },
+
+    async countScans(srnId) {
+      const result = await pool.query("SELECT COUNT(*)::int AS count FROM srn_scan WHERE srn_id = $1", [srnId]);
+      return result.rows[0].count;
     },
 
     async insertScan({ srnId, serialId, originalDispatchScanId, conditionTag, scannedBy, createdBy }) {

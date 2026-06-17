@@ -19,12 +19,15 @@ export function DataTable({
   emptyDescription = "",
   sortable = true,
   filterable = true,
+  searchable = false,
+  searchPlaceholder = "Search this table",
   className = "",
   onRowClick
 }) {
   const [sort, setSort] = useState({ key: null, direction: null });
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({});
+  const [query, setQuery] = useState("");
 
   const filterableColumns = useMemo(() => (
     columns.filter((col) => col.filterable !== false && col.key !== "_actions")
@@ -48,15 +51,29 @@ export function DataTable({
 
   const filtered = useMemo(() => {
     const activeFilters = Object.entries(filters).filter(([, value]) => value);
-    if (activeFilters.length === 0) return data || [];
-    return (data || []).filter((row) =>
-      activeFilters.every(([key, value]) => {
-        const col = columns.find((column) => column.key === key);
-        if (!col) return true;
-        return getFilterText(row, col) === value;
-      })
-    );
-  }, [columns, data, filters]);
+    const term = query.trim().toLowerCase();
+    let rows = data || [];
+
+    if (activeFilters.length > 0) {
+      rows = rows.filter((row) =>
+        activeFilters.every(([key, value]) => {
+          const col = columns.find((column) => column.key === key);
+          if (!col) return true;
+          return getFilterText(row, col) === value;
+        })
+      );
+    }
+
+    if (term) {
+      // Free-text search spans every column's filter text — this is how serial
+      // numbers (no longer a dropdown) stay findable.
+      rows = rows.filter((row) =>
+        columns.some((col) => getFilterText(row, col).toLowerCase().includes(term))
+      );
+    }
+
+    return rows;
+  }, [columns, data, filters, query]);
 
   const sorted = useMemo(() => {
     if (!sort.key || !sort.direction) return filtered;
@@ -74,7 +91,7 @@ export function DataTable({
 
   useEffect(() => {
     setPage(1);
-  }, [filters, data]);
+  }, [filters, data, query]);
 
   const totalPages = Math.max(1, Math.ceil((sorted.length || 0) / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -151,6 +168,18 @@ export function DataTable({
 
   return (
     <div className={`data-table ${className}`.trim()}>
+      {searchable && (
+        <div className="data-table__search input-group" style={{ marginBottom: "var(--space-3)" }}>
+          <input
+            className="input"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={searchPlaceholder}
+            aria-label="Search table"
+          />
+        </div>
+      )}
       {filterable && visibleFilterColumns.length > 0 && (
         <div
           className="data-table__filters"
@@ -266,6 +295,19 @@ function getFilterText(row, col) {
   return normalizeFilterValue(row?.[col.key]);
 }
 
+function findStatusProp(node) {
+  if (!isValidElement(node)) return "";
+  const status = node.props?.status;
+  if (typeof status === "string" || typeof status === "number") {
+    return String(status);
+  }
+  for (const child of Children.toArray(node.props?.children ?? [])) {
+    const found = findStatusProp(child);
+    if (found) return found;
+  }
+  return "";
+}
+
 function normalizeFilterValue(value) {
   if (value === null || value === undefined) return "";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -275,8 +317,12 @@ function normalizeFilterValue(value) {
     return value.map(normalizeFilterValue).filter(Boolean).join(" ");
   }
   if (isValidElement(value)) {
-    const propValue = value.props?.status ?? value.props?.children;
-    return normalizeFilterValue(Children.toArray(propValue));
+    // A status column rendered as JSX (e.g. <StatusBadge status="OPEN" />, possibly
+    // wrapped) still needs a clean filter value. Prefer a nested status prop so the
+    // dropdown shows the status code; otherwise fall back to the element's text.
+    const status = findStatusProp(value);
+    if (status) return status;
+    return normalizeFilterValue(Children.toArray(value.props?.children ?? []));
   }
   return "";
 }

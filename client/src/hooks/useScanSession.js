@@ -74,12 +74,19 @@ export function useScanSession({
 
     try {
       const result = typeof onScan === "function" ? await onScan(serialNo) : {};
-      scannedSerialsRef.current.add(serialNo);
+      const state = result?.state || "success";
+      // Only remember serials that were actually accepted. A scan rejected by
+      // business rules (e.g. wrong warehouse, condition hold) must remain
+      // re-scannable once the operator corrects the cause — otherwise the client
+      // dedup blocks the retry as a DUPLICATE_SCAN until the page is reloaded.
+      if (state !== "error" && state !== "warning") {
+        scannedSerialsRef.current.add(serialNo);
+      }
       const newScan = buildScan({
         serialNo,
         status: result?.status || "ACCEPTED",
         message: result?.message || "",
-        state: result?.state || "success",
+        state,
         module
       });
       setScans((prev) => [newScan, ...prev]);

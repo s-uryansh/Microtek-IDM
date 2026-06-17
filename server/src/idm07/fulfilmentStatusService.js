@@ -13,8 +13,24 @@ export function createFulfilmentStatusService(options = {}) {
     return "IN_PROGRESS";
   }
 
+  // Invoices distinguish the some-but-not-all state as PARTIALLY_DISPATCHED
+  // (a large order dispatched in sub-batches, or an order re-opened by a return),
+  // whereas the dispatch row itself keeps the IN_PROGRESS working state.
+  function calculateInvoiceStatus({ requiredQuantity, scannedQuantity }) {
+    if (scannedQuantity <= 0) {
+      return "PENDING";
+    }
+
+    if (scannedQuantity >= requiredQuantity) {
+      return "DISPATCHED";
+    }
+
+    return "PARTIALLY_DISPATCHED";
+  }
+
   return {
     calculateStatus,
+    calculateInvoiceStatus,
 
     canCompleteDispatch({ requiredQuantity, scannedQuantity }) {
       const status = calculateStatus({ requiredQuantity, scannedQuantity });
@@ -49,7 +65,7 @@ export function createFulfilmentStatusService(options = {}) {
 
       return {
         invoiceId,
-        status: calculateStatus({ requiredQuantity, scannedQuantity }),
+        status: calculateInvoiceStatus({ requiredQuantity, scannedQuantity }),
         requiredQuantity,
         scannedQuantity,
         committedQuantity

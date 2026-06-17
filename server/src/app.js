@@ -17,6 +17,8 @@ import { createImportService } from "./idm01/importService.js";
 import { createConditionTagService } from "./idm04/conditionTagService.js";
 import { createSrnRoutes } from "./idm04/srnRoutes.js";
 import { createSrnService } from "./idm04/srnService.js";
+import { createConditionCorrectionService } from "./idm04/conditionCorrectionService.js";
+import { createConditionCorrectionRoutes } from "./idm04/conditionCorrectionRoutes.js";
 import { createValidationRoutes } from "./idm06/validationRoutes.js";
 import { createValidationService } from "./idm06/validationService.js";
 import { createFulfilmentStatusRoutes } from "./idm07/fulfilmentStatusRoutes.js";
@@ -39,7 +41,8 @@ import { createAdminService } from "./admin/adminService.js";
 import { createRbacPolicy } from "./security/rbacPolicy.js";
 import { requireAuthContext, requirePermission } from "./http/authContext.js";
 import { sendError } from "./http/errorResponse.js";
-import { createMetricsMiddleware, createRequestLogger, healthHandler } from "./http/observability.js";
+import { createGlobalApiLimiter, createScanApiLimiter } from "./http/rateLimiters.js";
+import { createMetricsMiddleware, createRequestContext, createRequestLogger, healthHandler } from "./http/observability.js";
 
 function createDefaultServices(config) {
   const pool = createPool(config);
@@ -76,6 +79,10 @@ function createDefaultServices(config) {
         ...repositories,
         validationService
       },
+      conditionTagService
+    }),
+    conditionCorrectionService: createConditionCorrectionService({
+      repositories,
       conditionTagService
     }),
     ageingReportService,
@@ -153,6 +160,10 @@ export function createApp({ config, logger = console, services, rbacPolicy = nul
   app.locals.metrics = metricsMiddleware;
 
   app.disable("x-powered-by");
+  // Trust the configured number of proxy hops so request.ip is the real client
+  // (IP-keyed rate limiting depends on this). Defaults to false — never blanket-true.
+  app.set("trust proxy", config.trustProxy ?? false);
+  app.use(createRequestContext({ logger }));
   app.use((request, _response, next) => {
     request.rbacPolicy = resolvedRbacPolicy;
     request.authService = authService;
@@ -161,6 +172,7 @@ export function createApp({ config, logger = console, services, rbacPolicy = nul
   app.use(helmet());
   app.use(createRequestLogger({ logger }));
   app.use(metricsMiddleware);
+  app.use("/api", createGlobalApiLimiter(config));
   app.use(
     cors({
       origin: config.corsOrigin,
@@ -201,7 +213,11 @@ export function createApp({ config, logger = console, services, rbacPolicy = nul
   app.use("/api/idm-01/import", createImportRoutes({ importService: resolvedServices.importService, importWebhookSecret: config.importWebhookSecret }));
   app.use("/api/idm-02/grns", createGrnRoutes({ grnService: resolvedServices.grnService }));
   app.use("/api/idm-04/srns", createSrnRoutes({ srnService: resolvedServices.srnService }));
-  app.use("/api/idm-06/validate", createValidationRoutes({ validationService: resolvedServices.validationService }));
+  app.use(
+    "/api/idm-04/condition",
+    createConditionCorrectionRoutes({ conditionCorrectionService: resolvedServices.conditionCorrectionService })
+  );
+  app.use("/api/idm-06/validate", createScanApiLimiter(config), createValidationRoutes({ validationService: resolvedServices.validationService }));
   app.use("/api/idm-05/dispatches", createDispatchRoutes({ dispatchService: resolvedServices.dispatchService }));
   app.use("/api/idm-05/dispatches", createDispatchExportRoutes({ dispatchService: resolvedServices.dispatchService }));
   app.use(
@@ -223,6 +239,7 @@ export function createApp({ config, logger = console, services, rbacPolicy = nul
   );
   app.use(
     "/api/idm-03",
+    createScanApiLimiter(config),
     createBatteryPreBillingRoutes({ batteryPreBillingService: resolvedServices.batteryPreBillingService })
   );
   app.use("/api/lookups", createLookupRoutes({ lookupService: resolvedServices.lookupService }));

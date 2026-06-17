@@ -27,6 +27,7 @@ import {
   fetchWarehouseStock
 } from "../../api/modules/admin.js";
 import { useAuth } from "../../auth/useAuth.js";
+import { describePermission } from "./permissionLabels.js";
 
 const PRODUCT_IMPORT_TEMPLATE = [
   "product_code,name,segment,category,is_battery,is_active",
@@ -797,24 +798,40 @@ function RolesTab() {
           <div className="operation-panel" aria-label="Role permissions">
             <h3 className="operation-panel__title">Permissions</h3>
             <div className="operation-panel__results" style={{ gap: "var(--space-2)" }}>
-              {permissionOptions.map((permission) => (
-                <label
-                  key={permission}
-                  style={{
-                    display: "flex",
-                    gap: "var(--space-2)",
-                    alignItems: "center",
-                    fontSize: "0.875rem"
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.permissions.includes(permission)}
-                    onChange={() => togglePermission(permission)}
-                  />
-                  {permission}
-                </label>
-              ))}
+              {permissionOptions.map((permission) => {
+                const meta = describePermission(permission);
+                return (
+                  <label
+                    key={permission}
+                    title={meta.description}
+                    style={{
+                      display: "flex",
+                      gap: "var(--space-2)",
+                      alignItems: "flex-start",
+                      fontSize: "0.875rem"
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.permissions.includes(permission)}
+                      onChange={() => togglePermission(permission)}
+                      style={{ marginTop: "0.2rem" }}
+                    />
+                    <span>
+                      <span style={{ fontWeight: 500 }}>{meta.label}</span>
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: "0.75rem",
+                          color: "var(--color-text-secondary)"
+                        }}
+                      >
+                        {meta.description}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </div>
           {formError && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{formError}</p>}
@@ -1463,7 +1480,7 @@ const stockColumns = [
   { key: "warehouseCode", label: "Warehouse" },
   { key: "productName", label: "Product" },
   { key: "productCode", label: "Code" },
-  { key: "serialNo", label: "Serial Number" },
+  { key: "serialNo", label: "Serial Number", filterable: false },
   { key: "serialStatus", label: "Status" }
 ];
 

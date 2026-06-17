@@ -42,10 +42,16 @@ export function createSrnRoutes({ srnService }) {
     requirePermission("srn:write", { warehouseIdFromBody: true }),
     async (request, response, next) => {
       try {
+        const expectedQuantityRaw = request.body.expectedQuantity;
+        const expectedQuantity =
+          expectedQuantityRaw === undefined || expectedQuantityRaw === null || expectedQuantityRaw === ""
+            ? null
+            : Number.parseInt(expectedQuantityRaw, 10);
         const result = await srnService.createSrn({
           receivingWarehouseId: request.body.warehouseId,
           invoiceId: request.body.invoiceId ? Number.parseInt(request.body.invoiceId, 10) : null,
           returnProductIds: request.body.returnProductIds,
+          expectedQuantity: Number.isInteger(expectedQuantity) && expectedQuantity > 0 ? expectedQuantity : null,
           userId: request.auth.userId
         });
         response.status(201).json(result);

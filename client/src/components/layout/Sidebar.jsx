@@ -12,6 +12,7 @@ const navSections = [
       { label: "GRN", path: "/grn", icon: "box", permission: "grn:write" },
       { label: "Dispatch", path: "/dispatch", icon: "truck", permission: "dispatch:write" },
       { label: "SRN", path: "/srn", icon: "return", permission: "srn:write" },
+      { label: "Defective Stock", path: "/condition", icon: "warning", permission: "condition:correct" },
       { label: "Battery Pre-Bill", path: "/battery", icon: "battery", permission: "battery:read" }
     ]
   },

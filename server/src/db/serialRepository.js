@@ -145,16 +145,65 @@ export function createSerialRepository(pool) {
         return 0;
       }
 
+      // Only freely-dispatchable stock counts: a serial returned as DEFECTIVE or
+      // REPAIR sits IN_STOCK but is on condition hold until it is retagged
+      // SALEABLE, so it must not be counted as available.
       const result = await pool.query(
         `SELECT COUNT(*)::int AS count
          FROM serial_master
          WHERE current_status = 'IN_STOCK'
            AND current_warehouse_id = $1
-           AND product_id = ANY($2::bigint[])`,
+           AND product_id = ANY($2::bigint[])
+           AND (condition_tag IS NULL OR condition_tag = 'SALEABLE')`,
         [warehouseId, productIds]
       );
 
       return result.rows[0].count;
+    },
+
+    async setConditionTag(serialId, conditionTag, updatedBy) {
+      await pool.query(
+        `UPDATE serial_master
+         SET condition_tag = $2,
+             updated_at = now(),
+             updated_by = $3
+         WHERE serial_id = $1`,
+        [serialId, conditionTag, updatedBy]
+      );
+    },
+
+    async findHeldStock({ warehouseIds } = {}) {
+      // Serials on condition hold (DEFECTIVE/REPAIR) that are physically in stock,
+      // optionally scoped to the caller's warehouses, for the retag screen.
+      const conditions = ["sm.current_status = 'IN_STOCK'", "sm.condition_tag IN ('DEFECTIVE', 'REPAIR')"];
+      const params = [];
+
+      if (Array.isArray(warehouseIds) && warehouseIds.length > 0) {
+        params.push(warehouseIds);
+        conditions.push(`sm.current_warehouse_id = ANY($${params.length}::bigint[])`);
+      }
+
+      const result = await pool.query(
+        `SELECT
+           sm.serial_id AS "serialId",
+           sm.serial_no AS "serialNo",
+           sm.product_id AS "productId",
+           p.product_code AS "productCode",
+           sm.condition_tag AS "conditionTag",
+           sm.current_warehouse_id AS "warehouseId"
+         FROM serial_master sm
+         JOIN product p ON p.product_id = sm.product_id
+         WHERE ${conditions.join(" AND ")}
+         ORDER BY sm.serial_no`,
+        params
+      );
+
+      return result.rows.map((row) => ({
+        ...row,
+        serialId: toNumber(row.serialId),
+        productId: toNumber(row.productId),
+        warehouseId: toNumber(row.warehouseId)
+      }));
     },
 
     async findBySerialNo(serialNo) {
@@ -165,6 +214,7 @@ export function createSerialRepository(pool) {
            product_id AS "productId",
            current_status AS "currentStatus",
            current_warehouse_id AS "currentWarehouseId",
+           condition_tag AS "conditionTag",
            original_dispatch_warehouse_id AS "sourceWarehouseId",
            destination_warehouse_id AS "destinationWarehouseId"
          FROM serial_master

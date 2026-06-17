@@ -1,7 +1,8 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
 import { DataTable } from "../../src/components/data/DataTable.jsx";
+import { StatusBadge } from "../../src/components/ui/StatusBadge.jsx";
 
 const columns = [
   { key: "id", label: "ID" },
@@ -105,6 +106,47 @@ describe("DataTable", () => {
 
     expect(screen.getByText("Alpha")).toBeVisible();
     expect(screen.queryByText("Beta")).toBeNull();
+    expect(screen.queryByText("Gamma")).toBeNull();
+  });
+
+  test("shows a Status filter even when the status is rendered as JSX", () => {
+    // Mirrors the admin tables that put a <StatusBadge> (optionally wrapped) into
+    // the row value — the filter must still extract the status code.
+    const jsxData = [
+      { id: 1, name: "Alpha", status: <span><StatusBadge status="OPEN" /></span> },
+      { id: 2, name: "Beta", status: <span><StatusBadge status="CLOSED" /></span> }
+    ];
+
+    render(<DataTable columns={columns} data={jsxData} />);
+
+    const statusFilter = screen.getByLabelText("Filter Status");
+    expect(statusFilter).toBeInTheDocument();
+    expect(within(statusFilter).getByRole("option", { name: /OPEN/ })).toBeInTheDocument();
+  });
+
+  test("does not render a dropdown filter for a column marked filterable: false", () => {
+    const cols = [
+      { key: "serialNo", label: "Serial No", filterable: false },
+      { key: "status", label: "Status" }
+    ];
+    const rows = [
+      { serialNo: "S-1", status: "OPEN" },
+      { serialNo: "S-2", status: "CLOSED" }
+    ];
+
+    render(<DataTable columns={cols} data={rows} />);
+
+    expect(screen.queryByLabelText("Filter Serial No")).toBeNull();
+    expect(screen.getByLabelText("Filter Status")).toBeInTheDocument();
+  });
+
+  test("free-text search filters rows across columns when searchable", () => {
+    render(<DataTable columns={columns} data={data} searchable />);
+
+    fireEvent.change(screen.getByLabelText("Search table"), { target: { value: "Beta" } });
+
+    expect(screen.getByText("Beta")).toBeVisible();
+    expect(screen.queryByText("Alpha")).toBeNull();
     expect(screen.queryByText("Gamma")).toBeNull();
   });
 });

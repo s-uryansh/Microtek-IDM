@@ -23,9 +23,34 @@ async function createSrnException(repositories, { serialNo, ruleCode, srnId, use
   };
 }
 
+async function reopenInvoice(repositories, invoiceId) {
+  // After a return, the invoice's dispatched count has dropped. Recompute it and
+  // persist the resulting status so a re-opened invoice can be dispatched again.
+  if (!invoiceId || !repositories.invoices?.findById || !repositories.dispatches?.countScansForInvoice) {
+    return;
+  }
+
+  const invoice = await repositories.invoices.findById(invoiceId);
+  if (!invoice) {
+    return;
+  }
+
+  const requiredQuantity = (invoice.lines ?? []).reduce((total, line) => total + Number(line.quantity), 0);
+  const scannedQuantity = await repositories.dispatches.countScansForInvoice(invoiceId);
+
+  let status = "PARTIALLY_DISPATCHED";
+  if (scannedQuantity <= 0) {
+    status = "PENDING";
+  } else if (requiredQuantity > 0 && scannedQuantity >= requiredQuantity) {
+    status = "DISPATCHED";
+  }
+
+  await repositories.invoices.updateStatus(invoiceId, status);
+}
+
 export function createSrnService({ repositories, conditionTagService }) {
   return {
-    async createSrn({ receivingWarehouseId, invoiceId, returnProductIds, userId }) {
+    async createSrn({ receivingWarehouseId, invoiceId, returnProductIds, expectedQuantity, userId }) {
       // A return is only valid for an invoice that was actually dispatched. If
       // the invoice has no serials from a completed dispatch, there is nothing
       // legitimate that could be coming back, so the invoice id is rejected.
@@ -36,10 +61,26 @@ export function createSrnService({ repositories, conditionTagService }) {
         });
       }
 
+      // The declared return quantity can never exceed what is still returnable:
+      // units dispatched on this invoice minus those already returned in earlier
+      // SRNs. (e.g. N dispatched, 1 already returned → at most N-1 more.)
+      if (invoiceId && expectedQuantity && repositories.srns?.countReturnableForInvoice) {
+        const returnable = await repositories.srns.countReturnableForInvoice(invoiceId);
+        if (Number(expectedQuantity) > returnable) {
+          throw Object.assign(
+            new Error(`Only ${returnable} unit(s) remain returnable for this invoice.`),
+            { status: 409, code: "RETURN_QUANTITY_EXCEEDS_DISPATCHED", returnable }
+          );
+        }
+      }
+
       return repositories.srns.create({
         receivingWarehouseId,
         invoiceId,
         returnProductIds,
+        // The operator declares how many units they expect to return; serials are
+        // still scanned individually, this is the target the scan count works to.
+        expectedQuantity,
         createdBy: userId
       });
     },
@@ -81,6 +122,19 @@ export function createSrnService({ repositories, conditionTagService }) {
 
         if (!lockedSrn) {
           throw new Error("SRN not found");
+        }
+
+        // Enforce the declared return quantity: the operator said only N units are
+        // coming back, so block any scan beyond N. (No exception is logged — this
+        // is an operator guard, not a data discrepancy.)
+        if (lockedSrn.expectedQuantity && txRepositories.srns.countScans) {
+          const alreadyScanned = await txRepositories.srns.countScans(srnId);
+          if (alreadyScanned >= Number(lockedSrn.expectedQuantity)) {
+            return invalid(
+              "SRN_QUANTITY_REACHED",
+              `All ${lockedSrn.expectedQuantity} declared return units have already been scanned.`
+            );
+          }
         }
 
         const originalDispatchScan = await txRepositories.srns.findOriginalDispatchScan(validation.serial.serialId);
@@ -139,7 +193,13 @@ export function createSrnService({ repositories, conditionTagService }) {
           return invalid("ALREADY_RETURNED", "Serial has already been returned.", exception);
         }
 
+        // The serial physically lands back in the warehouse it was scanned in,
+        // IN_STOCK. Its condition tag rides along on the serial so the dispatch
+        // path can hold DEFECTIVE/REPAIR units until they are corrected.
         await txRepositories.serials.updateReceipt(validation.serial.serialId, lockedSrn.receivingWarehouseId, userId);
+        if (txRepositories.serials.setConditionTag) {
+          await txRepositories.serials.setConditionTag(validation.serial.serialId, conditionTag, userId);
+        }
         await txRepositories.serials.appendSerialEvent({
           serialId: validation.serial.serialId,
           eventType: "SRN",
@@ -148,6 +208,14 @@ export function createSrnService({ repositories, conditionTagService }) {
           referenceId: srnId,
           createdBy: userId
         });
+
+        // Re-open the original invoice for the returned quantity: soft-return the
+        // original dispatch scan so it stops counting, then recompute the invoice
+        // status (which drops from DISPATCHED to PARTIALLY_DISPATCHED).
+        if (txRepositories.dispatches?.markScanReturned) {
+          await txRepositories.dispatches.markScanReturned(originalDispatchScan.dispatchScanId, userId);
+        }
+        await reopenInvoice(txRepositories, originalDispatchScan.invoiceId);
 
         return {
           valid: true,

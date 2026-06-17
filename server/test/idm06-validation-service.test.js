@@ -53,6 +53,7 @@ describe("IDM-06 validation service", () => {
         serialNo: "MTK1234567890",
         currentStatus: "IN_STOCK",
         currentWarehouseId: 5,
+        conditionTag: null,
         productId: 7
       },
       alert: null,

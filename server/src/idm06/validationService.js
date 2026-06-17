@@ -15,6 +15,7 @@ function toPublicSerial(serial) {
     serialNo: serial.serialNo,
     currentStatus: serial.currentStatus,
     currentWarehouseId: serial.currentWarehouseId,
+    conditionTag: serial.conditionTag ?? null,
     productId: serial.productId
   };
 }

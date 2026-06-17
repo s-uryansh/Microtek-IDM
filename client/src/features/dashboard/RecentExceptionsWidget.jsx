@@ -4,7 +4,7 @@ import { fetchExceptions } from "../../api/modules/exceptions.js";
 import { Card } from "../../components/ui/Card.jsx";
 
 const columns = [
-  { key: "serialNo", label: "Serial No" },
+  { key: "serialNo", label: "Serial No", filterable: false },
   { key: "ruleCode", label: "Rule" },
   { key: "contextType", label: "Context" },
   { key: "status", label: "Status" }

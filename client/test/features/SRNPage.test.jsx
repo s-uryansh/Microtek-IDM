@@ -70,7 +70,7 @@ describe("SRNPage — happy path", () => {
     selectFirstProduct();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText(/SRN #1/)).toBeVisible());
-    expect(createMock).toHaveBeenCalledWith({ warehouseId: 3, invoiceId: 10, returnProductIds: [100] });
+    expect(createMock).toHaveBeenCalledWith({ warehouseId: 3, invoiceId: 10, returnProductIds: [100], expectedQuantity: null });
   });
 });
 

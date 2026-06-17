@@ -92,7 +92,13 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
   }
 
   function invoiceStatusFor({ invoiceRequiredQuantity, scannedQuantity }) {
-    return scannedQuantity >= invoiceRequiredQuantity ? "DISPATCHED" : "IN_PROGRESS";
+    if (scannedQuantity >= invoiceRequiredQuantity) {
+      return "DISPATCHED";
+    }
+    if (scannedQuantity <= 0) {
+      return "PENDING";
+    }
+    return "PARTIALLY_DISPATCHED";
   }
 
   return {
@@ -326,13 +332,39 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
           );
         }
 
+        // Condition hold: a serial returned as DEFECTIVE or REPAIR stays in stock
+        // but must not be dispatched until it has been retagged SALEABLE via the
+        // condition-correction screen. Block it here as defence in depth (it is
+        // also excluded from available-stock counts).
+        if (
+          validationResult.serial.conditionTag === "DEFECTIVE" ||
+          validationResult.serial.conditionTag === "REPAIR"
+        ) {
+          const exception = await recordDispatchException(txRepositories, {
+            serialNo,
+            ruleCode: "CONDITION_HOLD",
+            dispatchId,
+            userId
+          });
+          return invalidScanWithException(
+            "CONDITION_HOLD",
+            `Serial is on condition hold (${validationResult.serial.conditionTag}). Correct the condition tag to SALEABLE before dispatch.`,
+            exception
+          );
+        }
+
         // Battery gate: a battery unit must be pre-billed (committed in IDM-03)
         // before it can be dispatched. Block any battery serial that has no
         // pre-billing commit.
-        if (lockedLine.isBattery && txRepositories.batteryPreBilling?.findCommitBySerial) {
-          const committed = await txRepositories.batteryPreBilling.findCommitBySerial(
-            validationResult.serial.serialId
-          );
+        if (lockedLine.isBattery) {
+          // The pre-billing commit must belong to THIS invoice — a battery
+          // pre-billed against another invoice does not authorise dispatch here.
+          const committed = txRepositories.batteryPreBilling?.findCommitForInvoice
+            ? await txRepositories.batteryPreBilling.findCommitForInvoice(
+                validationResult.serial.serialId,
+                lockedDispatch.invoiceId
+              )
+            : await txRepositories.batteryPreBilling?.findCommitBySerial?.(validationResult.serial.serialId);
           if (!committed) {
             const exception = await recordDispatchException(txRepositories, {
               serialNo,
@@ -342,7 +374,7 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
             });
             return invalidScanWithException(
               "BATTERY_NOT_PREBILLED",
-              "Battery must be pre-billed before dispatch. Commit this serial in Battery Pre-Billing first.",
+              "Battery must be pre-billed for this invoice before dispatch. Commit this serial in Battery Pre-Billing first.",
               exception
             );
           }

@@ -239,7 +239,7 @@ describe("API modules", () => {
       await createSrn({ warehouseId: 3 });
       expect(mockClient.__mockPost).toHaveBeenCalledWith(
         "/idm-04/srns",
-        { warehouseId: 3, invoiceId: null },
+        { warehouseId: 3, invoiceId: null, returnProductIds: undefined, expectedQuantity: null },
         expect.any(Object)
       );
     });
@@ -249,7 +249,7 @@ describe("API modules", () => {
       await createSrn({ warehouseId: 3, invoiceId: 10 });
       expect(mockClient.__mockPost).toHaveBeenCalledWith(
         "/idm-04/srns",
-        { warehouseId: 3, invoiceId: 10 },
+        { warehouseId: 3, invoiceId: 10, returnProductIds: undefined, expectedQuantity: null },
         expect.any(Object)
       );
     });

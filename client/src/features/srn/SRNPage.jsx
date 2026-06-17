@@ -16,10 +16,12 @@ export function SRNPage() {
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [selectedProductIds, setSelectedProductIds] = useState(new Set());
+  const [expectedQuantity, setExpectedQuantity] = useState("");
   const [conditionTag, setConditionTag] = useState("SALEABLE");
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [returnedCount, setReturnedCount] = useState(0);
 
   function handleToggleProduct(productId) {
     setSelectedProductIds((prev) => {
@@ -72,7 +74,8 @@ export function SRNPage() {
       const result = await createSrn({
         warehouseId: Number(warehouseId),
         invoiceId: Number(invoice.invoiceId),
-        returnProductIds: Array.from(selectedProductIds)
+        returnProductIds: Array.from(selectedProductIds),
+        expectedQuantity: expectedQuantity ? Number(expectedQuantity) : null
       });
       setSession({ ...result, invoiceRef: invoice.sapInvoiceRef });
     } catch (err) {
@@ -89,6 +92,7 @@ export function SRNPage() {
       conditionTag: rowConditionTag
     })) || {};
     if (result.valid) {
+      setReturnedCount((count) => count + 1);
       return {
         status: "ACCEPTED",
         message: `Return accepted (${result.conditionTag || rowConditionTag})`,
@@ -101,6 +105,9 @@ export function SRNPage() {
       state: "error"
     };
   }
+
+  const declaredQuantity = expectedQuantity ? Number(expectedQuantity) : null;
+  const limitReached = declaredQuantity !== null && returnedCount >= declaredQuantity;
 
   if (session) {
     return (
@@ -125,8 +132,19 @@ export function SRNPage() {
           </div>
           <ScanSession
             module="SRN"
-            title={`SRN ${session.srnId ?? "—"} — ${session.status ?? "PENDING"}`}
+            title={
+              declaredQuantity !== null
+                ? `SRN ${session.srnId ?? "—"} — ${returnedCount} of ${declaredQuantity} returned`
+                : `SRN ${session.srnId ?? "—"} — ${session.status ?? "PENDING"}`
+            }
             onScan={handleScan}
+            scanCount={returnedCount}
+            externallyDisabled={limitReached}
+            disabledMessage={
+              limitReached
+                ? `All ${declaredQuantity} declared return units have been scanned.`
+                : ""
+            }
             placeholder="Scan return serial number"
           />
         </Card>
@@ -216,6 +234,22 @@ export function SRNPage() {
                   </div>
                 </div>
               )}
+
+              <div className="input-group">
+                <label className="input-group__label" htmlFor="srn-expected-qty">Quantity being returned</label>
+                <input
+                  id="srn-expected-qty"
+                  className="input"
+                  type="number"
+                  min="1"
+                  value={expectedQuantity}
+                  onChange={(e) => setExpectedQuantity(e.target.value)}
+                  placeholder="How many units are being returned?"
+                />
+                <p style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "var(--space-1)" }}>
+                  You still scan each returned serial — this is the expected count for this return.
+                </p>
+              </div>
 
               <ConditionTagSelect value={conditionTag} onChange={setConditionTag} />
               {error && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</p>}

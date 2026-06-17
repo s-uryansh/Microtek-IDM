@@ -10,7 +10,7 @@ import { useAuth } from "../../auth/useAuth.js";
 
 const columns = [
   { key: "exceptionId", label: "ID" },
-  { key: "serialNo", label: "Serial No" },
+  { key: "serialNo", label: "Serial No", filterable: false },
   { key: "ruleCode", label: "Rule" },
   { key: "contextType", label: "Context" },
   { key: "status", label: "Status" },
@@ -152,6 +152,8 @@ export function ExceptionsPage() {
               error={error}
               onRetry={loadExceptions}
               pageSize={10}
+              searchable
+              searchPlaceholder="Search by serial, rule, context…"
               onRowClick={(row) => handleViewDetail(row?.exceptionId)}
             />
             {exceptions && (

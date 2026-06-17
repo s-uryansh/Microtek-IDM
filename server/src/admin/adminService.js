@@ -1,10 +1,23 @@
 import { parse } from "csv-parse/sync";
+import { z } from "zod";
 
 import { hashPassword } from "../auth/password.js";
 import { sanitizeCsvCell } from "../utils/sanitizeCsvCell.js";
 import { availablePermissionCodes } from "../security/rbacPolicy.js";
 
 const VALID_WAREHOUSE_TYPES = ["PLANT", "CENTRAL", "REGIONAL"];
+
+// Bound a single product import so one request cannot tie up a worker with an
+// unbounded number of sequential upserts.
+const MAX_PRODUCT_IMPORT_ROWS = 5000;
+
+// Validate each imported product row: constrains code shape and field lengths so
+// oversized/garbage values never reach the database (or the export CSV).
+const productImportRowSchema = z.object({
+  productCode: z.string().regex(/^[A-Z0-9._-]{1,64}$/, "product_code must be 1-64 chars of A-Z 0-9 . _ -"),
+  name: z.string().min(1, "name is required").max(200, "name must be at most 200 characters"),
+  segment: z.string().max(64, "segment must be at most 64 characters")
+});
 
 // Flat CSV: one row per invoice line, with the invoice header columns repeated on
 // every line of the same invoice (grouped on import by sap_invoice_ref).
@@ -388,11 +401,20 @@ export function createAdminService({ repositories, adminRepo }) {
       }
 
       if (!records.length) {
-        return { imported: 0, errors: [] };
+        return { imported: 0, errors: [], warnings: [] };
+      }
+
+      if (records.length > MAX_PRODUCT_IMPORT_ROWS) {
+        throw Object.assign(
+          new Error(`Too many rows: ${records.length} (max ${MAX_PRODUCT_IMPORT_ROWS} per import).`),
+          { status: 400 }
+        );
       }
 
       const errors = [];
+      const warnings = [];
       const imported = [];
+      const seenCodes = new Set();
 
       for (let i = 0; i < records.length; i++) {
         const row = records[i];
@@ -400,18 +422,20 @@ export function createAdminService({ repositories, adminRepo }) {
 
         try {
           const productCode = String(row.product_code || row.productCode || "").trim().toUpperCase();
-          if (!productCode) {
-            errors.push({ row: rowNum, message: "product_code is required" });
-            continue;
-          }
-
           const name = String(row.name || "").trim();
-          if (!name) {
-            errors.push({ row: rowNum, message: "name is required" });
+          const segment = String(row.segment || row.category || "GENERAL").trim().toUpperCase();
+
+          const parsed = productImportRowSchema.safeParse({ productCode, name, segment });
+          if (!parsed.success) {
+            errors.push({ row: rowNum, message: parsed.error.issues[0]?.message ?? "Invalid product row" });
             continue;
           }
 
-          const segment = String(row.segment || row.category || "GENERAL").trim().toUpperCase();
+          if (seenCodes.has(productCode)) {
+            warnings.push({ row: rowNum, message: `Duplicate product_code "${productCode}" in file — overwrote an earlier row.` });
+          }
+          seenCodes.add(productCode);
+
           const category = String(row.category || row.segment || segment).trim().toUpperCase();
           const validCategories = this.VALID_PRODUCT_CATEGORIES;
 
@@ -431,11 +455,15 @@ export function createAdminService({ repositories, adminRepo }) {
 
           imported.push(result);
         } catch (err) {
-          errors.push({ row: rowNum, message: err.message });
+          // Never surface raw DB driver messages (they leak schema details).
+          if (err.status) {
+            throw err;
+          }
+          errors.push({ row: rowNum, message: "Failed to import row" });
         }
       }
 
-      return { imported: imported.length, errors };
+      return { imported: imported.length, errors, warnings };
     },
 
     /* 
