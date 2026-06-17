@@ -13,3 +13,4 @@ npm-debug.log*
 AGENTS.md
 CLAUDE.md
 /.opencode
+/.vscode

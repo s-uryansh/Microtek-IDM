@@ -9,24 +9,55 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U microtek -d microtek_idm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
 
+  # One-shot: applies db/migrations before the server starts. Idempotent
+  # (tracked in schema_migrations), reuses the server image.
+  migrate:
+    image: microtek-idm-server
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["npm", "run", "migrate"]
+    environment:
+      DATABASE_URL: postgres://microtek:microtek@db:5432/microtek_idm
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   server:
+    image: microtek-idm-server
     build:
       context: .
       dockerfile: server/Dockerfile
     env_file:
-      - .env
+      # Optional: load extra secrets (e.g. AUTH_TOKEN_SECRET, IMPORT_WEBHOOK_SECRET)
+      # if present, but don't fail the stack when it is absent.
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgres://microtek:microtek@db:5432/microtek_idm
       REDIS_URL: redis://redis:6379
+      # The dockerized client is served on :8080; the API must allow that origin
+      # (the default is :5173, which would block it).
+      CORS_ORIGIN: http://localhost:8080
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "4000:4000"
 

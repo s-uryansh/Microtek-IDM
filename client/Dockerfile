@@ -11,4 +11,5 @@ RUN npm run build --workspace client
 
 FROM nginx:alpine
 
+COPY client/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/client/dist/ /usr/share/nginx/html/
