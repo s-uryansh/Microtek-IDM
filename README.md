@@ -1,163 +1,139 @@
 # Microtek IDM
 
-Microtek Inventory and Dispatch Management (IDM) is a serial-level warehouse operations system. SAP remains the ERP system of record; IDM is the physical-serial system of record for scanned stock receipt, dispatch, returns, battery pre-billing, exceptions, ageing, and traceability.
-
-Last updated: 2026-06-07.
-
-## Business Problem
-
-Warehouse teams need reliable serial-level control over stock movement. The implemented portal supports receiving incoming stock, dispatch scanning, customer returns, battery pre-billing, fulfilment status, ageing reports, serial history, exception correction, and production import monitoring.
-
-## Solution Architecture
-
-- `server/`: Express API with route, service, repository, auth, RBAC, and PostgreSQL boundaries.
-- `client/`: React/Vite web portal with protected routing, shared API client, dashboard, feature pages, mobile scan workflows, and tests.
-- `db/migrations/`: PostgreSQL migrations `V001` through `V008` plus paired rollback scripts.
-- `docs/` and `Plan/`: implementation, manual testing, progress, and readiness documentation.
+Microtek Inventory & Dispatch Management (IDM) is a serial-level warehouse operations system. SAP remains the ERP system of record; IDM is the system of record for the physical serial — scanned receipt, dispatch, returns, battery pre-billing, exceptions, ageing, and traceability.
 
 ## Tech Stack
 
-- Frontend: React 19, Vite, React Router, Testing Library, Vitest
-- Scanner fallback: `@zxing/browser`
-- Backend: Node.js, Express, Zod, Pino, Helmet, CORS
-- Auth: bcrypt password hashes, signed session token, server-side session table, HTTP-only persistent cookie
-- Database: PostgreSQL with `pg`
-- Testing and quality: Vitest, Supertest, node-mocks-http, ESLint
+- **Backend:** Node.js + Express, Zod (validation), Pino (logging), Helmet/CORS, `pg` (PostgreSQL), `ioredis` (Redis), `express-rate-limit`.
+- **Frontend:** React 19 + Vite, React Router, custom fetch API client; `@zxing/browser` + native `BarcodeDetector` for scanning.
+- **Auth:** bcrypt hashes, signed session token in a server-side `auth_session` table, HTTP-only `idm_auth` cookie. RBAC is deny-by-default with warehouse-scope checks.
+- **Database:** PostgreSQL (versioned SQL migrations).
+- **Testing:** Vitest, Supertest, node-mocks-http, ESLint.
 
-## IDM Module Overview
+## Repository Structure
 
-| Module | Status | Summary |
-| --- | --- | --- |
-| IDM-01 | Partially implemented | Production serial import API and Import Monitor page. Real SAP transport and factory-dispatch/invoice inbound adapters are absent. |
-| IDM-02 | Integrated | GRN create/get/scan/complete workflow. |
-| IDM-03 | Integrated | Battery pre-billing commit/status workflow with mobile web scanning. |
-| IDM-04 | Integrated | SRN create/scan workflow. No SRN complete endpoint. |
-| IDM-05 | Integrated | Dispatch create/scan/complete workflow. SAP outbound is absent. |
-| IDM-06 | Backend complete | Serial validation API used by scan workflows. No standalone UI page. |
-| IDM-07 | Integrated | Fulfilment status API and page. |
-| IDM-08 | Integrated | Ageing report and opening-stock variance read APIs/pages. |
-| IDM-09 | Integrated | Serial history timeline API and page. |
-| IDM-10 | Integrated | Exception list/detail/correction API and page. |
-| IDM-11 | Not started | No SFA/DMS implementation exists. |
+```
+server/        Express API
+  src/idm01..idm10/   feature modules (routes + service per module)
+  src/db/             pg pool, repositories, migrate.js, seed-dev.js
+  src/http/           auth context, RBAC enforcement, error responses
+  src/security/       rbacPolicy (canonical permission → role map)
+  src/models/         Zod schemas
+  test/               Vitest suites
+client/        React + Vite portal
+  src/features/       one folder per page (dashboard, grn, dispatch, ...)
+  src/api/            fetch client + per-module API modules
+  src/auth/           AuthProvider, ProtectedRoute, PermissionRoute
+  src/components/     layout + shared UI
+db/migrations/  V###__name.sql forward + U###__name.sql rollback
+docker-compose.yml   postgres + redis + migrate + server + client
+```
 
-## Authentication And Security
+The codebase follows a **route → service → repository** layering. Services hold business logic and are dependency-injected with `repositories`, so they are unit-tested with mocks; repositories own all SQL.
 
-Login creates a server-side `auth_session` row and sets an `idm_auth` HTTP-only cookie. The cookie now has an expiry aligned with the backend session expiry, so sessions survive refresh and browser reopen until expiry or logout. Logout revokes the server-side session and clears the cookie. API requests use `credentials: "include"` and do not store tokens in frontend storage.
+## Prerequisites
 
-RBAC is enforced server-side with deny-by-default permissions and warehouse scope checks. CORS is restricted to the configured frontend origin.
-
-## Mobile Scanning Support
-
-The React web portal supports mobile scan workflows for GRN, Dispatch, SRN, and Battery.
-
-- Native path: browser `BarcodeDetector` when available.
-- Fallback path: `@zxing/browser` when `BarcodeDetector` is unavailable.
-- Supported targets: QR, Code128, Code39, EAN13, UPC-A, UPC-E, and generic serial barcodes where browser/library decoding supports them.
-- Hardware path: keyboard-wedge scanners through focused input plus Enter-key completion.
-
-Camera scanning requires HTTPS or localhost and camera permission. Offline scan queue/sync is not implemented.
+- Node.js ≥ 20, npm ≥ 10
+- PostgreSQL 16 and Redis 7 (easiest via Docker)
 
 ## Setup
 
-Install dependencies:
+```bash
+npm install                      # installs all workspaces (server + client)
+cp .env.example .env             # then fill in the values below
+```
+
+Key env vars (`.env`):
+
+| Var | Purpose |
+| --- | --- |
+| `DATABASE_URL` | e.g. `postgres://microtek:microtek@localhost:5432/microtek_idm` |
+| `REDIS_URL` | e.g. `redis://localhost:6379` |
+| `PORT` | API port (default `4000`) |
+| `CORS_ORIGIN` | frontend origin (e.g. `http://localhost:5173`) |
+| `AUTH_TOKEN_SECRET` | session-token signing secret |
+| `AUTH_SESSION_TTL_SECONDS` | session lifetime (default `28800`) |
+| `VITE_API_BASE_URL` | client → API base (e.g. `http://localhost:4000/api`) |
+
+Start Postgres + Redis (Docker):
 
 ```bash
-npm install
+docker compose up -d db redis
 ```
 
-Configure `.env` from `.env.example`, then run migrations and seed development data:
+## Database Migrations
+
+Migrations live in `db/migrations/` as `V###__name.sql` (forward) with paired `U###__name.sql` (rollback). They are applied in version order and tracked in the `schema_migrations` table, so re-running only applies new ones.
 
 ```bash
-npm run migrate --workspace server
-npm run seed:dev
+npm run migrate --workspace server     # apply all pending migrations
+npm run seed:dev                        # load development data (optional)
+npm run seed:dev:teardown               # remove seeded data
 ```
 
-Default development login:
+> After adding a `V###` file, always add the matching `U###` rollback. Migrations must be idempotent (`IF NOT EXISTS` / `IF EXISTS`).
 
-```text
-username: admin
-password: admin123
-username: supervisor_1
-password: admin123
-username: operator_1
-password: admin123
-```
+## Running
 
-## Running The System
-
-Backend:
+Backend and frontend (two terminals):
 
 ```bash
-npm run dev:server
+npm run dev:server      # API on http://localhost:4000  (node --watch)
+npm run dev:client      # portal on http://localhost:5173
 ```
 
-Frontend:
+Or the full stack (app + Postgres + Redis + auto-migrate) via Docker:
 
 ```bash
-npm run dev:client
+docker compose up --build
 ```
 
-Open:
+Default development logins (after `seed:dev`):
 
-```text
-http://localhost:5173
 ```
+admin / admin123          (role: admin)
+supervisor_1 / admin123   (role: supervisor)
+operator_1 / admin123     (role: warehouse_operator)
+```
+
+## IDM Modules
+
+| Module | What it does |
+| --- | --- |
+| **IDM-01** | Production import — ingest SAP-produced serials via signed webhook **or** CSV upload; marks them IN_TRANSIT/PRODUCED and writes SAP dispatch docs. |
+| **IDM-02** | GRN (goods receipt) — open a warehouse GRN, scan arriving serials, validate against the SAP dispatch, record receipt. |
+| **IDM-03** | Battery pre-billing — commit battery serials to an invoice line before dispatch (a battery can't dispatch unless pre-billed). |
+| **IDM-04** | Returns (SRN) + condition correction — receive returns against a dispatched invoice, re-open it, and retag DEFECTIVE/REPAIR stock back to SALEABLE. |
+| **IDM-05** | Customer dispatch — dispatch stock against an invoice; enforces condition-hold and battery-pre-bill gates; flips serials to DISPATCHED. |
+| **IDM-06** | Serial validation — the shared, context-aware "is this serial valid for this operation?" primitive every scan module calls first. |
+| **IDM-07** | Fulfilment status — reports how far an invoice is fulfilled (pending / partial / dispatched) and gates dispatch completion. |
+| **IDM-08** | Reporting — ageing buckets (how long stock has sat) + opening-stock reconciliation (SAP vs IDM quantity variance); CSV/SAP exports. |
+| **IDM-09** | Serial history — a single time-ordered audit timeline of every event and exception for a serial, across warehouses. |
+| **IDM-10** | Exception correction — list/triage/resolve exceptions raised by scan workflows, each closed with a mandatory reason and status. |
 
 ## Testing
 
-Run all tests, linting, and build:
-
 ```bash
-npm test
+npm test          # all workspaces
 npm run lint
 npm run build
-```
 
-Workspace commands:
-
-```bash
 npm run test --workspace server
 npm run test --workspace client
-npm run lint --workspace server
-npm run lint --workspace client
-npm run build --workspace client
 ```
 
-## Manual Testing
+## Developer Notes
 
-Use [docs/manual-testing-guide.md](docs/manual-testing-guide.md) for frontend portal manual testing of IDM-01 through IDM-10. Use [docs/IMPLEMENTATION_REFERENCE.md](docs/IMPLEMENTATION_REFERENCE.md) as the primary developer feature reference. CSV field formats are documented in [docs/CSV_FIELD_REFERENCE.md](docs/CSV_FIELD_REFERENCE.md).
-
-## Operator Workflow Fallbacks
-
-The web portal preserves multiple operator input paths:
-
-- QR/barcode scan through browser camera or hardware scanner.
-- Manual entry through visible fallback fields.
-- CSV import for bulk fallback where operationally useful.
-- CSV export for results, reports, timelines, and reviewed records.
-
-Context required before scanning:
-
-- Battery and Dispatch serial scans require invoice line context. Operators can select invoice/line or manually enter Invoice Line ID.
-- GRN requires an active GRN created from SAP dispatch document and receiving warehouse.
-- SRN requires receiving warehouse and condition tag.
-- Fulfilment scans invoice IDs, not serials.
-- Serial History scans serial numbers.
-- Exceptions scans exception IDs for review; bulk correction is not implemented.
-
-Scanner support:
-
-- Supported barcode targets include QR, Code128, Code39, EAN13, UPC-A, UPC-E, and generic serial/invoice/exception codes where the active decoder supports them.
-- Android HTTPS/ngrok testing resolved the secure-context blocker and QR camera scans can start.
-- Camera diagnostics identify secure context, permission, camera availability, MediaDevices support, camera access blocking, and decoder initialization failures.
-- Hardware scanner and manual entry remain available fallbacks.
+- **Layering:** put SQL only in `src/db/*Repository.js`; keep business logic in `src/idm*/...Service.js`; routes stay thin (parse, auth, delegate).
+- **RBAC:** permissions are defined in `src/security/rbacPolicy.js` (role → permission set) and **seeded via a migration** into `role_permission`. To add a permission: update `rbacPolicy.js`, add a seed migration, and gate the route with `requirePermission("...")`.
+- **Auth context:** routes use `requireAuthContext` + `requirePermission(code, { warehouseIdFromBody|warehouseIdFromQuery })`; admins bypass scope, others are checked against assigned `warehouseIds`.
+- **Serial lifecycle:** modules append `serial_event` rows and raise `exception_log` entries as they work — these power IDM-09 (history) and IDM-10 (exception desk).
+- **Returns & re-dispatch:** dispatch scans are *soft-returned* (`returned_at`) rather than deleted; scan/quantity counts exclude returned rows so a returned serial can be re-dispatched.
+- **Idempotency:** batch imports are de-duplicated by `externalRef`; receipt/dispatch uniqueness is enforced by partial unique indexes (`WHERE returned_at IS NULL`) plus serial state transitions.
+- **Scanning:** native `BarcodeDetector` with `@zxing/browser` fallback and a keyboard-wedge (hardware scanner) path; camera scanning requires HTTPS or localhost.
 
 ## Known Limitations
 
-- IDM-11 is not implemented.
-- Real SAP inbound/outbound transports are not implemented.
-- Offline scan queue/sync is not implemented.
-- Native mobile app is not implemented.
-- Dispatch and Battery require invoice line context before continuous scanning.
-- Materialized-view refresh scheduling is not implemented.
-- Production MFA/SSO/user-management UI is not implemented.
+- Real SAP inbound/outbound transports are not implemented (webhook/CSV in, export out only).
+- IDM-11 (SFA/DMS) is not implemented.
+- Offline scan queue/sync and a native mobile app are not implemented.
