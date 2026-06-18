@@ -275,6 +275,44 @@ describe("IDM-05 dispatch service", () => {
     expect(repositories.calls.setDispatchTargetQuantity).toEqual({ dispatchId: 10, targetQuantity: 4 });
   });
 
+  test("re-opens a returned dispatch to a scannable status instead of leaving it DISPATCHED", async () => {
+    // After all units were dispatched and then returned (SRN soft-returns the
+    // scans), the dispatch row is still status=DISPATCHED but has 0 active scans.
+    // Resuming it must reset the status so the UI does not treat it as complete
+    // and lock scanning. Repro of the dispatch-screen "Completed / can't scan" bug.
+    const repositories = createRepositories({
+      invoice: {
+        ...invoice,
+        status: "PENDING",
+        lines: [{ invoiceLineId: 200, productId: 7, quantity: 2 }]
+      },
+      dispatch: {
+        dispatchId: 10,
+        invoiceId: 100,
+        warehouseId: 5,
+        status: "DISPATCHED",
+        targetQuantity: 2,
+        lines: [{ invoiceLineId: 200, productId: 7, quantity: 2 }],
+        scans: [] // all original scans soft-returned → 0 active
+      }
+    });
+    const service = createDispatchService({
+      repositories,
+      fulfilmentStatusService: createFulfilmentStatusService()
+    });
+
+    const result = await service.startDispatch({
+      invoiceId: 100,
+      warehouseId: 5,
+      userId: "operator_1"
+    });
+
+    // Must NOT come back DISPATCHED (the UI locks scanning on that).
+    expect(result.status).toBe("PENDING");
+    expect(result.dispatchQuantity).toBe(2);
+    expect(repositories.calls.updateDispatchStatus).toContainEqual({ dispatchId: 10, status: "PENDING" });
+  });
+
   test("starts a dispatch when repository ids are returned as strings", async () => {
     const repositories = createRepositories({
       invoice: {

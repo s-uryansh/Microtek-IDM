@@ -178,6 +178,58 @@ describe("IDM-02 GRN service", () => {
     expect(repositories.calls.appendEvent).toHaveLength(0);
   });
 
+  test("T02-07 blocks a cross-session duplicate when the serial is already IN_STOCK", async () => {
+    // A new GRN is started per session, so findScanBySerial (scoped to this grnId)
+    // cannot see the earlier receipt. The serial's IN_STOCK status is the signal.
+    const repositories = createRepositories({
+      grn: { grnId: 11, receivingWarehouseId: 5, status: "PENDING" },
+      expectedLine: { serialId: 7, destinationWarehouseId: 5 },
+      validationResult: {
+        valid: true,
+        serial: { serialId: 7, serialNo: "MTK1234567890", currentStatus: "IN_STOCK", currentWarehouseId: 5 },
+        alert: null,
+        exception: null
+      }
+    });
+    const service = createGrnService({ repositories });
+
+    const result = await service.scanSerial({ grnId: 11, serialNo: "MTK1234567890", userId: "operator_1" });
+
+    expect(result.matchStatus).toBe("DUPLICATE_SCAN");
+    // Fast path bails out before the transaction: no scan, no receipt, no event.
+    expect(repositories.calls.transaction).toHaveLength(0);
+    expect(repositories.calls.insertScan).toHaveLength(0);
+    expect(repositories.calls.updateSerialReceipt).toHaveLength(0);
+    expect(repositories.calls.createException[0]).toMatchObject({ ruleCode: "DUPLICATE_SCAN", contextType: "GRN" });
+  });
+
+  test("T02-08 treats a unique-index conflict on insertScan as a duplicate, not a match", async () => {
+    const repositories = createRepositories({
+      grn: { grnId: 10, receivingWarehouseId: 5, status: "PENDING" },
+      expectedLine: { serialId: 7, destinationWarehouseId: 5 },
+      validationResult: {
+        valid: true,
+        serial: { serialId: 7, serialNo: "MTK1234567890", currentStatus: "IN_TRANSIT", currentWarehouseId: 5 },
+        alert: null,
+        exception: null
+      }
+    });
+    // Simulate the partial unique index rejecting a concurrent receipt:
+    // INSERT ... ON CONFLICT DO NOTHING returns no row.
+    repositories.grns.insertScan = async (input) => {
+      repositories.calls.insertScan.push(input);
+      return null;
+    };
+    const service = createGrnService({ repositories });
+
+    const result = await service.scanSerial({ grnId: 10, serialNo: "MTK1234567890", userId: "operator_1" });
+
+    expect(result.matchStatus).toBe("DUPLICATE_SCAN");
+    expect(repositories.calls.updateSerialReceipt).toHaveLength(0);
+    expect(repositories.calls.appendEvent).toHaveLength(0);
+    expect(repositories.calls.createException[0]).toMatchObject({ ruleCode: "DUPLICATE_SCAN", contextType: "GRN" });
+  });
+
   test("T02-02 completion closes the warehouse-scoped GRN without inventing SHORT exceptions", async () => {
     const repositories = createRepositories({
       grn: { grnId: 10, receivingWarehouseId: 5, status: "IN_PROGRESS" },

@@ -61,10 +61,6 @@ function formatCompletedSerialRow(row) {
 
 export function createDispatchService({ repositories, fulfilmentStatusService }) {
   function lineCapResolver(dispatch) {
-    // When the operator picked per-line quantities, dispatch_line rows give each line a
-    // target_quantity. Lines the operator did NOT pick have no target and therefore a cap
-    // of 0 (cannot be dispatched). Legacy dispatches (no per-line targets at all) fall back
-    // to the full invoice line quantity for every line.
     const usesLineTargets = dispatch.lines.some(
       (line) => line.targetQuantity !== null && line.targetQuantity !== undefined
     );
@@ -109,9 +105,6 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
     async getAvailability({ invoiceId, warehouseId }) {
       const invoice = await repositories.invoices.findById(invoiceId);
 
-      // Invoices are warehouse-agnostic. Availability is computed against the
-      // operator's own warehouse (warehouseId); the invoice only supplies the
-      // products and required quantities.
       if (!invoice) {
         throw Object.assign(new Error("Invoice not found"), { status: 404 });
       }
@@ -141,9 +134,6 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
     async startDispatch({ invoiceId, warehouseId, userId }) {
       const invoice = await repositories.invoices.findById(invoiceId);
 
-      // Any operator may dispatch any invoice from their assigned warehouse.
-      // The dispatch row records that warehouse; per-serial validation later
-      // enforces that each scanned serial physically lives there.
       if (!invoice) {
         throw Object.assign(new Error("Invoice not found"), { status: 404 });
       }
@@ -186,10 +176,6 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
         });
       }
 
-      // Dispatch the full remaining invoice quantity. Only when the warehouse cannot
-      // cover it do we fall back to a partial dispatch of whatever stock is available —
-      // and that shortfall is flagged with an exception. The operator never chooses a
-      // smaller quantity by hand when stock is sufficient.
       const isPartial = currentWarehouseStockQty < remainingInvoiceQuantity;
       const dispatchQuantity = isPartial ? currentWarehouseStockQty : remainingInvoiceQuantity;
       const targetQuantity = alreadyScannedQuantity + dispatchQuantity;
@@ -201,6 +187,14 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
         dispatchRow = repositories.dispatches.setDispatchTargetQuantity
           ? await repositories.dispatches.setDispatchTargetQuantity(existingDispatch.dispatchId, targetQuantity, userId)
           : { ...existingDispatch, targetQuantity };
+
+        const resumeStatus = alreadyScannedQuantity > 0 ? "IN_PROGRESS" : "PENDING";
+        if (dispatchRow.status !== resumeStatus) {
+          if (repositories.dispatches.updateStatus) {
+            await repositories.dispatches.updateStatus(existingDispatch.dispatchId, resumeStatus);
+          }
+          dispatchRow = { ...dispatchRow, status: resumeStatus };
+        }
       } else {
         try {
           dispatchRow = await repositories.dispatches.createDispatch({
@@ -221,8 +215,6 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
         }
       }
 
-      // Raise a SHORT exception for a brand-new partial dispatch so the shortfall is
-      // tracked. (Resuming an existing dispatch does not re-raise.)
       let partialException = null;
       if (isPartial && createdNew && repositories.exceptionsRepo) {
         const exception = await repositories.exceptionsRepo.createException({
@@ -332,10 +324,6 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
           );
         }
 
-        // Condition hold: a serial returned as DEFECTIVE or REPAIR stays in stock
-        // but must not be dispatched until it has been retagged SALEABLE via the
-        // condition-correction screen. Block it here as defence in depth (it is
-        // also excluded from available-stock counts).
         if (
           validationResult.serial.conditionTag === "DEFECTIVE" ||
           validationResult.serial.conditionTag === "REPAIR"
@@ -353,12 +341,7 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
           );
         }
 
-        // Battery gate: a battery unit must be pre-billed (committed in IDM-03)
-        // before it can be dispatched. Block any battery serial that has no
-        // pre-billing commit.
         if (lockedLine.isBattery) {
-          // The pre-billing commit must belong to THIS invoice — a battery
-          // pre-billed against another invoice does not authorise dispatch here.
           const committed = txRepositories.batteryPreBilling?.findCommitForInvoice
             ? await txRepositories.batteryPreBilling.findCommitForInvoice(
                 validationResult.serial.serialId,

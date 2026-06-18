@@ -45,6 +45,33 @@ export function createImportRoutes({ importService, importWebhookSecret }) {
     }
   );
 
+  // Manual CSV import (dashboard upload). Same capability as the SAP webhook
+  // above — gated by integration:import — but authenticated by the logged-in
+  // user instead of an HMAC signature, since a human is uploading the file.
+  router.post(
+    "/production/csv",
+    requireAuthContext,
+    requirePermission("integration:import"),
+    async (request, response, next) => {
+      try {
+        const result = await importService.importProductionBatchCsv({
+          csvContent: request.body.csvContent,
+          externalRef: request.body.externalRef,
+          source: request.body.source,
+          sourceLabel: request.body.sourceLabel || request.get("X-Import-Source") || "csv-upload",
+          receivedBy: request.auth.userId
+        });
+        response.status(result.status === "DUPLICATE_IGNORED" ? 200 : 202).json(result);
+      } catch (error) {
+        if (error instanceof Error && /^(CSV |Invalid CSV|Invalid production)/.test(error.message)) {
+          sendError(response, 400, "BAD_REQUEST", error.message);
+          return;
+        }
+        next(error);
+      }
+    }
+  );
+
   router.get(
     "/batches",
     requireAuthContext,

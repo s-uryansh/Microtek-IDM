@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { BarChart } from "../../components/charts/BarChart.jsx";
 import { Card } from "../../components/ui/Card.jsx";
@@ -23,6 +24,7 @@ export function DashboardPage() {
   const { hasPermission } = useAuth();
   const canViewAgeing = typeof hasPermission === "function" ? hasPermission("ageing:read") : false;
   const canViewExceptions = typeof hasPermission === "function" ? hasPermission("exception:read") : false;
+  const canImport = typeof hasPermission === "function" ? hasPermission("integration:import") : false;
 
   const [ageingReport, setAgeingReport] = useState(null);
   const [ageingData, setAgeingData] = useState([]);
@@ -73,6 +75,20 @@ export function DashboardPage() {
         canViewAgeing={canViewAgeing}
         canViewExceptions={canViewExceptions}
       />
+
+      {canImport && (
+        <div className="dashboard__chart-row">
+          <Card title="IDM-01 Production Import">
+            <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", margin: 0 }}>
+              Production serials enter IDM-01 either via the <strong>SAP production API</strong> (signed webhook)
+              or by <strong>uploading a CSV</strong>. Both run the same validation and de-duplication.
+            </p>
+            <Link to="/imports" className="button button--primary" style={{ marginTop: "0.75rem", display: "inline-block" }}>
+              Import production batch (CSV)
+            </Link>
+          </Card>
+        </div>
+      )}
 
       {(canViewAgeing || canViewExceptions) && (
         <div className="dashboard__chart-row">

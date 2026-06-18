@@ -73,6 +73,26 @@ export function createGrnService({ repositories }) {
         return validation;
       }
 
+      // Cross-session duplicate: a serial already IN_STOCK was received by a prior
+      // (now-closed) GRN. findScanBySerial below is scoped to THIS grnId and a new
+      // GRN is started per session, so it cannot see that earlier receipt — the
+      // serial's own status is the cross-session signal. The DB unique index on
+      // grn_scan is the race-safe backstop (see insertScan below).
+      if (validation.serial.currentStatus === "IN_STOCK") {
+        const exception = await createException(repositories, {
+          serialNo,
+          ruleCode: "DUPLICATE_SCAN",
+          grnId,
+          userId
+        });
+        return exceptionResult({
+          matchStatus: "DUPLICATE_SCAN",
+          ruleCode: "DUPLICATE_SCAN",
+          message: "Serial has already been received into stock.",
+          exception
+        });
+      }
+
       return repositories.withTransaction(async (txRepositories) => {
         const lockedGrn = await txRepositories.grns.lockById(grnId);
 
@@ -161,7 +181,10 @@ export function createGrnService({ repositories }) {
           });
         }
 
-        await txRepositories.grns.insertScan({
+        // ON CONFLICT DO NOTHING: if the grn_scan unique index rejects a
+        // concurrent/retried receipt, no row is returned. Treat that as a
+        // duplicate instead of falling through to a false MATCHED + receipt write.
+        const insertedScan = await txRepositories.grns.insertScan({
           grnId,
           serialId: validation.serial.serialId,
           serialNo,
@@ -169,6 +192,22 @@ export function createGrnService({ repositories }) {
           scannedBy: userId,
           createdBy: userId
         });
+
+        if (!insertedScan) {
+          const exception = await createException(txRepositories, {
+            serialNo,
+            ruleCode: "DUPLICATE_SCAN",
+            grnId,
+            userId
+          });
+          return exceptionResult({
+            matchStatus: "DUPLICATE_SCAN",
+            ruleCode: "DUPLICATE_SCAN",
+            message: "Serial has already been received into stock.",
+            exception
+          });
+        }
+
         await txRepositories.serials.updateReceipt(validation.serial.serialId, lockedGrn.receivingWarehouseId, userId);
         await txRepositories.serials.appendSerialEvent({
           serialId: validation.serial.serialId,

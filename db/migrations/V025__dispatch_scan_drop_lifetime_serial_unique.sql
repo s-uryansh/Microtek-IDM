@@ -1,0 +1,21 @@
+-- Fix: returned serials cannot be re-dispatched (500 on re-scan).
+--
+-- V005 created ux_dispatch_scan_serial_once = UNIQUE(serial_id), a LIFETIME
+-- one-dispatch-per-serial rule. V023 then introduced soft-returns (returned_at)
+-- and the partial index ux_dispatch_scan_active = UNIQUE(dispatch_id, serial_id)
+-- WHERE returned_at IS NULL, explicitly so a returned serial can be dispatched
+-- again — but it never dropped the V005 lifetime index.
+--
+-- Result: re-dispatching a returned serial violates ux_dispatch_scan_serial_once,
+-- and since insertScan's ON CONFLICT only arbitrates the (dispatch_id, serial_id)
+-- partial index, the error surfaces as an unhandled 500.
+--
+-- Correct uniqueness is already enforced without the lifetime index:
+--   * ux_dispatch_scan_active stops a serial being actively scanned twice on the
+--     same dispatch, and
+--   * the serial state machine (updateStatusIfCurrent IN_STOCK -> DISPATCHED)
+--     stops it being actively dispatched across two dispatches at once.
+-- A returned serial is back IN_STOCK with its prior scan soft-returned, so it is
+-- legitimately dispatchable again.
+
+DROP INDEX IF EXISTS ux_dispatch_scan_serial_once;

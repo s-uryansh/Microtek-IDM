@@ -525,4 +525,130 @@ describe("IDM-01 production import service", () => {
     expect(repositories.calls.markFailed).toEqual([{ batchId: 101, errorDetail: "event write failed" }]);
     expect(repositories.calls.markProcessed).toHaveLength(0);
   });
+
+  test("imports a CSV upload through the same pipeline as the JSON webhook", async () => {
+    const repositories = createRepositories({
+      productsByCode: new Map([["MTK-INVERTER-1KVA", { productId: 7 }]])
+    });
+    const service = createImportService({ repositories });
+
+    const csvContent = [
+      "serialNo,productCode,batchNo,destinationWarehouseId",
+      "MTK1234567890,MTK-INVERTER-1KVA,B-01,3",
+      "MTK1234567891,MTK-INVERTER-1KVA,B-01,3"
+    ].join("\n");
+
+    const result = await service.importProductionBatchCsv({
+      csvContent,
+      externalRef: "CSV-PROD-001",
+      source: "CSV",
+      sourceLabel: "ops-upload",
+      receivedBy: "admin_user"
+    });
+
+    expect(result.status).toBe("PROCESSED");
+    expect(result.importedCount).toBe(2);
+    expect(result.sourceLabel).toBe("ops-upload");
+    expect(repositories.calls.insertSerial[0]).toMatchObject({
+      serialNo: "MTK1234567890",
+      productId: 7,
+      batchNo: "B-01",
+      createdBy: "admin_user"
+    });
+  });
+
+  test("rejects an empty or malformed CSV upload with a clear error", async () => {
+    const repositories = createRepositories();
+    const service = createImportService({ repositories });
+
+    await expect(service.importProductionBatchCsv({ csvContent: "   ", externalRef: "X", source: "CSV", receivedBy: "u" }))
+      .rejects.toThrow("CSV content is required");
+
+    await expect(
+      service.importProductionBatchCsv({ csvContent: "serialNo,productCode", externalRef: "X", source: "CSV", receivedBy: "u" })
+    ).rejects.toThrow("CSV has no data rows");
+
+    expect(repositories.calls.createBatch).toHaveLength(0);
+  });
+
+  test("rejects a cross-session duplicate scan when the serial is already IN_STOCK", async () => {
+    // A fresh GRN is created per scan, so the old grn_id-scoped check could not
+    // see a prior receipt. The serial's own IN_STOCK status is the cross-session
+    // signal: it was already received.
+    const repositories = createRepositories({
+      serialByNo: {
+        serialId: 44,
+        serialNo: "MTK1234567896",
+        productId: 7,
+        currentStatus: "IN_STOCK",
+        currentWarehouseId: 3
+      },
+      sapDispatchForSerial: {
+        sapDispatchDocId: 12,
+        serialId: 44,
+        externalRef: "SAP-DISP-001",
+        sourceWarehouseId: 1,
+        destinationWarehouseId: 3
+      }
+    });
+    const service = createImportService({ repositories });
+
+    const result = await service.scanReceipt({
+      serialNo: "MTK1234567896",
+      receivingWarehouseId: 3,
+      userId: "operator_1"
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.matchStatus).toBe("DUPLICATE_SCAN");
+    // Fast path bails out before any GRN, scan, or receipt write.
+    expect(repositories.calls.createGrn).toHaveLength(0);
+    expect(repositories.calls.insertGrnScan).toHaveLength(0);
+    expect(repositories.calls.updateSerialReceipt).toHaveLength(0);
+    expect(repositories.calls.createException[0]).toMatchObject({
+      ruleCode: "DUPLICATE_SCAN",
+      contextType: "GRN"
+    });
+  });
+
+  test("treats a unique-index conflict on insertScan as a duplicate, not a match", async () => {
+    const repositories = createRepositories({
+      serialByNo: {
+        serialId: 44,
+        serialNo: "MTK1234567896",
+        productId: 7,
+        currentStatus: "IN_TRANSIT",
+        currentWarehouseId: 1
+      },
+      sapDispatchForSerial: {
+        sapDispatchDocId: 12,
+        serialId: 44,
+        externalRef: "SAP-DISP-001",
+        sourceWarehouseId: 1,
+        destinationWarehouseId: 3
+      }
+    });
+    // Simulate the partial unique index rejecting a concurrent/retried receipt:
+    // INSERT ... ON CONFLICT DO NOTHING returns no row.
+    repositories.grns.insertScan = async (input) => {
+      repositories.calls.insertGrnScan.push(input);
+      return null;
+    };
+    const service = createImportService({ repositories });
+
+    const result = await service.scanReceipt({
+      serialNo: "MTK1234567896",
+      receivingWarehouseId: 3,
+      userId: "operator_1"
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.matchStatus).toBe("DUPLICATE_SCAN");
+    // A conflicting insert must not be reported as a successful receipt.
+    expect(repositories.calls.updateSerialReceipt).toHaveLength(0);
+    expect(repositories.calls.createException[0]).toMatchObject({
+      ruleCode: "DUPLICATE_SCAN",
+      contextType: "GRN"
+    });
+  });
 });

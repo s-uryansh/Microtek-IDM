@@ -26,6 +26,12 @@ const navSections = [
     ]
   },
   {
+    title: "Integration",
+    items: [
+      { label: "Import Production (CSV)", path: "/imports", icon: "box", permission: "integration:import" }
+    ]
+  },
+  {
     title: "Administration",
     items: [
       { label: "Warehouses", path: "/admin/warehouses", icon: "box", permission: "admin:access" },

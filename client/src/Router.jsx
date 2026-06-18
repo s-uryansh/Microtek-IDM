@@ -15,6 +15,7 @@ import { FulfilmentPage } from "./features/fulfilment/FulfilmentPage.jsx";
 import { AgeingPage } from "./features/ageing/AgeingPage.jsx";
 import { SerialHistoryPage } from "./features/serials/SerialHistoryPage.jsx";
 import { ExceptionsPage } from "./features/exceptions/ExceptionsPage.jsx";
+import { ImportProductionPage } from "./features/imports/ImportProductionPage.jsx";
 import {
   InboundPage,
   InvoicesPage,
@@ -68,6 +69,15 @@ export const router = createBrowserRouter([
       { path: "ageing", element: withBoundary(<AgeingPage />), errorElement: <RouteErrorFallback /> },
       { path: "serials", element: withBoundary(<SerialHistoryPage />), errorElement: <RouteErrorFallback /> },
       { path: "exceptions", element: withBoundary(<ExceptionsPage />), errorElement: <RouteErrorFallback /> },
+      {
+        path: "imports",
+        element: (
+          <PermissionRoute permission="integration:import">
+            {withBoundary(<ImportProductionPage />)}
+          </PermissionRoute>
+        ),
+        errorElement: <RouteErrorFallback />
+      },
       { path: "admin", element: <Navigate to="/admin/warehouses" replace /> },
       {
         path: "admin/warehouses",

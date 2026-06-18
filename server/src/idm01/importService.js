@@ -1,22 +1,54 @@
+import { parse } from "csv-parse/sync";
+
 import {
   productionBatchEnvelopeSchema,
   productionRecordSchema,
   qrOnlyRecordSchema
 } from "../models/importSchemas.js";
 
+// Manual CSV uploads are bounded well under the JSON body limit (app.js caps the
+// request at 1mb). Larger feeds should use the signed SAP webhook on /production.
+const MAX_CSV_IMPORT_ROWS = 5000;
+
+// Parse a manually-uploaded CSV into the same row objects importProductionBatch
+// already accepts. Header names map straight onto record fields, and
+// normalizeRecord handles the column aliases (serial/serialNo, sku/productCode,
+// etc.), so no per-column mapping is needed here.
+function parseProductionCsv(csvContent) {
+  if (typeof csvContent !== "string" || !csvContent.trim()) {
+    throw new Error("CSV content is required");
+  }
+
+  let rows;
+  try {
+    rows = parse(csvContent, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+      bom: true
+    });
+  } catch (error) {
+    throw new Error(`Invalid CSV: ${error.message}`);
+  }
+
+  if (rows.length === 0) {
+    throw new Error("CSV has no data rows");
+  }
+
+  if (rows.length > MAX_CSV_IMPORT_ROWS) {
+    throw new Error(`CSV exceeds the ${MAX_CSV_IMPORT_ROWS}-row limit; use the SAP production API for larger batches`);
+  }
+
+  return rows;
+}
+
 function mapValidationError(error) {
   const issue = error.issues[0];
-  // zod v4 emits "invalid_format" for regex failures; older builds used
-  // "invalid_string". Either way a bad serial format is a MALFORMED_SERIAL,
-  // any other structural problem is a generic INVALID_RECORD.
   return issue?.code === "invalid_string" || issue?.code === "invalid_format"
     ? "MALFORMED_SERIAL"
     : "INVALID_RECORD";
 }
 
-// a set is used to track seen serial number and avoid duplicates.
-// Operates on already-validated { index, record } candidates so the original
-// row index is preserved for the rejection report.
 function dedupeRecords(candidates) {
   const seen = new Set();
   const accepted = [];
@@ -70,9 +102,6 @@ function parseQrCode(qrCode) {
 }
 
 function normalizeRecord(rawInput) {
-  // Records can arrive as arbitrary JSON; coerce anything non-object to an
-  // empty object so per-row validation can reject it cleanly instead of
-  // throwing and taking the whole batch down.
   const input = rawInput && typeof rawInput === "object" && !Array.isArray(rawInput) ? rawInput : {};
   const qrData = qrOnlyRecordSchema.safeParse(input).success ? parseQrCode(input.qrCode) : {};
   const merged = { ...qrData, ...input };
@@ -154,7 +183,7 @@ export function createImportService({ repositories }) {
       status: batch.status
     };
   }
-  return {
+  const service = {
     async importProductionBatch(input) {
       // Only batch-envelope problems (missing externalRef/source/receivedBy, or
       // a non-array/empty records list) fail the whole batch. Individual
@@ -165,9 +194,6 @@ export function createImportService({ repositories }) {
         throw new Error("Invalid production import payload");
       }
 
-      // Validate each record on its own. Malformed rows become rejections that
-      // travel alongside UNKNOWN_PRODUCT/DUPLICATE_SERIAL rejections; valid rows
-      // are carried forward (with their original index) for processing.
       const validCandidates = [];
       const malformedRejections = [];
 
@@ -336,12 +362,6 @@ export function createImportService({ repositories }) {
       }
     },
 
-    // NOTE: This is the lighter "inbound-from-factory" receipt path. It overlaps
-    // with grnService.scanSerial (POST /api/idm-02/grns/:grnId/scans) but skips
-    // serial validation, collapses "not expected here" into WRONG_SERIAL, and
-    // does not lock the GRN. See SCRATCH_receipt_vs_grn_scan.txt for the full
-    // comparison and the recommendation to make grnService.scanSerial canonical.
-    // Behavioural alignment is proposed there but NOT applied (pending sign-off).
     async scanReceipt({ serialNo, receivingWarehouseId, userId }) {
       const serial = await repositories.serials.findBySerialNo(serialNo);
 
@@ -353,6 +373,23 @@ export function createImportService({ repositories }) {
           userId
         });
         return invalidReceipt("NOT_FOUND", "Serial was not found in the SAP dispatch registry.", exception);
+      }
+
+      // Layer 1 (fast path): a serial that is already IN_STOCK has been received
+      // before. The serial row is already loaded, so this costs no extra query
+      // and stops a cross-session duplicate before any GRN is created. The DB
+      // unique index on grn_scan is the race-safe backstop (see insertScan below).
+      if (serial.currentStatus === "IN_STOCK") {
+        const exception = await createReceiptException(repositories, {
+          serialNo,
+          ruleCode: "DUPLICATE_SCAN",
+          grnId: null,
+          userId
+        });
+        return {
+          ...invalidReceipt("DUPLICATE_SCAN", "Serial has already been received into stock.", exception),
+          serialNo
+        };
       }
 
       const dispatch = await repositories.sapDispatches?.findBySerialId
@@ -369,10 +406,6 @@ export function createImportService({ repositories }) {
         return invalidReceipt("WRONG_SERIAL", "Serial is not linked to an original SAP factory dispatch.", exception);
       }
 
-      // The serial resolves to more than one SAP dispatch doc. We deliberately
-      // do NOT pick one (no resolution policy is defined — sign-off item B);
-      // surface a distinct condition so the ambiguity is visible instead of
-      // silently validating against the newest doc.
       if (dispatch.ambiguous) {
         return {
           ...invalidReceipt(
@@ -437,7 +470,11 @@ export function createImportService({ repositories }) {
           };
         }
 
-        await txRepositories.grns.insertScan({
+        // Layer 2 (race-safe backstop): insertScan uses ON CONFLICT DO NOTHING,
+        // so under a concurrent/retried receipt the DB unique index on grn_scan
+        // rejects the second insert and returns no row. Treat that as a duplicate
+        // rather than falling through to a false MATCHED.
+        const insertedScan = await txRepositories.grns.insertScan({
           grnId: grn.grnId,
           serialId: serial.serialId,
           serialNo,
@@ -445,6 +482,24 @@ export function createImportService({ repositories }) {
           scannedBy: userId,
           createdBy: userId
         });
+
+        if (!insertedScan) {
+          const exception = await createReceiptException(txRepositories, {
+            serialNo,
+            ruleCode: "DUPLICATE_SCAN",
+            grnId: grn.grnId,
+            userId
+          });
+          return {
+            ...invalidReceipt("DUPLICATE_SCAN", "Serial has already been received for this SAP dispatch.", exception),
+            serialNo,
+            sourceWarehouseId: dispatch.sourceWarehouseId,
+            expectedWarehouseId: dispatch.destinationWarehouseId,
+            receivedWarehouseId: receivingWarehouseId,
+            sapDispatchDocId: dispatch.sapDispatchDocId
+          };
+        }
+
         await txRepositories.serials.updateReceipt(serial.serialId, receivingWarehouseId, userId);
         await txRepositories.serials.appendSerialEvent({
           serialId: serial.serialId,
@@ -501,6 +556,24 @@ export function createImportService({ repositories }) {
           reason: r.reason
         }))
       };
+    },
+
+    // Manual CSV import path: a permitted user uploads a CSV instead of SAP
+    // POSTing the JSON webhook. Parsing is the only difference — the parsed rows
+    // flow through the exact same importProductionBatch pipeline (envelope
+    // validation, per-row validation, dedupe, dispatch-doc writes, idempotency).
+    async importProductionBatchCsv({ csvContent, externalRef, source, sourceLabel, receivedBy }) {
+      const records = parseProductionCsv(csvContent);
+
+      return service.importProductionBatch({
+        externalRef,
+        source,
+        sourceLabel,
+        receivedBy,
+        records
+      });
     }
   };
+
+  return service;
 }

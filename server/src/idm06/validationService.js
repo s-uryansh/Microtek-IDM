@@ -27,10 +27,6 @@ export function createValidationService({ repositories }) {
       ruleCode,
       contextType: request.contextType,
       contextId: request.contextId,
-      // Persist the warehouse so BATTERY/IMPORT/FOUNDATION exceptions (which
-      // have no grn/dispatch/srn row to join against) remain visible to
-      // warehouse-scoped users. May be undefined on early MALFORMED_SERIAL
-      // failures, in which case it is stored as NULL.
       warehouseId: request.warehouseId,
       raisedBy: request.userId,
       createdBy: request.userId

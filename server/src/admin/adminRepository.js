@@ -549,17 +549,27 @@ export function createAdminRepository(pool) {
           i.delivery_date::text AS "deliveryDate",
           i.sales_order_qty AS "salesOrderQty",
           i.pod_status AS "podStatus",
-          -- Units dispatched (completed dispatch) and units since returned, so
-          -- the admin panel can show a RETURNED / partial-return tag.
+          -- Distinct serials dispatched (completed dispatch) as the baseline, and
+          -- distinct serials that are CURRENTLY still returned — i.e. returned and
+          -- NOT since re-dispatched (no active, non-returned dispatch scan). This
+          -- clears the RETURNED / partial-return tag once a returned serial is
+          -- dispatched again.
           COALESCE((
-            SELECT COUNT(*) FROM dispatch_scan ds
+            SELECT COUNT(DISTINCT ds.serial_id) FROM dispatch_scan ds
             JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
             WHERE d.invoice_id = i.invoice_id AND d.status = 'DISPATCHED'
           ), 0)::int AS "dispatchedQty",
           COALESCE((
-            SELECT COUNT(*) FROM srn_scan ss
+            SELECT COUNT(DISTINCT ss.serial_id) FROM srn_scan ss
             JOIN srn s ON s.srn_id = ss.srn_id
             WHERE s.invoice_id = i.invoice_id
+              AND NOT EXISTS (
+                SELECT 1 FROM dispatch_scan ds
+                JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
+                WHERE d.invoice_id = i.invoice_id
+                  AND ds.serial_id = ss.serial_id
+                  AND ds.returned_at IS NULL
+              )
           ), 0)::int AS "returnedQty"
         FROM invoice i
         ${searchCondition}
@@ -691,21 +701,28 @@ export function createAdminRepository(pool) {
           -- Serials actually DISPATCHED for this invoice line (never in-stock
           -- serials that were not dispatched).
           COALESCE((
-            SELECT array_agg(dsm.serial_no ORDER BY dsm.serial_no)
+            SELECT array_agg(DISTINCT dsm.serial_no ORDER BY dsm.serial_no)
             FROM dispatch_scan ds
             JOIN dispatch d ON d.dispatch_id = ds.dispatch_id
             JOIN serial_master dsm ON dsm.serial_id = ds.serial_id
             WHERE ds.invoice_line_id = il.invoice_line_id
               AND d.invoice_id = il.invoice_id
           ), '{}') AS "serialNos",
-          -- Serials from this line that have since been RETURNED (SRN), matched
-          -- back to the line via the original dispatch scan.
+          -- Serials from this line that are CURRENTLY returned (SRN) — matched back
+          -- via the original dispatch scan, and excluding any serial that has since
+          -- been re-dispatched (has an active, non-returned dispatch scan on the line).
           COALESCE((
-            SELECT array_agg(rsm.serial_no ORDER BY rsm.serial_no)
+            SELECT array_agg(DISTINCT rsm.serial_no ORDER BY rsm.serial_no)
             FROM srn_scan ss
             JOIN dispatch_scan ds2 ON ds2.dispatch_scan_id = ss.original_dispatch_scan_id
             JOIN serial_master rsm ON rsm.serial_id = ss.serial_id
             WHERE ds2.invoice_line_id = il.invoice_line_id
+              AND NOT EXISTS (
+                SELECT 1 FROM dispatch_scan ds3
+                WHERE ds3.serial_id = ss.serial_id
+                  AND ds3.invoice_line_id = il.invoice_line_id
+                  AND ds3.returned_at IS NULL
+              )
           ), '{}') AS "returnedSerialNos"
         FROM invoice_line il
         JOIN product p ON p.product_id = il.product_id
