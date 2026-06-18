@@ -33,8 +33,13 @@ The codebase follows a **route → service → repository** layering. Services h
 
 ## Prerequisites
 
-- Node.js ≥ 20, npm ≥ 10
-- PostgreSQL 16 and Redis 7 (easiest via Docker)
+Minimum versions (newer is fine — tested on the versions in parentheses):
+
+- Node.js ≥ 20 (tested on 25.x), npm ≥ 10 (tested on 11.x)
+- PostgreSQL ≥ 16 (tested on 18.x)
+- Redis ≥ 7 (tested on 8.x)
+
+Postgres and Redis are easiest via Docker (`docker-compose.yml` pins `postgres:16-alpine` and `redis:7-alpine`); a locally installed server of an equal-or-newer version works too.
 
 ## Setup
 
