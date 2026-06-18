@@ -1,6 +1,6 @@
 # Microtek IDM
 
-Microtek Inventory & Dispatch Management (IDM) is a serial-level warehouse operations system. SAP remains the ERP system of record; IDM is the system of record for the physical serial — scanned receipt, dispatch, returns, battery pre-billing, exceptions, ageing, and traceability.
+Microtek Inventory & Dispatch Management (IDM) is a serial-level warehouse operations system. SAP remains the ERP system of record; IDM is the system of record for the physical serial scanned receipt, dispatch, returns, battery pre-billing, exceptions, ageing, and traceability.
 
 ## Tech Stack
 
@@ -43,17 +43,26 @@ npm install                      # installs all workspaces (server + client)
 cp .env.example .env             # then fill in the values below
 ```
 
-Key env vars (`.env`):
+Environment variables (`.env`) — the backend validates these on startup (`server/src/models/configSchemas.js`). Everything except `DATABASE_URL` has a working default, so the app boots in dev with just the database set. The `R` / `P` columns flag what is **R**equired and what is additionally required **in P**roduction.
 
-| Var | Purpose |
-| --- | --- |
-| `DATABASE_URL` | e.g. `postgres://microtek:microtek@localhost:5432/microtek_idm` |
-| `REDIS_URL` | e.g. `redis://localhost:6379` |
-| `PORT` | API port (default `4000`) |
-| `CORS_ORIGIN` | frontend origin (e.g. `http://localhost:5173`) |
-| `AUTH_TOKEN_SECRET` | session-token signing secret |
-| `AUTH_SESSION_TTL_SECONDS` | session lifetime (default `28800`) |
-| `VITE_API_BASE_URL` | client → API base (e.g. `http://localhost:4000/api`) |
+| Var | R | P | Default | Purpose |
+| --- | :-: | :-: | --- | --- |
+| `DATABASE_URL` | ✓ | | — | Postgres connection string |
+| `NODE_ENV` | | | `development` | `development` \| `test` \| `production` |
+| `PORT` | | | `4000` | API port |
+| `CORS_ORIGIN` | | | `http://localhost:5173` | Allowed frontend origin |
+| `LOG_LEVEL` | | | `info` | `fatal`…`trace` \| `silent` |
+| `AUTH_TOKEN_SECRET` | | ✓ | dev secret | Session-token signing key (≥32 chars; the dev default is rejected in prod) |
+| `AUTH_SESSION_TTL_SECONDS` | | | `28800` | Session lifetime (8h) |
+| `REDIS_URL` | | ✓ | `redis://localhost:6379` | Redis URL (must be `rediss://` TLS or loopback in prod) |
+| `IMPORT_WEBHOOK_SECRET` | | ✓ | — | HMAC secret for the SAP import webhook (≥32 chars). **If unset, the webhook signature check silently passes** |
+| `AGEING_REFRESH_INTERVAL_MS` | | | `43200000` | Ageing snapshot refresh interval (12h) |
+| `API_RATE_LIMIT_WINDOW_MS` | | | `60000` | General API rate-limit window |
+| `API_RATE_LIMIT_MAX` | | | `600` | General API rate-limit max/window |
+| `SCAN_RATE_LIMIT_WINDOW_MS` | | | `60000` | Scan/validate rate-limit window |
+| `SCAN_RATE_LIMIT_MAX` | | | `240` | Scan/validate rate-limit max/window |
+| `TRUST_PROXY` | | | `false` | Trusted proxy hops (or `true`/`false`); set behind a proxy/LB so `request.ip` is correct for rate limiting |
+| `VITE_API_BASE_URL` | | | `http://localhost:4000/api` | Client → API base URL (read by the Vite client build, not the backend) |
 
 Start Postgres + Redis (Docker):
 
@@ -100,16 +109,16 @@ operator_1 / admin123     (role: warehouse_operator)
 
 | Module | What it does |
 | --- | --- |
-| **IDM-01** | Production import — ingest SAP-produced serials via signed webhook **or** CSV upload; marks them IN_TRANSIT/PRODUCED and writes SAP dispatch docs. |
-| **IDM-02** | GRN (goods receipt) — open a warehouse GRN, scan arriving serials, validate against the SAP dispatch, record receipt. |
-| **IDM-03** | Battery pre-billing — commit battery serials to an invoice line before dispatch (a battery can't dispatch unless pre-billed). |
-| **IDM-04** | Returns (SRN) + condition correction — receive returns against a dispatched invoice, re-open it, and retag DEFECTIVE/REPAIR stock back to SALEABLE. |
-| **IDM-05** | Customer dispatch — dispatch stock against an invoice; enforces condition-hold and battery-pre-bill gates; flips serials to DISPATCHED. |
-| **IDM-06** | Serial validation — the shared, context-aware "is this serial valid for this operation?" primitive every scan module calls first. |
-| **IDM-07** | Fulfilment status — reports how far an invoice is fulfilled (pending / partial / dispatched) and gates dispatch completion. |
-| **IDM-08** | Reporting — ageing buckets (how long stock has sat) + opening-stock reconciliation (SAP vs IDM quantity variance); CSV/SAP exports. |
-| **IDM-09** | Serial history — a single time-ordered audit timeline of every event and exception for a serial, across warehouses. |
-| **IDM-10** | Exception correction — list/triage/resolve exceptions raised by scan workflows, each closed with a mandatory reason and status. |
+| **IDM-01** | Production import ingest SAP-produced serials via signed webhook **or** CSV upload; marks them IN_TRANSIT/PRODUCED and writes SAP dispatch docs. |
+| **IDM-02** | GRN (goods receipt) open a warehouse GRN, scan arriving serials, validate against the SAP dispatch, record receipt. |
+| **IDM-03** | Battery pre-billing commit battery serials to an invoice line before dispatch (a battery can't dispatch unless pre-billed). |
+| **IDM-04** | Returns (SRN) + condition correction receive returns against a dispatched invoice, re-open it, and retag DEFECTIVE/REPAIR stock back to SALEABLE. |
+| **IDM-05** | Customer dispatch dispatch stock against an invoice; enforces condition-hold and battery-pre-bill gates; flips serials to DISPATCHED. |
+| **IDM-06** | Serial validation the shared, context-aware "is this serial valid for this operation?" primitive every scan module calls first. |
+| **IDM-07** | Fulfilment status reports how far an invoice is fulfilled (pending / partial / dispatched) and gates dispatch completion. |
+| **IDM-08** | Reporting ageing buckets (how long stock has sat) + opening-stock reconciliation (SAP vs IDM quantity variance); CSV/SAP exports. |
+| **IDM-09** | Serial history a single time-ordered audit timeline of every event and exception for a serial, across warehouses. |
+| **IDM-10** | Exception correction list/triage/resolve exceptions raised by scan workflows, each closed with a mandatory reason and status. |
 
 ## Testing
 
@@ -127,7 +136,7 @@ npm run test --workspace client
 - **Layering:** put SQL only in `src/db/*Repository.js`; keep business logic in `src/idm*/...Service.js`; routes stay thin (parse, auth, delegate).
 - **RBAC:** permissions are defined in `src/security/rbacPolicy.js` (role → permission set) and **seeded via a migration** into `role_permission`. To add a permission: update `rbacPolicy.js`, add a seed migration, and gate the route with `requirePermission("...")`.
 - **Auth context:** routes use `requireAuthContext` + `requirePermission(code, { warehouseIdFromBody|warehouseIdFromQuery })`; admins bypass scope, others are checked against assigned `warehouseIds`.
-- **Serial lifecycle:** modules append `serial_event` rows and raise `exception_log` entries as they work — these power IDM-09 (history) and IDM-10 (exception desk).
+- **Serial lifecycle:** modules append `serial_event` rows and raise `exception_log` entries as they work these power IDM-09 (history) and IDM-10 (exception desk).
 - **Returns & re-dispatch:** dispatch scans are *soft-returned* (`returned_at`) rather than deleted; scan/quantity counts exclude returned rows so a returned serial can be re-dispatched.
 - **Idempotency:** batch imports are de-duplicated by `externalRef`; receipt/dispatch uniqueness is enforced by partial unique indexes (`WHERE returned_at IS NULL`) plus serial state transitions.
 - **Scanning:** native `BarcodeDetector` with `@zxing/browser` fallback and a keyboard-wedge (hardware scanner) path; camera scanning requires HTTPS or localhost.
