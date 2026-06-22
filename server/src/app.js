@@ -7,6 +7,8 @@ import { createAuthService } from "./auth/authService.js";
 import { createLoginRateLimiter } from "./auth/loginRateLimiter.js";
 import { createPool } from "./db/pool.js";
 import { createRepositories } from "./db/repositories.js";
+import { createDashboardRoutes } from "./idm00/dashboardRoutes.js";
+import { createDashboardService } from "./idm00/dashboardService.js";
 import { createDispatchRoutes } from "./idm05/dispatchRoutes.js";
 import { createDispatchExportRoutes } from "./idm05/dispatchExportRoutes.js";
 import { createDispatchService } from "./idm05/dispatchService.js";
@@ -108,7 +110,8 @@ function createDefaultServices(config) {
     adminService: createAdminService({
       repositories,
       adminRepo: repositories.admin
-    })
+    }),
+    dashboardService: createDashboardService({ repositories })
   };
 }
 
@@ -244,6 +247,7 @@ export function createApp({ config, logger = console, services, rbacPolicy = nul
   );
   app.use("/api/lookups", createLookupRoutes({ lookupService: resolvedServices.lookupService }));
   app.use("/api/admin", createAdminRoutes({ adminService: resolvedServices.adminService }));
+  app.use("/api/idm-00/dashboard", createDashboardRoutes({ dashboardService: resolvedServices.dashboardService }));
 
   app.use((_request, response) => {
     sendError(response, 404, "NOT_FOUND", "Resource not found");

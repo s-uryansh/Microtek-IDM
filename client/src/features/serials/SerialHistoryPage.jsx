@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
@@ -33,6 +34,7 @@ export function SerialHistoryPage() {
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [searchParams] = useSearchParams();
 
   async function loadHistory(value) {
     const lookupSerial = String(value || "").trim();
@@ -73,6 +75,25 @@ export function SerialHistoryPage() {
       throw err;
     }
   }
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (!q?.trim()) return;
+    setSerialNo(q.trim());
+    setError(null);
+    setHistory(null);
+    setLoading(true);
+    loadHistory(q.trim())
+      .then((result) => setHistory(result))
+      .catch((err) => {
+        if (err?.status === 404) {
+          setHistory({ found: false, serial: null, timeline: [] });
+          return;
+        }
+        setError(err?.message || "Search failed");
+      })
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const timeline = toArray(history?.timeline);
 
   return (

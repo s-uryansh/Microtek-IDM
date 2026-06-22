@@ -1,6 +1,6 @@
 function normalizeStatus(status) {
   if (!status) return "pending";
-  return status.toLowerCase().replace(/\s+/g, "-");
+  return status.toLowerCase().replace(/[\s_]+/g, "-");
 }
 
 export function StatusBadge({ status, className = "", ...props }) {

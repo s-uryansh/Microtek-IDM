@@ -16,9 +16,9 @@
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  background: var(--microtek-blue);
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 8px 0 24px rgba(0, 51, 102, 0.14);
+  background: linear-gradient(180deg, #003d80 0%, #001e4a 60%, #000f2e 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 8px 0 32px rgba(0, 20, 60, 0.32);
   overflow-y: auto;
   position: fixed;
   top: 0;
@@ -32,29 +32,29 @@
 .sidebar__brand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  height: var(--topbar-height);
-  padding: var(--space-2) var(--space-4);
-  background: #ffffff;
-  border-bottom: 1px solid rgba(0, 51, 102, 0.12);
+  justify-content: center;
+  height: calc(var(--topbar-height) + 8px);
+  padding: var(--space-3) var(--space-5);
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
 
 .sidebar__brand-logo {
-  width: 120px;
-  min-height: 40px;
-  padding: var(--space-1);
-  background: #ffffff;
-  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-5);
+  background: rgba(255, 255, 255, 0.93);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  width: 100%;
 }
 
 .sidebar__brand-logo img {
-  width: 100%;
-  max-height: 36px;
+  height: 28px;
+  width: auto;
+  max-width: 100%;
   object-fit: contain;
 }
 
@@ -107,8 +107,12 @@
 
 .sidebar__link--active {
   color: #ffffff;
-  background: rgba(227, 29, 36, 0.96);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+  background: linear-gradient(135deg, #e31d24 0%, #b20d13 100%);
+  box-shadow: 0 4px 16px rgba(180, 10, 16, 0.40);
+}
+
+.sidebar__link--active .sidebar__link-icon {
+  opacity: 1;
 }
 
 .sidebar__link-icon {
@@ -198,7 +202,7 @@
   gap: var(--space-4);
   height: var(--topbar-height);
   padding: 0 var(--space-6);
-  background: var(--color-bg-surface);
+  background: linear-gradient(90deg, var(--color-bg-surface) 0%, var(--color-bg-elevated) 100%);
   border-bottom: 1px solid var(--color-border);
   box-shadow: var(--shadow-sm);
   position: sticky;
@@ -302,7 +306,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-6);
-  background: var(--color-bg-canvas);
+  background: var(--color-bg-primary);
 }
 
 .login-card {

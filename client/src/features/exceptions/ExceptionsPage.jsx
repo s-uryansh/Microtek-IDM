@@ -5,6 +5,8 @@ import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { DataTable } from "../../components/data/DataTable.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog.jsx";
+import { useToast } from "../../components/ui/ToastProvider.jsx";
 import { fetchExceptions, fetchException, correctException } from "../../api/modules/exceptions.js";
 import { useAuth } from "../../auth/useAuth.js";
 
@@ -38,6 +40,8 @@ export function ExceptionsPage() {
   const [detailError, setDetailError] = useState(null);
   const [correctionReason, setCorrectionReason] = useState("");
   const [correcting, setCorrecting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const { showToast } = useToast();
 
   const loadExceptions = useCallback(() => {
     setLoading(true);
@@ -81,14 +85,20 @@ export function ExceptionsPage() {
     return { status: "LOADED", message: "Exception detail loaded", state: "success" };
   }
 
-  async function handleCorrect() {
+  function handleCorrect() {
     if (!correctionReason.trim() || !selected) return;
+    setConfirmOpen(true);
+  }
+
+  async function doCorrect() {
+    setConfirmOpen(false);
     setCorrecting(true);
     try {
       const result = await correctException({ exceptionId: selected, correctionReason });
       setDetail(result);
       loadExceptions();
       setCorrectionReason("");
+      showToast({ message: "Exception corrected", variant: "success" });
     } catch (err) {
       setDetailError(err?.message || "Correction failed");
     } finally {
@@ -223,6 +233,17 @@ export function ExceptionsPage() {
           </Card>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Correct Exception"
+        message={`Are you sure you want to correct exception #${selected}? This action cannot be undone.`}
+        confirmLabel="Correct"
+        cancelLabel="Cancel"
+        variant="primary"
+        onConfirm={doCorrect}
+        onCancel={() => setConfirmOpen(false)}
+        busy={correcting}
+      />
     </div>
   );
 }

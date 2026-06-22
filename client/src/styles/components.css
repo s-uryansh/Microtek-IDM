@@ -29,13 +29,14 @@
 }
 
 .button--primary {
-  background: var(--color-accent);
+  background: linear-gradient(135deg, #e31d24 0%, #b80d13 100%);
   color: #ffffff;
-  box-shadow: 0 8px 18px rgba(227, 29, 36, 0.2);
+  box-shadow: 0 4px 14px rgba(227, 29, 36, 0.30);
 }
 
 .button--primary:hover:not(:disabled) {
-  background: var(--color-accent-hover);
+  background: linear-gradient(135deg, #f02028 0%, #c41019 100%);
+  box-shadow: 0 6px 18px rgba(227, 29, 36, 0.40);
 }
 
 .button--secondary {
@@ -46,7 +47,7 @@
 
 .button--secondary:hover:not(:disabled) {
   border-color: var(--color-border-hover);
-  background: #ffffff;
+  background: var(--color-bg-surface);
 }
 
 .button--ghost {
@@ -82,12 +83,17 @@
 /* ─── Card ─── */
 
 .card {
-  background: var(--color-bg-surface);
-  border: 1px solid rgba(0, 51, 102, 0.06);
+  background: linear-gradient(160deg, var(--color-bg-surface) 0%, var(--color-bg-elevated) 100%);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   min-width: 0;
+  transition: box-shadow var(--transition-fast);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .card__header {
@@ -192,7 +198,7 @@
   padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #f4f8fc;
+  background: var(--color-bg-elevated);
 }
 
 .operation-panel__header {
@@ -307,9 +313,9 @@
   background: var(--color-bg-surface);
 }
 
-:root[data-theme="dark"] .card,
-:root[data-theme="dark"] .kpi-card {
-  border-color: rgba(255, 255, 255, 0.06);
+/* Dark mode card/kpi border is already handled by --color-border-subtle dark override */
+:root[data-theme="dark"] .card:hover {
+  box-shadow: var(--shadow-md);
 }
 
 :root[data-theme="dark"] .operation-panel {
@@ -388,6 +394,77 @@
 
 .status-badge--closed { background: var(--color-bg-elevated); color: var(--color-text-muted); }
 .status-badge--closed::before { background: var(--color-text-muted); }
+
+/* ── Extended status colors ── */
+.status-badge--short,
+.status-badge--wrong-serial,
+.status-badge--defective,
+.status-badge--import-failed,
+.status-badge--already-dispatched,
+.status-badge--not-found,
+.status-badge--condition-hold,
+.status-badge--battery-not-prebilled { background: var(--color-error-subtle); color: var(--color-error); }
+.status-badge--short::before,
+.status-badge--wrong-serial::before,
+.status-badge--defective::before,
+.status-badge--import-failed::before,
+.status-badge--already-dispatched::before,
+.status-badge--not-found::before,
+.status-badge--condition-hold::before,
+.status-badge--battery-not-prebilled::before { background: var(--color-error); }
+
+.status-badge--excess,
+.status-badge--repair,
+.status-badge--duplicate-scan { background: var(--color-warning-subtle); color: var(--color-warning); }
+.status-badge--excess::before,
+.status-badge--repair::before,
+.status-badge--duplicate-scan::before { background: var(--color-warning); }
+
+.status-badge--dismissed { background: var(--color-bg-elevated); color: var(--color-text-muted); }
+.status-badge--dismissed::before { background: var(--color-text-muted); }
+
+.status-badge--saleable { background: var(--color-success-subtle); color: var(--color-success); }
+.status-badge--saleable::before { background: var(--color-success); }
+
+.status-badge--in-transit,
+.status-badge--produced { background: var(--color-info-subtle); color: var(--color-info); }
+.status-badge--in-transit::before,
+.status-badge--produced::before { background: var(--color-info); }
+
+/* ── Toast ── */
+.toast-container {
+  position: fixed; bottom: var(--space-4); right: var(--space-4);
+  display: flex; flex-direction: column; gap: var(--space-2);
+  z-index: 2000; max-width: min(360px, 90vw); pointer-events: none;
+}
+.toast {
+  padding: var(--space-3) var(--space-4); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md); font-size: 0.875rem; font-weight: 500;
+  pointer-events: auto; animation: toast-in 0.18s ease-out;
+}
+.toast--success { background: var(--color-success); color: #fff; }
+.toast--error   { background: var(--color-error);   color: #fff; }
+.toast--warning { background: var(--color-warning);  color: #1a1a1a; }
+.toast--info    { background: var(--color-info);     color: #fff; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── ConfirmDialog ── */
+.dialog-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2100; padding: var(--space-4);
+}
+.dialog {
+  background: var(--color-bg-surface); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md); padding: var(--space-6);
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-4);
+}
+.dialog__title { font-family: var(--font-display); font-weight: 600; font-size: 1.125rem; color: var(--color-text-primary); }
+.dialog__message { font-size: 0.9375rem; color: var(--color-text-secondary); line-height: 1.5; }
+.dialog__actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
 
 /* ─── EmptyState ─── */
 

@@ -3,6 +3,8 @@ import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { DataTable } from "../../components/data/DataTable.jsx";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog.jsx";
+import { useToast } from "../../components/ui/ToastProvider.jsx";
 import { fetchHeldStock, correctConditionTag } from "../../api/modules/condition.js";
 
 // Serials returned as DEFECTIVE or REPAIR sit in stock on hold and cannot be
@@ -17,6 +19,8 @@ export function ConditionPage() {
   const [busySerial, setBusySerial] = useState(null);
   const [notice, setNotice] = useState(null);
   const [search, setSearch] = useState("");
+  const [confirmPending, setConfirmPending] = useState(null);
+  const { showToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,18 +39,18 @@ export function ConditionPage() {
     load();
   }, [load]);
 
-  const handleRetag = useCallback(
+  const doRetag = useCallback(
     async (serialNo, conditionTag) => {
       setBusySerial(serialNo);
       setNotice(null);
       setError(null);
       try {
         await correctConditionTag({ serialNo, conditionTag });
-        setNotice(
-          conditionTag === "SALEABLE"
-            ? `${serialNo} cleared for dispatch (SALEABLE).`
-            : `${serialNo} retagged ${conditionTag}.`
-        );
+        const msg = conditionTag === "SALEABLE"
+          ? `${serialNo} cleared for dispatch (SALEABLE).`
+          : `${serialNo} retagged ${conditionTag}.`;
+        setNotice(msg);
+        showToast({ message: msg, variant: "success" });
         await load();
       } catch (err) {
         setError(err?.message || "Failed to update condition tag");
@@ -54,7 +58,18 @@ export function ConditionPage() {
         setBusySerial(null);
       }
     },
-    [load]
+    [load, showToast]
+  );
+
+  const handleRetag = useCallback(
+    (serialNo, conditionTag) => {
+      if (conditionTag === "SALEABLE") {
+        setConfirmPending({ serialNo, conditionTag });
+      } else {
+        doRetag(serialNo, conditionTag);
+      }
+    },
+    [doRetag]
   );
 
   // Free-text search across serial and product; the per-column dropdowns on the
@@ -128,6 +143,21 @@ export function ConditionPage() {
           emptyDescription="Nothing is currently held as DEFECTIVE or REPAIR."
         />
       </Card>
+      <ConfirmDialog
+        open={!!confirmPending}
+        title="Mark as Saleable"
+        message={confirmPending ? `Mark ${confirmPending.serialNo} as SALEABLE? This will release it for dispatch.` : ""}
+        confirmLabel="Mark Saleable"
+        cancelLabel="Cancel"
+        variant="primary"
+        onConfirm={() => {
+          const pending = confirmPending;
+          setConfirmPending(null);
+          doRetag(pending.serialNo, pending.conditionTag);
+        }}
+        onCancel={() => setConfirmPending(null)}
+        busy={!!busySerial}
+      />
     </div>
   );
 }

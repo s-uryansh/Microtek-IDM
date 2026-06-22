@@ -38,6 +38,10 @@
   --color-error: var(--microtek-red);
   --color-error-subtle: var(--microtek-red-subtle);
 
+  /* Semantic tokens used across components */
+  --color-border-subtle: rgba(0, 51, 102, 0.05);
+  --color-bg-canvas: #ebf2fa;
+
   --shadow-sm: 0 2px 8px rgba(0, 51, 102, 0.06);
   --shadow-md: 0 10px 24px rgba(0, 51, 102, 0.08);
   --shadow-lg: 0 18px 42px rgba(0, 51, 102, 0.12);
@@ -52,9 +56,9 @@
   --space-10: 40px;
   --space-12: 48px;
 
-  --radius-sm: 4px;
-  --radius-md: 4px;
-  --radius-lg: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
   --transition-fast: 150ms ease;
   --transition-base: 200ms ease;
@@ -69,9 +73,11 @@
   --color-bg-primary: #071526;
   --color-bg-surface: #10233a;
   --color-bg-elevated: #17314d;
-  --color-bg-input: #0c1b2c;
+  --color-bg-input: #0b1b2e;
+  --color-bg-canvas: #040d19;
   --color-border: #274766;
   --color-border-hover: #3d6387;
+  --color-border-subtle: rgba(255, 255, 255, 0.05);
   --color-text-primary: #f4f8fc;
   --color-text-secondary: #b5c5d4;
   --color-text-muted: #7f95aa;
@@ -80,7 +86,13 @@
   --color-accent-subtle: rgba(255, 48, 56, 0.14);
   --color-accent-text: #ff7a80;
 
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.22);
-  --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.28);
-  --shadow-lg: 0 18px 42px rgba(0, 0, 0, 0.36);
+  /* Subtle semantic colours need higher opacity in dark mode */
+  --color-info-subtle: rgba(8, 145, 178, 0.20);
+  --color-success-subtle: rgba(22, 163, 74, 0.20);
+  --color-warning-subtle: rgba(234, 88, 12, 0.20);
+  --color-error-subtle: rgba(255, 48, 56, 0.18);
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 18px 42px rgba(0, 0, 0, 0.46);
 }
