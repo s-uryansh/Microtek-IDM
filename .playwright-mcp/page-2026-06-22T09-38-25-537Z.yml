@@ -1,0 +1,352 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - complementary "Main navigation" [ref=e5]:
+      - img "Microtek logo" [ref=e8]
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e11] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e12]
+          - text: Dashboard
+        - generic [ref=e16]:
+          - generic [ref=e17]: Inbound
+          - link "Import Production" [ref=e18] [cursor=pointer]:
+            - /url: /imports
+            - img [ref=e19]
+            - text: Import Production
+          - link "GRN" [ref=e22] [cursor=pointer]:
+            - /url: /grn
+            - img [ref=e23]
+            - text: GRN
+          - link "Battery Pre-Bill" [ref=e26] [cursor=pointer]:
+            - /url: /battery
+            - img [ref=e27]
+            - text: Battery Pre-Bill
+        - generic [ref=e29]:
+          - generic [ref=e30]: Outbound
+          - link "Dispatch" [ref=e31] [cursor=pointer]:
+            - /url: /dispatch
+            - img [ref=e32]
+            - text: Dispatch
+          - link "Fulfilment" [ref=e37] [cursor=pointer]:
+            - /url: /fulfilment
+            - img [ref=e38]
+            - text: Fulfilment
+        - generic [ref=e42]:
+          - generic [ref=e43]: Returns
+          - link "SRN" [ref=e44] [cursor=pointer]:
+            - /url: /srn
+            - img [ref=e45]
+            - text: SRN
+          - link "Defective Stock" [ref=e48] [cursor=pointer]:
+            - /url: /condition
+            - img [ref=e49]
+            - text: Defective Stock
+        - generic [ref=e51]:
+          - generic [ref=e52]: Monitoring
+          - link "Exceptions" [ref=e53] [cursor=pointer]:
+            - /url: /exceptions
+            - img [ref=e54]
+            - text: Exceptions
+          - link "Ageing Report" [ref=e56] [cursor=pointer]:
+            - /url: /ageing
+            - img [ref=e57]
+            - text: Ageing Report
+          - link "Serial History" [ref=e60] [cursor=pointer]:
+            - /url: /serials
+            - img [ref=e61]
+            - text: Serial History
+        - generic [ref=e64]:
+          - generic [ref=e65]: Administration
+          - link "Warehouses" [ref=e66] [cursor=pointer]:
+            - /url: /admin/warehouses
+            - img [ref=e67]
+            - text: Warehouses
+          - link "Members" [ref=e70] [cursor=pointer]:
+            - /url: /admin/members
+            - img [ref=e71]
+            - text: Members
+          - link "Roles" [ref=e74] [cursor=pointer]:
+            - /url: /admin/roles
+            - img [ref=e75]
+            - text: Roles
+          - link "Products" [ref=e78] [cursor=pointer]:
+            - /url: /admin/products
+            - img [ref=e79]
+            - text: Products
+          - link "Invoices" [ref=e82] [cursor=pointer]:
+            - /url: /admin/invoices
+            - img [ref=e83]
+            - text: Invoices
+          - link "Inbound Stock" [ref=e86] [cursor=pointer]:
+            - /url: /admin/inbound
+            - img [ref=e87]
+            - text: Inbound Stock
+          - link "Warehouse Stock" [ref=e92] [cursor=pointer]:
+            - /url: /admin/stock
+            - img [ref=e93]
+            - text: Warehouse Stock
+      - generic [ref=e96]:
+        - generic [ref=e97]:
+          - generic [ref=e98]: "1"
+          - generic [ref=e99]:
+            - generic [ref=e100]: "1"
+            - generic [ref=e101]: admin
+        - button "Logout" [ref=e102] [cursor=pointer]
+    - banner [ref=e103]:
+      - generic [ref=e104]:
+        - img [ref=e105]
+        - searchbox "Search" [ref=e108]
+      - generic [ref=e109]:
+        - button "Switch to light theme" [ref=e110] [cursor=pointer]:
+          - img [ref=e111]
+        - button "Notifications" [ref=e117] [cursor=pointer]:
+          - img [ref=e118]
+    - main [ref=e121]:
+      - generic [ref=e122]:
+        - generic [ref=e123]:
+          - generic [ref=e124]:
+            - heading "Exception Portal" [level=1] [ref=e125]
+            - paragraph [ref=e126]: Review and correct exceptions
+          - generic [ref=e128]:
+            - combobox "Filter by status" [ref=e129]:
+              - option "All Statuses" [selected]
+              - option "Open"
+              - option "Corrected"
+              - option "Dismissed"
+            - button "Refresh" [ref=e130] [cursor=pointer]
+        - generic [ref=e133]:
+          - heading "Exception List" [level=3] [ref=e135]
+          - generic [ref=e136]:
+            - generic [ref=e137]:
+              - generic [ref=e138]:
+                - generic [ref=e139]: Exception ID
+                - spinbutton "Exception ID" [ref=e140]
+              - button "Load Exception" [disabled] [ref=e141]
+              - generic [ref=e142]:
+                - generic [ref=e143]:
+                  - generic [ref=e144]:
+                    - heading "Exception scanner" [level=3] [ref=e145]
+                    - paragraph [ref=e146]: 0 scanned · Ready
+                  - button "Pause" [ref=e148] [cursor=pointer]
+                - region "Camera scanner" [ref=e149]:
+                  - generic [ref=e150]:
+                    - generic "Camera preview" [ref=e151]
+                    - generic [ref=e153]: Camera ready
+                  - button "Start Camera" [ref=e155] [cursor=pointer]
+                  - status [ref=e156]: Camera ready
+                  - paragraph [ref=e157]: QR / Code128 / Code39 / EAN13 / UPC-A
+                - region "Hardware scanner" [ref=e158]:
+                  - generic [ref=e159]:
+                    - generic [ref=e160]: Scan Exception ID
+                    - textbox "Scan Exception ID" [ref=e162]:
+                      - /placeholder: Scan or enter exception ID
+                    - generic [ref=e163]: Press Enter to submit
+                  - generic [ref=e164]: "Hardware scanner mode: focus once, scan continuously, Enter submits automatically."
+                - status [ref=e165]:
+                  - paragraph [ref=e166]: No scans yet. Start scanning above.
+            - generic [ref=e167]:
+              - searchbox "Search table" [ref=e169]
+              - generic [ref=e170]:
+                - generic [ref=e171]:
+                  - generic [ref=e172]: Filter ID
+                  - combobox "Filter ID" [ref=e173]:
+                    - option "All ID" [selected]
+                    - 'option "ID: 1"'
+                    - 'option "ID: 2"'
+                    - 'option "ID: 3"'
+                    - 'option "ID: 4"'
+                    - 'option "ID: 5"'
+                    - 'option "ID: 6"'
+                    - 'option "ID: 7"'
+                    - 'option "ID: 8"'
+                    - 'option "ID: 9"'
+                    - 'option "ID: 10"'
+                    - 'option "ID: 11"'
+                    - 'option "ID: 12"'
+                    - 'option "ID: 13"'
+                    - 'option "ID: 14"'
+                    - 'option "ID: 15"'
+                    - 'option "ID: 16"'
+                    - 'option "ID: 17"'
+                    - 'option "ID: 18"'
+                    - 'option "ID: 19"'
+                    - 'option "ID: 20"'
+                - generic [ref=e174]:
+                  - generic [ref=e175]: Filter Rule
+                  - combobox "Filter Rule" [ref=e176]:
+                    - option "All Rule" [selected]
+                    - 'option "Rule: ALREADY_DISPATCHED"'
+                    - 'option "Rule: BATTERY_NOT_PREBILLED"'
+                    - 'option "Rule: CONDITION_HOLD"'
+                    - 'option "Rule: DISPATCH_QUANTITY_REACHED"'
+                    - 'option "Rule: DUPLICATE_SCAN"'
+                    - 'option "Rule: EXCESS"'
+                    - 'option "Rule: IMPORT_FAILED"'
+                    - 'option "Rule: NOT_FOUND"'
+                    - 'option "Rule: PRODUCT_INVOICE_MISMATCH"'
+                    - 'option "Rule: SHORT"'
+                    - 'option "Rule: WRONG_SERIAL"'
+                    - 'option "Rule: WRONG_WAREHOUSE"'
+                - generic [ref=e177]:
+                  - generic [ref=e178]: Filter Context
+                  - combobox "Filter Context" [ref=e179]:
+                    - option "All Context" [selected]
+                    - 'option "Context: BATTERY"'
+                    - 'option "Context: DISPATCH"'
+                    - 'option "Context: GRN"'
+                    - 'option "Context: IMPORT"'
+                    - 'option "Context: SRN"'
+                - generic [ref=e180]:
+                  - generic [ref=e181]: Filter Status
+                  - combobox "Filter Status" [ref=e182]:
+                    - option "All Status" [selected]
+                    - 'option "Status: CORRECTED"'
+                    - 'option "Status: DISMISSED"'
+                    - 'option "Status: OPEN"'
+                - generic [ref=e183]:
+                  - generic [ref=e184]: Filter Raised At
+                  - combobox "Filter Raised At" [ref=e185]:
+                    - option "All Raised At" [selected]
+                    - 'option "Raised At: 2026-06-22T05:27:24.563Z"'
+                    - 'option "Raised At: 2026-06-22T06:30:18.064Z"'
+                    - 'option "Raised At: 2026-06-22T07:23:12.565Z"'
+              - table [ref=e187]:
+                - rowgroup [ref=e188]:
+                  - row "Sort by ID Sort by Serial No Sort by Rule Sort by Context Sort by Status Sort by Raised At" [ref=e189]:
+                    - columnheader "Sort by ID" [ref=e190]:
+                      - button "Sort by ID" [ref=e191] [cursor=pointer]:
+                        - generic [ref=e192]: ID
+                        - generic [ref=e193]:
+                          - img [ref=e194]
+                          - img [ref=e196]
+                    - columnheader "Sort by Serial No" [ref=e198]:
+                      - button "Sort by Serial No" [ref=e199] [cursor=pointer]:
+                        - generic [ref=e200]: Serial No
+                        - generic [ref=e201]:
+                          - img [ref=e202]
+                          - img [ref=e204]
+                    - columnheader "Sort by Rule" [ref=e206]:
+                      - button "Sort by Rule" [ref=e207] [cursor=pointer]:
+                        - generic [ref=e208]: Rule
+                        - generic [ref=e209]:
+                          - img [ref=e210]
+                          - img [ref=e212]
+                    - columnheader "Sort by Context" [ref=e214]:
+                      - button "Sort by Context" [ref=e215] [cursor=pointer]:
+                        - generic [ref=e216]: Context
+                        - generic [ref=e217]:
+                          - img [ref=e218]
+                          - img [ref=e220]
+                    - columnheader "Sort by Status" [ref=e222]:
+                      - button "Sort by Status" [ref=e223] [cursor=pointer]:
+                        - generic [ref=e224]: Status
+                        - generic [ref=e225]:
+                          - img [ref=e226]
+                          - img [ref=e228]
+                    - columnheader "Sort by Raised At" [ref=e230]:
+                      - button "Sort by Raised At" [ref=e231] [cursor=pointer]:
+                        - generic [ref=e232]: Raised At
+                        - generic [ref=e233]:
+                          - img [ref=e234]
+                          - img [ref=e236]
+                - rowgroup [ref=e238]:
+                  - row "Open row 1" [ref=e239] [cursor=pointer]:
+                    - cell "20" [ref=e240]
+                    - cell "DEMO-INV2K-0104" [ref=e241]
+                    - cell "DUPLICATE_SCAN" [ref=e242]:
+                      - generic [ref=e243]: DUPLICATE_SCAN
+                    - cell "GRN" [ref=e244]
+                    - cell "OPEN" [ref=e245]:
+                      - generic [ref=e246]: OPEN
+                    - cell "2026-06-22T07:23:12.565Z" [ref=e247]
+                  - row "Open row 2" [ref=e248] [cursor=pointer]:
+                    - cell "6" [ref=e249]
+                    - cell "DEMO-EXCESS-0001" [ref=e250]
+                    - cell "EXCESS" [ref=e251]:
+                      - generic [ref=e252]: EXCESS
+                    - cell "GRN" [ref=e253]
+                    - cell "DISMISSED" [ref=e254]:
+                      - generic [ref=e255]: DISMISSED
+                    - cell "2026-06-22T06:30:18.064Z" [ref=e256]
+                  - row "Open row 3" [ref=e257] [cursor=pointer]:
+                    - cell "4" [ref=e258]
+                    - cell "DEMO-INV2K-0112" [ref=e259]
+                    - cell "SHORT" [ref=e260]:
+                      - generic [ref=e261]: SHORT
+                    - cell "GRN" [ref=e262]
+                    - cell "OPEN" [ref=e263]:
+                      - generic [ref=e264]: OPEN
+                    - cell "2026-06-22T06:30:18.064Z" [ref=e265]
+                  - row "Open row 4" [ref=e266] [cursor=pointer]:
+                    - cell "5" [ref=e267]
+                    - cell "DEMO-UNKNOWN-9999" [ref=e268]
+                    - cell "WRONG_SERIAL" [ref=e269]:
+                      - generic [ref=e270]: WRONG_SERIAL
+                    - cell "GRN" [ref=e271]
+                    - cell "OPEN" [ref=e272]:
+                      - generic [ref=e273]: OPEN
+                    - cell "2026-06-22T06:30:18.064Z" [ref=e274]
+                  - row "Open row 5" [ref=e275] [cursor=pointer]:
+                    - cell "13" [ref=e276]
+                    - cell "DEMO-FAIL-0001" [ref=e277]
+                    - cell "IMPORT_FAILED" [ref=e278]:
+                      - generic [ref=e279]: IMPORT_FAILED
+                    - cell "IMPORT" [ref=e280]
+                    - cell "OPEN" [ref=e281]:
+                      - generic [ref=e282]: OPEN
+                    - cell "2026-06-22T06:30:18.064Z" [ref=e283]
+                  - row "Open row 6" [ref=e284] [cursor=pointer]:
+                    - cell "12" [ref=e285]
+                    - cell "DEMO-BAT100-0105" [ref=e286]
+                    - cell "BATTERY_NOT_PREBILLED" [ref=e287]:
+                      - generic [ref=e288]: BATTERY_NOT_PREBILLED
+                    - cell "BATTERY" [ref=e289]
+                    - cell "DISMISSED" [ref=e290]:
+                      - generic [ref=e291]: DISMISSED
+                    - cell "2026-06-22T06:30:18.064Z" [ref=e292]
+                  - row "Open row 7" [ref=e293] [cursor=pointer]:
+                    - cell "8" [ref=e294]
+                    - cell "DEMO-SRN-SAL-0001" [ref=e295]
+                    - cell "ALREADY_DISPATCHED" [ref=e296]:
+                      - generic [ref=e297]: ALREADY_DISPATCHED
+                    - cell "DISPATCH" [ref=e298]
+                    - cell "CORRECTED" [ref=e299]:
+                      - generic [ref=e300]: CORRECTED
+                    - cell "2026-06-22T06:30:18.064Z" [ref=e301]
+                  - row "Open row 8" [ref=e302] [cursor=pointer]:
+                    - cell "15" [ref=e303]
+                    - cell "DEMO-INV1K-0106" [ref=e304]
+                    - cell "DUPLICATE_SCAN" [ref=e305]:
+                      - generic [ref=e306]: DUPLICATE_SCAN
+                    - cell "DISPATCH" [ref=e307]
+                    - cell "CORRECTED" [ref=e308]:
+                      - generic [ref=e309]: CORRECTED
+                    - cell "2026-06-22T06:30:18.064Z" [ref=e310]
+                  - row "Open row 9" [ref=e311] [cursor=pointer]:
+                    - cell "9" [ref=e312]
+                    - cell "DEMO-NOTFOUND-0001" [ref=e313]
+                    - cell "NOT_FOUND" [ref=e314]:
+                      - generic [ref=e315]: NOT_FOUND
+                    - cell "DISPATCH" [ref=e316]
+                    - cell "CORRECTED" [ref=e317]:
+                      - generic [ref=e318]: CORRECTED
+                    - cell "2026-06-22T06:30:18.064Z" [ref=e319]
+                  - row "Open row 10" [ref=e320] [cursor=pointer]:
+                    - cell "14" [ref=e321]
+                    - cell "DEMO-LIFECYCLE-0001" [ref=e322]
+                    - cell "WRONG_SERIAL" [ref=e323]:
+                      - generic [ref=e324]: WRONG_SERIAL
+                    - cell "GRN" [ref=e325]
+                    - cell "CORRECTED" [ref=e326]:
+                      - generic [ref=e327]: CORRECTED
+                    - cell "2026-06-22T06:30:18.064Z" [ref=e328]
+              - navigation "Pagination" [ref=e329]:
+                - button "Previous page" [disabled] [ref=e330]:
+                  - img [ref=e331]
+                - list [ref=e333]:
+                  - button "Page 1" [ref=e334] [cursor=pointer]: "1"
+                  - button "Page 2" [ref=e335] [cursor=pointer]: "2"
+                - button "Next page" [ref=e336] [cursor=pointer]:
+                  - img [ref=e337]
+            - paragraph [ref=e339]: Showing 20 of 20 total
+  - status

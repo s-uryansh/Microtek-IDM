@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icon } from "../ui/Icon.jsx";
 import { useTheme } from "../../theme/useTheme.js";
 
@@ -5,6 +7,19 @@ export function TopBar({ onMenuToggle, notificationCount = 0 }) {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === "dark";
   const hasNotifications = notificationCount > 0;
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+
+  function handleSearchKeyDown(e) {
+    if (e.key !== "Enter") return;
+    const value = query.trim();
+    if (!value) return;
+    const looksLikeInvoice = /^\d+$/.test(value) || /inv/i.test(value);
+    navigate(looksLikeInvoice
+      ? `/fulfilment?q=${encodeURIComponent(value)}`
+      : `/serials?q=${encodeURIComponent(value)}`
+    );
+  }
 
   return (
     <header className="top-bar">
@@ -26,6 +41,9 @@ export function TopBar({ onMenuToggle, notificationCount = 0 }) {
           type="search"
           placeholder="Search serials, invoices..."
           aria-label="Search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
         />
       </div>
 

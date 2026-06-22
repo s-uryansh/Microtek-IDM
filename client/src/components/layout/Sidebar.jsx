@@ -7,28 +7,33 @@ import { Icon } from "../ui/Icon.jsx";
 // dropped entirely. Permissions come from the server via the auth context.
 const navSections = [
   {
-    title: "Operations",
+    title: "Inbound",
     items: [
+      { label: "Import Production", path: "/imports", icon: "box", permission: "integration:import" },
       { label: "GRN", path: "/grn", icon: "box", permission: "grn:write" },
-      { label: "Dispatch", path: "/dispatch", icon: "truck", permission: "dispatch:write" },
-      { label: "SRN", path: "/srn", icon: "return", permission: "srn:write" },
-      { label: "Defective Stock", path: "/condition", icon: "warning", permission: "condition:correct" },
       { label: "Battery Pre-Bill", path: "/battery", icon: "battery", permission: "battery:read" }
+    ]
+  },
+  {
+    title: "Outbound",
+    items: [
+      { label: "Dispatch", path: "/dispatch", icon: "truck", permission: "dispatch:write" },
+      { label: "Fulfilment", path: "/fulfilment", icon: "chart", permission: "fulfilment:read" }
+    ]
+  },
+  {
+    title: "Returns",
+    items: [
+      { label: "SRN", path: "/srn", icon: "return", permission: "srn:write" },
+      { label: "Defective Stock", path: "/condition", icon: "warning", permission: "condition:correct" }
     ]
   },
   {
     title: "Monitoring",
     items: [
-      { label: "Fulfilment", path: "/fulfilment", icon: "chart", permission: "fulfilment:read" },
+      { label: "Exceptions", path: "/exceptions", icon: "warning", permission: "exception:read" },
       { label: "Ageing Report", path: "/ageing", icon: "trend", permission: "ageing:read" },
-      { label: "Serial History", path: "/serials", icon: "search", permission: "serial-history:read" },
-      { label: "Exceptions", path: "/exceptions", icon: "warning", permission: "exception:read" }
-    ]
-  },
-  {
-    title: "Integration",
-    items: [
-      { label: "Import Production (CSV)", path: "/imports", icon: "box", permission: "integration:import" }
+      { label: "Serial History", path: "/serials", icon: "search", permission: "serial-history:read" }
     ]
   },
   {
@@ -67,7 +72,6 @@ export function Sidebar({ open, onClose, user }) {
           <div className="sidebar__brand-logo">
             <img src="/logo/microtek_logo.png" alt="Microtek logo" />
           </div>
-          <span className="sidebar__brand-name">Microtek IDM</span>
         </div>
 
         <nav className="sidebar__nav">

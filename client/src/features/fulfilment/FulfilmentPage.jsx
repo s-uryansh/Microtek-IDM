@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
@@ -16,6 +17,7 @@ export function FulfilmentPage() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [searchParams] = useSearchParams();
 
   async function loadStatus(id) {
     const result = await fetchFulfilmentStatus({ invoiceId: Number(id) });
@@ -39,6 +41,27 @@ export function FulfilmentPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (!q) return;
+    const digits = q.replace(/[^\d]/g, "");
+    if (!digits) return;
+    setInvoiceId(digits);
+    setError(null);
+    setStatus(null);
+    setLoading(true);
+    loadStatus(digits)
+      .then((result) => {
+        if (!result) {
+          setError("No fulfilment data found for this invoice.");
+        } else {
+          setStatus(result);
+        }
+      })
+      .catch((err) => setError(err?.message || "Search failed"))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleScanInvoice(value) {
     const result = await loadStatus(value);

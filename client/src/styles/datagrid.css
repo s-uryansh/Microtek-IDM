@@ -17,8 +17,8 @@
 .data-table__th {
   text-align: left;
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid #c9ddeb;
-  background: var(--microtek-blue-100);
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(180deg, var(--microtek-blue-100) 0%, #dceaf6 100%);
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -39,14 +39,15 @@
   color: var(--color-text-primary);
   border-bottom: 1px solid var(--color-border);
   vertical-align: middle;
+  transition: background var(--transition-fast);
 }
 
 .data-table__row:last-child .data-table__td {
   border-bottom: none;
 }
 
-.data-table__row:hover {
-  background: #f5f9fd;
+.data-table__row:hover .data-table__td {
+  background: var(--color-bg-elevated);
 }
 
 .data-table__row--clickable {
@@ -242,6 +243,4 @@
   color: #d8e8f7;
 }
 
-:root[data-theme="dark"] .data-table__row:hover {
-  background: var(--color-bg-elevated);
-}
+/* Row hover is now theme-aware via var(--color-bg-elevated) in the base rule */

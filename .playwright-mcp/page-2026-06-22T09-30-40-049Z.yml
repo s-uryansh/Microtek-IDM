@@ -1,0 +1,120 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary "Main navigation" [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - img "Microtek logo"
+        - generic [ref=e7]: Microtek IDM
+      - navigation [ref=e8]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e11]
+          - text: Dashboard
+        - generic [ref=e15]:
+          - generic [ref=e16]: Operations
+          - link "GRN" [ref=e17] [cursor=pointer]:
+            - /url: /grn
+            - img [ref=e18]
+            - text: GRN
+          - link "Dispatch" [ref=e21] [cursor=pointer]:
+            - /url: /dispatch
+            - img [ref=e22]
+            - text: Dispatch
+          - link "SRN" [ref=e27] [cursor=pointer]:
+            - /url: /srn
+            - img [ref=e28]
+            - text: SRN
+          - link "Defective Stock" [ref=e31] [cursor=pointer]:
+            - /url: /condition
+            - img [ref=e32]
+            - text: Defective Stock
+          - link "Battery Pre-Bill" [ref=e34] [cursor=pointer]:
+            - /url: /battery
+            - img [ref=e35]
+            - text: Battery Pre-Bill
+        - generic [ref=e37]:
+          - generic [ref=e38]: Monitoring
+          - link "Fulfilment" [ref=e39] [cursor=pointer]:
+            - /url: /fulfilment
+            - img [ref=e40]
+            - text: Fulfilment
+          - link "Ageing Report" [ref=e44] [cursor=pointer]:
+            - /url: /ageing
+            - img [ref=e45]
+            - text: Ageing Report
+          - link "Serial History" [ref=e48] [cursor=pointer]:
+            - /url: /serials
+            - img [ref=e49]
+            - text: Serial History
+          - link "Exceptions" [ref=e52] [cursor=pointer]:
+            - /url: /exceptions
+            - img [ref=e53]
+            - text: Exceptions
+        - generic [ref=e55]:
+          - generic [ref=e56]: Integration
+          - link "Import Production (CSV)" [ref=e57] [cursor=pointer]:
+            - /url: /imports
+            - img [ref=e58]
+            - text: Import Production (CSV)
+        - generic [ref=e61]:
+          - generic [ref=e62]: Administration
+          - link "Warehouses" [ref=e63] [cursor=pointer]:
+            - /url: /admin/warehouses
+            - img [ref=e64]
+            - text: Warehouses
+          - link "Members" [ref=e67] [cursor=pointer]:
+            - /url: /admin/members
+            - img [ref=e68]
+            - text: Members
+          - link "Roles" [ref=e71] [cursor=pointer]:
+            - /url: /admin/roles
+            - img [ref=e72]
+            - text: Roles
+          - link "Products" [ref=e75] [cursor=pointer]:
+            - /url: /admin/products
+            - img [ref=e76]
+            - text: Products
+          - link "Invoices" [ref=e79] [cursor=pointer]:
+            - /url: /admin/invoices
+            - img [ref=e80]
+            - text: Invoices
+          - link "Inbound Stock" [ref=e83] [cursor=pointer]:
+            - /url: /admin/inbound
+            - img [ref=e84]
+            - text: Inbound Stock
+          - link "Warehouse Stock" [ref=e89] [cursor=pointer]:
+            - /url: /admin/stock
+            - img [ref=e90]
+            - text: Warehouse Stock
+      - generic [ref=e93]:
+        - generic [ref=e94]:
+          - generic [ref=e95]: "1"
+          - generic [ref=e96]:
+            - generic [ref=e97]: "1"
+            - generic [ref=e98]: admin
+        - button "Logout" [ref=e99] [cursor=pointer]
+    - banner [ref=e100]:
+      - generic [ref=e101]:
+        - img [ref=e102]
+        - searchbox "Search" [ref=e105]
+      - generic [ref=e106]:
+        - button "Switch to light theme" [ref=e107] [cursor=pointer]:
+          - img [ref=e108]
+        - button "Notifications" [ref=e114] [cursor=pointer]:
+          - img [ref=e115]
+    - main [ref=e118]:
+      - generic [ref=e119]:
+        - generic [ref=e121]:
+          - heading "Goods Receipt Note" [level=1] [ref=e122]
+          - paragraph [ref=e123]: Scan and verify incoming stock
+        - generic [ref=e124]:
+          - heading "Start GRN Session" [level=3] [ref=e126]
+          - generic [ref=e128]:
+            - generic [ref=e129]:
+              - generic [ref=e130]: Receiving Warehouse
+              - combobox "Receiving Warehouse" [ref=e131]:
+                - option "Select a warehouse" [disabled] [selected]
+              - paragraph [ref=e132]: Incoming stock is received into this warehouse.
+            - paragraph [ref=e133]: Start the session, then scan each received serial. Every serial is checked against IDM and the SAP dispatch records — valid serials are received, and anything unknown or scanned twice is logged as an exception.
+            - button "Start GRN" [disabled] [ref=e134]
+  - status

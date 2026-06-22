@@ -1,0 +1,137 @@
+- generic [ref=e3]:
+  - complementary "Main navigation" [ref=e4]:
+    - generic [ref=e5]:
+      - img "Microtek logo" [ref=e7]
+      - generic [ref=e8]: Microtek IDM
+    - navigation [ref=e9]:
+      - link "Dashboard" [ref=e11] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e12]
+        - text: Dashboard
+      - generic [ref=e16]:
+        - generic [ref=e17]: Operations
+        - link "GRN" [ref=e18] [cursor=pointer]:
+          - /url: /grn
+          - img [ref=e19]
+          - text: GRN
+        - link "Dispatch" [ref=e22] [cursor=pointer]:
+          - /url: /dispatch
+          - img [ref=e23]
+          - text: Dispatch
+        - link "SRN" [ref=e28] [cursor=pointer]:
+          - /url: /srn
+          - img [ref=e29]
+          - text: SRN
+        - link "Defective Stock" [ref=e32] [cursor=pointer]:
+          - /url: /condition
+          - img [ref=e33]
+          - text: Defective Stock
+        - link "Battery Pre-Bill" [ref=e35] [cursor=pointer]:
+          - /url: /battery
+          - img [ref=e36]
+          - text: Battery Pre-Bill
+      - generic [ref=e38]:
+        - generic [ref=e39]: Monitoring
+        - link "Fulfilment" [ref=e40] [cursor=pointer]:
+          - /url: /fulfilment
+          - img [ref=e41]
+          - text: Fulfilment
+        - link "Ageing Report" [ref=e45] [cursor=pointer]:
+          - /url: /ageing
+          - img [ref=e46]
+          - text: Ageing Report
+        - link "Serial History" [ref=e49] [cursor=pointer]:
+          - /url: /serials
+          - img [ref=e50]
+          - text: Serial History
+        - link "Exceptions" [ref=e53] [cursor=pointer]:
+          - /url: /exceptions
+          - img [ref=e54]
+          - text: Exceptions
+      - generic [ref=e56]:
+        - generic [ref=e57]: Integration
+        - link "Import Production (CSV)" [ref=e58] [cursor=pointer]:
+          - /url: /imports
+          - img [ref=e59]
+          - text: Import Production (CSV)
+      - generic [ref=e62]:
+        - generic [ref=e63]: Administration
+        - link "Warehouses" [ref=e64] [cursor=pointer]:
+          - /url: /admin/warehouses
+          - img [ref=e65]
+          - text: Warehouses
+        - link "Members" [ref=e68] [cursor=pointer]:
+          - /url: /admin/members
+          - img [ref=e69]
+          - text: Members
+        - link "Roles" [ref=e72] [cursor=pointer]:
+          - /url: /admin/roles
+          - img [ref=e73]
+          - text: Roles
+        - link "Products" [ref=e76] [cursor=pointer]:
+          - /url: /admin/products
+          - img [ref=e77]
+          - text: Products
+        - link "Invoices" [ref=e80] [cursor=pointer]:
+          - /url: /admin/invoices
+          - img [ref=e81]
+          - text: Invoices
+        - link "Inbound Stock" [ref=e84] [cursor=pointer]:
+          - /url: /admin/inbound
+          - img [ref=e85]
+          - text: Inbound Stock
+        - link "Warehouse Stock" [ref=e90] [cursor=pointer]:
+          - /url: /admin/stock
+          - img [ref=e91]
+          - text: Warehouse Stock
+    - generic [ref=e94]:
+      - generic [ref=e95]:
+        - generic [ref=e96]: "1"
+        - generic [ref=e97]:
+          - generic [ref=e98]: "1"
+          - generic [ref=e99]: admin
+      - button "Logout" [ref=e100] [cursor=pointer]
+  - banner [ref=e101]:
+    - generic [ref=e102]:
+      - img [ref=e103]
+      - searchbox "Search" [ref=e106]
+    - generic [ref=e107]:
+      - button "Switch to dark theme" [ref=e108] [cursor=pointer]:
+        - img [ref=e109]
+      - button "Notifications" [ref=e111] [cursor=pointer]:
+        - img [ref=e112]
+  - main [ref=e115]:
+    - generic [ref=e116]:
+      - generic [ref=e118]:
+        - heading "Members" [level=1] [ref=e119]
+        - paragraph [ref=e120]: Manage IDM users, roles, and warehouse assignments
+      - generic [ref=e121]:
+        - generic [ref=e122]:
+          - heading "Member Editor" [level=3] [ref=e124]
+          - generic [ref=e126]:
+            - generic [ref=e127]:
+              - generic [ref=e128]: Search Members
+              - textbox "Search Members" [ref=e129]:
+                - /placeholder: Search username or display name
+            - button "New Member" [ref=e130] [cursor=pointer]
+            - generic [ref=e131]:
+              - generic [ref=e132]: Username
+              - textbox "Username" [ref=e133]
+            - generic [ref=e134]:
+              - generic [ref=e135]: Display Name
+              - textbox "Display Name" [ref=e136]
+            - generic [ref=e137]:
+              - generic [ref=e138]: Password
+              - textbox "Password" [ref=e139]:
+                - /placeholder: Set login password
+            - generic [ref=e140]:
+              - generic [ref=e141]: Role
+              - combobox [ref=e142]
+            - generic [ref=e143]:
+              - generic [ref=e144]: Default Warehouse
+              - combobox [ref=e145]
+            - generic [ref=e146]:
+              - checkbox "Active" [checked] [ref=e147]
+              - text: Active
+            - button "Create Member" [disabled] [ref=e148]
+        - heading "Member List" [level=3] [ref=e151]

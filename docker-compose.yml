@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: microtek
       POSTGRES_PASSWORD: microtek
     ports:
-      - "5432:5432"
+      - "5435:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -48,9 +48,7 @@ services:
     environment:
       DATABASE_URL: postgres://microtek:microtek@db:5432/microtek_idm
       REDIS_URL: redis://redis:6379
-      # The dockerized client is served on :8080; the API must allow that origin
-      # (the default is :5173, which would block it).
-      CORS_ORIGIN: http://localhost:8080
+      CORS_ORIGIN: http://localhost:8081
     depends_on:
       db:
         condition: service_healthy
@@ -59,16 +57,18 @@ services:
       migrate:
         condition: service_completed_successfully
     ports:
-      - "4000:4000"
+      - "4001:4000"
 
   client:
     build:
       context: .
       dockerfile: client/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:4001/api
     depends_on:
       - server
     ports:
-      - "8080:80"
+      - "8081:80"
 
 volumes:
   postgres-data:

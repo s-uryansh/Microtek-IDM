@@ -4,6 +4,8 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { WarehouseSelector } from "../../components/operations/WarehouseSelector.jsx";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog.jsx";
+import { useToast } from "../../components/ui/ToastProvider.jsx";
 import { createGrn, scanGrnSerial, completeGrn } from "../../api/modules/grn.js";
 
 function safeNumber(value, fallback = 0) {
@@ -15,6 +17,9 @@ export function GRNPage() {
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const { showToast } = useToast();
 
   async function handleCreate() {
     setError(null);
@@ -41,12 +46,21 @@ export function GRNPage() {
     };
   }
 
-  async function handleComplete() {
+  function handleComplete() {
+    setConfirmOpen(true);
+  }
+
+  async function doComplete() {
+    setConfirmOpen(false);
+    setCompleting(true);
     try {
       const result = await completeGrn({ grnId: session?.grnId });
       setSession((prev) => ({ ...(prev || {}), ...(result || {}), status: result?.status || "CLOSED" }));
+      showToast({ message: "GRN session closed successfully", variant: "success" });
     } catch (err) {
       setError(err?.message || "Failed to complete GRN");
+    } finally {
+      setCompleting(false);
     }
   }
 
@@ -64,6 +78,17 @@ export function GRNPage() {
             scanCount={safeNumber(session.summary?.scannedCount)}
           />
         </Card>
+        <ConfirmDialog
+          open={confirmOpen}
+          title="Close GRN Session"
+          message="Are you sure you want to close this GRN session? No further serials can be scanned after closing."
+          confirmLabel="Close Session"
+          cancelLabel="Keep Open"
+          variant="primary"
+          onConfirm={doComplete}
+          onCancel={() => setConfirmOpen(false)}
+          busy={completing}
+        />
       </div>
     );
   }

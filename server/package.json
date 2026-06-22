@@ -11,6 +11,8 @@
     "seed:dev": "node src/db/seed-dev.js",
     "seed:remove": "node src/db/seed-dev.js teardown",
     "seed:dev:teardown": "node src/db/seed-dev.js teardown",
+    "seed:demo": "node src/db/seed-demo.js",
+    "seed:demo:teardown": "node src/db/seed-demo.js teardown",
     "test": "vitest run",
     "lint": "eslint ."
   },

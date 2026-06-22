@@ -1,0 +1,144 @@
+- generic [ref=e17]:
+  - complementary "Main navigation" [ref=e18]:
+    - generic [ref=e19]:
+      - img "Microtek logo" [ref=e21]
+      - generic [ref=e22]: Microtek IDM
+    - navigation [ref=e23]:
+      - link "Dashboard" [ref=e25] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e26]
+        - text: Dashboard
+      - generic [ref=e30]:
+        - generic [ref=e31]: Operations
+        - link "GRN" [ref=e32] [cursor=pointer]:
+          - /url: /grn
+          - img [ref=e33]
+          - text: GRN
+        - link "Dispatch" [ref=e36] [cursor=pointer]:
+          - /url: /dispatch
+          - img [ref=e37]
+          - text: Dispatch
+        - link "SRN" [ref=e42] [cursor=pointer]:
+          - /url: /srn
+          - img [ref=e43]
+          - text: SRN
+        - link "Defective Stock" [ref=e46] [cursor=pointer]:
+          - /url: /condition
+          - img [ref=e47]
+          - text: Defective Stock
+        - link "Battery Pre-Bill" [ref=e49] [cursor=pointer]:
+          - /url: /battery
+          - img [ref=e50]
+          - text: Battery Pre-Bill
+      - generic [ref=e52]:
+        - generic [ref=e53]: Monitoring
+        - link "Fulfilment" [ref=e54] [cursor=pointer]:
+          - /url: /fulfilment
+          - img [ref=e55]
+          - text: Fulfilment
+        - link "Ageing Report" [ref=e59] [cursor=pointer]:
+          - /url: /ageing
+          - img [ref=e60]
+          - text: Ageing Report
+        - link "Serial History" [ref=e63] [cursor=pointer]:
+          - /url: /serials
+          - img [ref=e64]
+          - text: Serial History
+        - link "Exceptions" [ref=e67] [cursor=pointer]:
+          - /url: /exceptions
+          - img [ref=e68]
+          - text: Exceptions
+      - generic [ref=e70]:
+        - generic [ref=e71]: Integration
+        - link "Import Production (CSV)" [ref=e72] [cursor=pointer]:
+          - /url: /imports
+          - img [ref=e73]
+          - text: Import Production (CSV)
+      - generic [ref=e76]:
+        - generic [ref=e77]: Administration
+        - link "Warehouses" [ref=e78] [cursor=pointer]:
+          - /url: /admin/warehouses
+          - img [ref=e79]
+          - text: Warehouses
+        - link "Members" [ref=e82] [cursor=pointer]:
+          - /url: /admin/members
+          - img [ref=e83]
+          - text: Members
+        - link "Roles" [ref=e86] [cursor=pointer]:
+          - /url: /admin/roles
+          - img [ref=e87]
+          - text: Roles
+        - link "Products" [ref=e90] [cursor=pointer]:
+          - /url: /admin/products
+          - img [ref=e91]
+          - text: Products
+        - link "Invoices" [ref=e94] [cursor=pointer]:
+          - /url: /admin/invoices
+          - img [ref=e95]
+          - text: Invoices
+        - link "Inbound Stock" [ref=e98] [cursor=pointer]:
+          - /url: /admin/inbound
+          - img [ref=e99]
+          - text: Inbound Stock
+        - link "Warehouse Stock" [ref=e104] [cursor=pointer]:
+          - /url: /admin/stock
+          - img [ref=e105]
+          - text: Warehouse Stock
+    - generic [ref=e108]:
+      - generic [ref=e109]:
+        - generic [ref=e110]: "1"
+        - generic [ref=e111]:
+          - generic [ref=e112]: "1"
+          - generic [ref=e113]: admin
+      - button "Logout" [ref=e114] [cursor=pointer]
+  - banner [ref=e115]:
+    - generic [ref=e116]:
+      - img [ref=e117]
+      - searchbox "Search" [ref=e120]
+    - generic [ref=e121]:
+      - button "Switch to dark theme" [ref=e122] [cursor=pointer]:
+        - img [ref=e123]
+      - button "Notifications" [ref=e125] [cursor=pointer]:
+        - img [ref=e126]
+  - main [ref=e129]:
+    - generic [ref=e130]:
+      - generic [ref=e132]:
+        - heading "Dashboard" [level=1] [ref=e133]
+        - paragraph [ref=e134]: Warehouse operations overview
+      - generic [ref=e158]:
+        - heading "IDM-01 Production Import" [level=3] [ref=e160]
+        - generic [ref=e161]:
+          - paragraph [ref=e162]:
+            - text: Production serials enter IDM-01 either via the
+            - strong [ref=e163]: SAP production API
+            - text: (signed webhook) or by
+            - strong [ref=e164]: uploading a CSV
+            - text: . Both run the same validation and de-duplication.
+          - link "Import production batch (CSV)" [ref=e165] [cursor=pointer]:
+            - /url: /imports
+      - generic [ref=e166]:
+        - generic [ref=e168]:
+          - heading "Inventory Ageing Distribution" [level=3] [ref=e170]
+          - figure "Bar chart" [ref=e172]
+        - generic [ref=e187]:
+          - heading "Recent Activity" [level=3] [ref=e189]
+          - generic [ref=e191]:
+            - generic [ref=e192]:
+              - generic [ref=e193]: DISPATCH
+              - generic [ref=e194]:
+                - generic [ref=e195]: MTK-SOL300-0001
+                - generic [ref=e196]: 05:27 am
+              - generic [ref=e197]: OPEN
+            - generic [ref=e198]:
+              - generic [ref=e199]: DISPATCH
+              - generic [ref=e200]:
+                - generic [ref=e201]: MTK-INV1K-0002
+                - generic [ref=e202]: 05:27 am
+              - generic [ref=e203]: OPEN
+            - generic [ref=e204]:
+              - generic [ref=e205]: GRN
+              - generic [ref=e206]:
+                - generic [ref=e207]: MTK-LIFECYCLE-0001
+                - generic [ref=e208]: 05:27 am
+              - generic [ref=e209]: CORRECTED
+      - heading "Recent Exceptions" [level=3] [ref=e213]

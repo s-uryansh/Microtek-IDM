@@ -11,7 +11,9 @@
     "dev:client": "npm run dev --workspace client",
     "seed:dev": "npm run seed:dev --workspace server",
     "seed:remove": "npm run seed:remove --workspace server",
-    "seed:dev:teardown": "npm run seed:dev:teardown --workspace server"
+    "seed:dev:teardown": "npm run seed:dev:teardown --workspace server",
+    "seed:demo": "npm run seed:demo --workspace server",
+    "seed:demo:teardown": "npm run seed:demo:teardown --workspace server"
   },
   "workspaces": [
     "server",

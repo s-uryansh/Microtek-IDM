@@ -1,0 +1,138 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary "Main navigation" [ref=e4]:
+      - generic [ref=e5]:
+        - img "Microtek logo" [ref=e7]
+        - generic [ref=e8]: Microtek IDM
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e11] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e12]
+          - text: Dashboard
+        - generic [ref=e16]:
+          - generic [ref=e17]: Operations
+          - link "GRN" [ref=e18] [cursor=pointer]:
+            - /url: /grn
+            - img [ref=e19]
+            - text: GRN
+          - link "Dispatch" [ref=e22] [cursor=pointer]:
+            - /url: /dispatch
+            - img [ref=e23]
+            - text: Dispatch
+          - link "SRN" [ref=e28] [cursor=pointer]:
+            - /url: /srn
+            - img [ref=e29]
+            - text: SRN
+          - link "Defective Stock" [ref=e32] [cursor=pointer]:
+            - /url: /condition
+            - img [ref=e33]
+            - text: Defective Stock
+          - link "Battery Pre-Bill" [ref=e35] [cursor=pointer]:
+            - /url: /battery
+            - img [ref=e36]
+            - text: Battery Pre-Bill
+        - generic [ref=e38]:
+          - generic [ref=e39]: Monitoring
+          - link "Fulfilment" [ref=e40] [cursor=pointer]:
+            - /url: /fulfilment
+            - img [ref=e41]
+            - text: Fulfilment
+          - link "Ageing Report" [ref=e45] [cursor=pointer]:
+            - /url: /ageing
+            - img [ref=e46]
+            - text: Ageing Report
+          - link "Serial History" [ref=e49] [cursor=pointer]:
+            - /url: /serials
+            - img [ref=e50]
+            - text: Serial History
+          - link "Exceptions" [ref=e53] [cursor=pointer]:
+            - /url: /exceptions
+            - img [ref=e54]
+            - text: Exceptions
+        - generic [ref=e56]:
+          - generic [ref=e57]: Integration
+          - link "Import Production (CSV)" [ref=e58] [cursor=pointer]:
+            - /url: /imports
+            - img [ref=e59]
+            - text: Import Production (CSV)
+        - generic [ref=e62]:
+          - generic [ref=e63]: Administration
+          - link "Warehouses" [ref=e64] [cursor=pointer]:
+            - /url: /admin/warehouses
+            - img [ref=e65]
+            - text: Warehouses
+          - link "Members" [ref=e68] [cursor=pointer]:
+            - /url: /admin/members
+            - img [ref=e69]
+            - text: Members
+          - link "Roles" [ref=e72] [cursor=pointer]:
+            - /url: /admin/roles
+            - img [ref=e73]
+            - text: Roles
+          - link "Products" [ref=e76] [cursor=pointer]:
+            - /url: /admin/products
+            - img [ref=e77]
+            - text: Products
+          - link "Invoices" [ref=e80] [cursor=pointer]:
+            - /url: /admin/invoices
+            - img [ref=e81]
+            - text: Invoices
+          - link "Inbound Stock" [ref=e84] [cursor=pointer]:
+            - /url: /admin/inbound
+            - img [ref=e85]
+            - text: Inbound Stock
+          - link "Warehouse Stock" [ref=e90] [cursor=pointer]:
+            - /url: /admin/stock
+            - img [ref=e91]
+            - text: Warehouse Stock
+      - generic [ref=e94]:
+        - generic [ref=e95]:
+          - generic [ref=e96]: "1"
+          - generic [ref=e97]:
+            - generic [ref=e98]: "1"
+            - generic [ref=e99]: admin
+        - button "Logout" [ref=e100] [cursor=pointer]
+    - banner [ref=e101]:
+      - generic [ref=e102]:
+        - img [ref=e103]
+        - searchbox "Search" [ref=e106]
+      - generic [ref=e107]:
+        - button "Switch to light theme" [ref=e108] [cursor=pointer]:
+          - img [ref=e109]
+        - button "Notifications" [ref=e115] [cursor=pointer]:
+          - img [ref=e116]
+    - main [ref=e119]:
+      - generic [ref=e120]:
+        - generic [ref=e122]:
+          - heading "Fulfilment Status" [level=1] [ref=e123]
+          - paragraph [ref=e124]: Track order fulfilment progress
+        - generic [ref=e125]:
+          - heading "Order Lookup" [level=3] [ref=e127]
+          - generic [ref=e129]:
+            - generic [ref=e130]:
+              - generic [ref=e131]: Invoice ID
+              - spinbutton "Invoice ID" [ref=e132]
+            - button "Search" [disabled] [ref=e133]
+            - generic [ref=e134]:
+              - generic [ref=e135]:
+                - generic [ref=e136]:
+                  - heading "Invoice scanner" [level=3] [ref=e137]
+                  - paragraph [ref=e138]: 0 scanned · Ready
+                - button "Pause" [ref=e140] [cursor=pointer]
+              - region "Camera scanner" [ref=e141]:
+                - generic [ref=e142]:
+                  - generic "Camera preview" [ref=e143]
+                  - generic [ref=e145]: Camera ready
+                - button "Start Camera" [ref=e147] [cursor=pointer]
+                - status [ref=e148]: Camera ready
+                - paragraph [ref=e149]: QR / Code128 / Code39 / EAN13 / UPC-A
+              - region "Hardware scanner" [ref=e150]:
+                - generic [ref=e151]:
+                  - generic [ref=e152]: Scan Invoice
+                  - textbox "Scan Invoice" [active] [ref=e154]:
+                    - /placeholder: Scan or enter invoice ID
+                  - generic [ref=e155]: Press Enter to submit
+                - generic [ref=e156]: "Hardware scanner mode: focus once, scan continuously, Enter submits automatically."
+              - status [ref=e157]:
+                - paragraph [ref=e158]: No scans yet. Start scanning above.
+  - status
