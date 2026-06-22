@@ -22,7 +22,6 @@ const STATUS_LABELS = {
 export function DashboardPage() {
   const { hasPermission } = useAuth();
   const canViewExceptions = typeof hasPermission === "function" ? hasPermission("exception:read") : false;
-  const canImport = typeof hasPermission === "function" ? hasPermission("integration:import") : false;
 
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);

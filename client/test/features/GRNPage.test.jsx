@@ -72,6 +72,7 @@ describe("GRNPage — scan flows", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(screen.getByText("MATCHED")).toBeVisible());
     fireEvent.click(screen.getByText("Complete Session"));
+    fireEvent.click(screen.getByRole("button", { name: "Close Session" }));
     await waitFor(() => expect(screen.getByText("Completed")).toBeVisible());
     expect(completeMock).toHaveBeenCalledWith({ grnId: 1 });
   });

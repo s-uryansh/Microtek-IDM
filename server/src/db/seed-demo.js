@@ -415,7 +415,7 @@ async function seedInvoicesAndDispatches(client, refs, s) {
   const p = refs.prod;
   const w = refs.wh;
 
-  async function invoice(key, sapRef, customerName, status, opts = {}) {
+  async function invoice(key, sapRef, customerName, status, _opts = {}) {
     const row = await q1(client,
       `INSERT INTO invoice (sap_invoice_ref, customer_name, status, created_by)
        VALUES ($1,$2,$3,$4)
@@ -544,10 +544,9 @@ async function seedInvoicesAndDispatches(client, refs, s) {
 // ─── 8. SRNs ──────────────────────────────────────────────────────────────────
 
 async function seedSrns(client, refs, s, dispData) {
-  const { inv, disp, dscans, lc1L1, lc2L1 } = dispData;
+  const { inv, dscans, lc2L1 } = dispData;
   const srnIds = {};
   const w = refs.wh;
-  const p = refs.prod;
 
   async function srn(key, invoiceId, whId, status, expectedQty, productIds) {
     const row = await q1(client,
@@ -649,7 +648,7 @@ async function seedSrns(client, refs, s, dispData) {
       [createdBy, sid]
     );
     // Now re-dispatch on LIFECYCLE_2
-    const redisp = await q1(client,
+    await q1(client,
       `INSERT INTO dispatch_scan (dispatch_id, invoice_line_id, serial_id, scanned_by, created_by)
        VALUES ($1,$2,$3,'operator_1',$4)
        ON CONFLICT DO NOTHING
@@ -667,7 +666,7 @@ async function seedSrns(client, refs, s, dispData) {
 
 // ─── 9. Exceptions ────────────────────────────────────────────────────────────
 
-async function seedExceptions(client, refs, s, grnIds, dispIds, srnIds, batches) {
+async function seedExceptions(client, refs, s, grnIds, dispIds, srnIds, _batches) {
   const w = refs.wh;
 
   async function ex(serialNo, rule, ctx, ctxId, status, raisedBy, whId, corrOpts = null) {
@@ -756,7 +755,7 @@ async function seedExceptions(client, refs, s, grnIds, dispIds, srnIds, batches)
 async function seedLifecycleEvents(client, refs, s, batches, grnIds, dispData, srnIds) {
   const sid = s["LIFECYCLE"];
   const w = refs.wh;
-  const { inv, disp } = dispData;
+  const { disp } = dispData;
 
   const now = new Date();
   function daysAgo(n) { return new Date(now - n * 86400000).toISOString(); }

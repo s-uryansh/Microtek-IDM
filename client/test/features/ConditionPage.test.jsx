@@ -40,8 +40,9 @@ describe("ConditionPage", () => {
 
     await waitFor(() => expect(screen.getByText("MTK1234567890")).toBeVisible());
 
-    // Retag the first held serial back to SALEABLE.
+    // Retag the first held serial back to SALEABLE, confirming the dialog.
     fireEvent.click(screen.getAllByText("SALEABLE")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Mark Saleable" }));
 
     await waitFor(() =>
       expect(correctConditionTagMock).toHaveBeenCalledWith({ serialNo: "MTK1234567890", conditionTag: "SALEABLE" })

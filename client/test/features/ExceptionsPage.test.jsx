@@ -152,6 +152,7 @@ describe("ExceptionsPage — correction", () => {
     await waitFor(() => expect(screen.getByText("Exception #7")).toBeVisible());
     fireEvent.change(screen.getByLabelText("Correction Reason (required)"), { target: { value: "verified" } });
     fireEvent.click(screen.getByRole("button", { name: "Correct Exception" }));
+    fireEvent.click(screen.getByRole("button", { name: "Correct" }));
     await waitFor(() => expect(screen.getByText("CORRECTED")).toBeVisible());
     expect(correctMock).toHaveBeenCalledWith({ exceptionId: 7, correctionReason: "verified" });
   });
@@ -183,6 +184,7 @@ describe("ExceptionsPage — correction", () => {
     await waitFor(() => expect(screen.getByText("Exception #7")).toBeVisible());
     fireEvent.change(screen.getByLabelText("Correction Reason (required)"), { target: { value: "ok" } });
     fireEvent.click(screen.getByRole("button", { name: "Correct Exception" }));
+    fireEvent.click(screen.getByRole("button", { name: "Correct" }));
     await waitFor(() => expect(screen.getByText("Exception was already corrected by another user")).toBeVisible());
   });
 });

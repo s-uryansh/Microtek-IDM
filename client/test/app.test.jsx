@@ -52,7 +52,7 @@ describe("App shell", () => {
     render(<App />);
 
     expect(await screen.findByRole("link", { name: /dashboard/i })).toBeVisible();
-    expect(screen.getByText("Microtek IDM")).toBeVisible();
+    expect(screen.getByRole("img", { name: "Microtek logo" })).toBeVisible();
     expect(screen.getByRole("link", { name: /dispatch/i })).toBeVisible();
   });
 });
@@ -76,7 +76,6 @@ describe("Sidebar", () => {
   test("renders brand name and navigation links", () => {
     renderSidebar();
 
-    expect(screen.getByText("Microtek IDM")).toBeVisible();
     expect(screen.getByRole("img", { name: "Microtek logo" })).toBeVisible();
     expect(screen.getByText("Dashboard")).toBeVisible();
     expect(screen.getByText("GRN")).toBeVisible();
@@ -92,7 +91,9 @@ describe("Sidebar", () => {
   test("renders section headers", () => {
     renderSidebar();
 
-    expect(screen.getByText("Operations")).toBeVisible();
+    expect(screen.getByText("Inbound")).toBeVisible();
+    expect(screen.getByText("Outbound")).toBeVisible();
+    expect(screen.getByText("Returns")).toBeVisible();
     expect(screen.getByText("Monitoring")).toBeVisible();
     expect(screen.getByText("Administration")).toBeVisible();
   });
