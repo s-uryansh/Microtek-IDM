@@ -18,7 +18,6 @@ export function createDispatchRoutes({ dispatchService }) {
     try {
       const dispatchId = parseDispatchId(request);
       const warehouseId = await dispatchService.getDispatchWarehouseId(dispatchId);
-
       if (!warehouseId) {
         sendError(response, 404, "NOT_FOUND", "Dispatch not found");
         return;
