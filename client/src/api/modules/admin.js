@@ -66,6 +66,15 @@ export function updateMember({
   );
 }
 
+// Soft delete: mark a member as no longer with the company.
+export function deactivateMember(userId, { signal } = {}) {
+  return post(`/admin/members/${userId}/deactivate`, {}, { signal });
+}
+
+export function reactivateMember(userId, { signal } = {}) {
+  return post(`/admin/members/${userId}/reactivate`, {}, { signal });
+}
+
 export function createWarehouse({ code, name, type, signal }) {
   return post("/admin/warehouses", { code, name, type }, { signal });
 }

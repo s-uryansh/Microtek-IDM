@@ -205,6 +205,43 @@ export function createAdminRoutes({ adminService }) {
     }
   });
 
+  // Soft delete: mark a member as no longer with the company (is_active = false).
+  router.post("/members/:userId/deactivate", async (request, response, next) => {
+    try {
+      const userId = parseId(request.params.userId);
+      if (!userId) {
+        sendError(response, 404, "NOT_FOUND", "Member not found");
+        return;
+      }
+      const result = await adminService.deactivateMember(userId, request.auth.userId);
+      response.status(200).json(result);
+    } catch (error) {
+      if (error.status === 404) {
+        sendError(response, 404, "NOT_FOUND", error.message);
+        return;
+      }
+      next(error);
+    }
+  });
+
+  router.post("/members/:userId/reactivate", async (request, response, next) => {
+    try {
+      const userId = parseId(request.params.userId);
+      if (!userId) {
+        sendError(response, 404, "NOT_FOUND", "Member not found");
+        return;
+      }
+      const result = await adminService.reactivateMember(userId, request.auth.userId);
+      response.status(200).json(result);
+    } catch (error) {
+      if (error.status === 404) {
+        sendError(response, 404, "NOT_FOUND", error.message);
+        return;
+      }
+      next(error);
+    }
+  });
+
   router.post("/warehouses", async (request, response, next) => {
     try {
       const { code, name, type } = request.body;

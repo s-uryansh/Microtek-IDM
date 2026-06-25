@@ -29,12 +29,85 @@ function exceptionResult({ matchStatus, ruleCode, message, exception }) {
 }
 
 export function createGrnService({ repositories }) {
+  // Merge a dispatch doc's expected products with what this GRN has received so
+  // far, keyed by product + batch, for the operator's progress view. No serials.
+  async function buildExpectedProducts(grnId, sapDispatchDocId) {
+    const [expected, received] = await Promise.all([
+      repositories.grns.expectedProducts(sapDispatchDocId),
+      repositories.grns.receivedCountsByProduct(grnId)
+    ]);
+
+    const keyOf = (row) => `${row.productId}|${row.batchNo ?? ""}`;
+    const receivedByKey = new Map(received.map((row) => [keyOf(row), row.receivedQty]));
+
+    return expected.map((item) => ({
+      ...item,
+      receivedQty: receivedByKey.get(keyOf(item)) ?? 0
+    }));
+  }
+
   return {
-    async startGrn({ receivingWarehouseId, userId }) {
-      return repositories.grns.create({
-        receivingWarehouseId,
-        createdBy: userId
-      });
+    // Two modes:
+    //  - dispatchRef given  => bind the GRN to that SAP dispatch document and
+    //    return its expected products (operator entered/scanned a dispatch number).
+    //  - dispatchRef omitted => legacy warehouse-scoped GRN (unlinked).
+    async startGrn({ receivingWarehouseId, dispatchRef, role, userWarehouseIds, userId }) {
+      const ref = typeof dispatchRef === "string" ? dispatchRef.trim() : dispatchRef;
+
+      if (!ref) {
+        return repositories.grns.create({
+          receivingWarehouseId,
+          createdBy: userId
+        });
+      }
+
+      const scope = role === "admin" ? null : (userWarehouseIds ?? []);
+      const doc = await repositories.grns.findDocByRef(String(ref), scope);
+
+      if (!doc) {
+        const error = new Error("Dispatch document not found");
+        error.status = 404;
+        error.code = "NOT_FOUND";
+        throw error;
+      }
+
+      if (String(doc.destinationWarehouseId) !== String(receivingWarehouseId)) {
+        const error = new Error("Dispatch document is destined for a different warehouse");
+        error.status = 409;
+        error.code = "WRONG_WAREHOUSE";
+        throw error;
+      }
+
+      // Already received: the dispatch doc is marked GRN_CLOSED, or a prior GRN for
+      // it has already been closed/matched. Block starting a fresh session.
+      const completed = doc.status === "GRN_CLOSED"
+        ? { grnId: null }
+        : await repositories.grns.findCompletedByDoc(doc.sapDispatchDocId);
+
+      if (completed) {
+        const error = new Error("This dispatch document has already been received");
+        error.status = 409;
+        error.code = "ALREADY_RECEIVED";
+        throw error;
+      }
+
+      const existing = await repositories.grns.findOpenByDoc(doc.sapDispatchDocId, receivingWarehouseId);
+      const grn =
+        existing ??
+        (await repositories.grns.create({
+          receivingWarehouseId,
+          sapDispatchDocId: doc.sapDispatchDocId,
+          createdBy: userId
+        }));
+
+      const expectedProducts = await buildExpectedProducts(grn.grnId, doc.sapDispatchDocId);
+
+      return {
+        ...grn,
+        sapDispatchDocId: doc.sapDispatchDocId,
+        dispatchRef: doc.externalRef,
+        expectedProducts
+      };
     },
 
     async getGrn({ grnId }) {
@@ -42,6 +115,10 @@ export function createGrnService({ repositories }) {
 
       if (!grn) {
         throw new Error("GRN not found");
+      }
+
+      if (grn.sapDispatchDocId) {
+        grn.expectedProducts = await buildExpectedProducts(grnId, grn.sapDispatchDocId);
       }
 
       return grn;
@@ -90,6 +167,110 @@ export function createGrnService({ repositories }) {
           ruleCode: "DUPLICATE_SCAN",
           message: "Serial has already been received into stock.",
           exception
+        });
+      }
+
+      // Dispatch-doc-bound GRN: the serial must belong to a product listed on the
+      // bound dispatch document (product-level match). Serials whose product is
+      // not on the document are rejected. Warehouse-scoped GRNs (no bound doc)
+      // fall through to the legacy serial-level reconciliation below.
+      if (grn.sapDispatchDocId) {
+        return repositories.withTransaction(async (txRepositories) => {
+          const lockedGrn = await txRepositories.grns.lockById(grnId);
+
+          if (!lockedGrn) {
+            throw new Error("GRN not found");
+          }
+
+          const existingScan = await txRepositories.grns.findScanBySerial(grnId, validation.serial.serialId);
+
+          if (existingScan) {
+            const exception = await createException(txRepositories, {
+              serialNo,
+              ruleCode: "DUPLICATE_SCAN",
+              grnId,
+              userId
+            });
+            return exceptionResult({
+              matchStatus: "DUPLICATE_SCAN",
+              ruleCode: "DUPLICATE_SCAN",
+              message: "Serial has already been scanned for this GRN.",
+              exception
+            });
+          }
+
+          const productInDoc = await txRepositories.grns.isProductInDoc(
+            grn.sapDispatchDocId,
+            validation.serial.productId
+          );
+
+          if (!productInDoc) {
+            const exception = await createException(txRepositories, {
+              serialNo,
+              ruleCode: "WRONG_SERIAL",
+              grnId,
+              userId
+            });
+            await txRepositories.grns.insertScan({
+              grnId,
+              serialId: validation.serial.serialId,
+              serialNo,
+              matchStatus: "WRONG_SERIAL",
+              scannedBy: userId,
+              createdBy: userId
+            });
+            await txRepositories.grns.updateStatus(grnId, "EXCEPTION", userId);
+            return exceptionResult({
+              matchStatus: "WRONG_SERIAL",
+              ruleCode: "WRONG_SERIAL",
+              message: "Serial's product is not part of this dispatch document.",
+              exception
+            });
+          }
+
+          const insertedScan = await txRepositories.grns.insertScan({
+            grnId,
+            serialId: validation.serial.serialId,
+            serialNo,
+            matchStatus: "MATCHED",
+            scannedBy: userId,
+            createdBy: userId
+          });
+
+          if (!insertedScan) {
+            const exception = await createException(txRepositories, {
+              serialNo,
+              ruleCode: "DUPLICATE_SCAN",
+              grnId,
+              userId
+            });
+            return exceptionResult({
+              matchStatus: "DUPLICATE_SCAN",
+              ruleCode: "DUPLICATE_SCAN",
+              message: "Serial has already been received into stock.",
+              exception
+            });
+          }
+
+          await txRepositories.serials.updateReceipt(validation.serial.serialId, lockedGrn.receivingWarehouseId, userId);
+          await txRepositories.serials.appendSerialEvent({
+            serialId: validation.serial.serialId,
+            eventType: "GRN",
+            warehouseId: lockedGrn.receivingWarehouseId,
+            referenceType: "GRN",
+            referenceId: grnId,
+            createdBy: userId
+          });
+          await txRepositories.grns.updateStatus(grnId, "IN_PROGRESS", userId);
+
+          return {
+            valid: true,
+            matchStatus: "MATCHED",
+            serial: validation.serial,
+            productId: validation.serial.productId,
+            alert: null,
+            exception: null
+          };
         });
       }
 

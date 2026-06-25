@@ -14,6 +14,8 @@ import {
   fetchMembers,
   createMember,
   updateMember,
+  deactivateMember,
+  reactivateMember,
   createWarehouse,
   deactivateWarehouse,
   reactivateWarehouse,
@@ -506,17 +508,25 @@ function MembersTab() {
     }
   }
 
+  // Soft delete / restore. Uses the dedicated endpoints so only is_active is
+  // flipped — the member's role and warehouse assignments are left untouched.
   async function toggleActive(member) {
+    if (
+      member.isActive &&
+      !window.confirm(
+        `Mark ${member.displayName || member.username} as no longer with the company? ` +
+          "They will be unable to log in, but their history is kept. You can restore them later."
+      )
+    ) {
+      return;
+    }
+
     try {
-      await updateMember({
-        userId: member.userId,
-        isActive: !member.isActive,
-        username: member.username,
-        displayName: member.displayName,
-        roleId: member.roleId,
-        defaultWarehouseId: member.defaultWarehouseId,
-        warehouseIds: member.warehouseIds
-      });
+      if (member.isActive) {
+        await deactivateMember(member.userId);
+      } else {
+        await reactivateMember(member.userId);
+      }
       load();
     } catch (err) {
       setError(err?.message || "Failed to update member");
@@ -538,7 +548,7 @@ function MembersTab() {
     isActive: member.isActive ? (
       <span style={{ color: "var(--color-success)", fontWeight: 600 }}>Active</span>
     ) : (
-      <span style={{ color: "var(--color-text-muted)", fontWeight: 600 }}>Inactive</span>
+      <span style={{ color: "var(--color-text-muted)", fontWeight: 600 }}>No longer in company</span>
     ),
     _actions: (
       <div style={{ display: "flex", gap: "var(--space-2)" }}>
