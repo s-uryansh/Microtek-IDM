@@ -167,4 +167,70 @@ describe("admin routes", () => {
     expect(exportResponse.body.csv).toContain("INV-17");
     expect(membersResponse.status).toBe(403);
   });
+
+  test("admin can soft delete (deactivate) and restore (reactivate) a member", async () => {
+    const adminService = {
+      deactivateMember: vi.fn().mockResolvedValue({ userId: 7, isActive: false }),
+      reactivateMember: vi.fn().mockResolvedValue({ userId: 7, isActive: true })
+    };
+    const app = createApp({ config, services: { adminService } });
+    const headers = { "x-user-id": "admin_1", "x-user-role": "admin" };
+
+    const deactivate = await inject(app, { method: "POST", url: "/api/admin/members/7/deactivate", headers });
+    const reactivate = await inject(app, { method: "POST", url: "/api/admin/members/7/reactivate", headers });
+
+    expect(deactivate.status).toBe(200);
+    expect(deactivate.body.isActive).toBe(false);
+    expect(adminService.deactivateMember).toHaveBeenCalledWith(7, "admin_1");
+    expect(reactivate.status).toBe(200);
+    expect(reactivate.body.isActive).toBe(true);
+    expect(adminService.reactivateMember).toHaveBeenCalledWith(7, "admin_1");
+  });
+
+  test("deactivating a missing member returns 404", async () => {
+    const adminService = {
+      deactivateMember: vi.fn().mockRejectedValue(Object.assign(new Error("Member not found"), { status: 404 }))
+    };
+    const app = createApp({ config, services: { adminService } });
+
+    const res = await inject(app, {
+      method: "POST",
+      url: "/api/admin/members/999/deactivate",
+      headers: { "x-user-id": "admin_1", "x-user-role": "admin" }
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("NOT_FOUND");
+  });
+
+  test("a non-admin is denied member soft delete", async () => {
+    const adminService = { deactivateMember: vi.fn() };
+    const app = createApp({ config, services: { adminService } });
+
+    const res = await inject(app, {
+      method: "POST",
+      url: "/api/admin/members/7/deactivate",
+      headers: { "x-user-id": "supervisor_1", "x-user-role": "supervisor", "x-warehouse-ids": "3" }
+    });
+
+    expect(res.status).toBe(403);
+    expect(adminService.deactivateMember).not.toHaveBeenCalled();
+  });
+
+  test("admin product list is served (regression: listProducts must exist)", async () => {
+    const adminService = {
+      listProducts: vi.fn().mockResolvedValue([{ productId: 1, productCode: "MTK-0001", name: "Demo" }])
+    };
+    const app = createApp({ config, services: { adminService } });
+
+    const res = await inject(app, {
+      method: "GET",
+      url: "/api/admin/products",
+      headers: { "x-user-id": "admin_1", "x-user-role": "admin" }
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(adminService.listProducts).toHaveBeenCalled();
+  });
 });

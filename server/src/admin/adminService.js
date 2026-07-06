@@ -240,6 +240,24 @@ export function createAdminService({ repositories, adminRepo }) {
       return adminRepo.getMemberById(userId);
     },
 
+    // Soft delete: mark the member as no longer with the company. They keep all
+    // their history but can no longer log in (login checks is_active).
+    async deactivateMember(userId, updatedBy) {
+      const member = await adminRepo.getMemberById(userId);
+      if (!member) {
+        throw Object.assign(new Error("Member not found"), { status: 404 });
+      }
+      return adminRepo.toggleMemberActive(userId, false, updatedBy);
+    },
+
+    async reactivateMember(userId, updatedBy) {
+      const member = await adminRepo.getMemberById(userId);
+      if (!member) {
+        throw Object.assign(new Error("Member not found"), { status: 404 });
+      }
+      return adminRepo.toggleMemberActive(userId, true, updatedBy);
+    },
+
     async createMember({
       externalRef,
       username,
@@ -360,6 +378,10 @@ export function createAdminService({ repositories, adminRepo }) {
 */
 
     VALID_PRODUCT_CATEGORIES: ["INVERTER", "BATTERY", "SOLAR", "ACCESSORY"],
+
+    async listProducts() {
+      return adminRepo.listProducts();
+    },
 
     async exportProductsCsv() {
       const products = await adminRepo.listProducts();

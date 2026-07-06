@@ -48,4 +48,13 @@ describe("IDM-07 fulfilment routes", () => {
 
     expect(res.status).toBe(404);
   });
+
+  test("returns 400 for a non-numeric invoice id instead of a 500", async () => {
+    const app = makeApp({ invoice: { invoiceId: 100 } });
+
+    const res = await request(app).get("/api/idm-07/orders/NaN/status");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("BAD_REQUEST");
+  });
 });

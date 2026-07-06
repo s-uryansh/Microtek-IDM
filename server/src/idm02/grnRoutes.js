@@ -44,10 +44,21 @@ export function createGrnRoutes({ grnService }) {
       try {
         const result = await grnService.startGrn({
           receivingWarehouseId: request.body.warehouseId,
+          dispatchRef: request.body.dispatchRef,
+          role: request.auth.role,
+          userWarehouseIds: request.auth.warehouseIds,
           userId: request.auth.userId
         });
         response.status(201).json(result);
       } catch (error) {
+        if (error.status === 404) {
+          sendError(response, 404, "NOT_FOUND", error.message);
+          return;
+        }
+        if (error.status === 409) {
+          sendError(response, 409, error.code || "CONFLICT", error.message);
+          return;
+        }
         next(error);
       }
     }

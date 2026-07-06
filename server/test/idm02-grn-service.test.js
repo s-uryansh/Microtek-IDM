@@ -244,3 +244,176 @@ describe("IDM-02 GRN service", () => {
     expect(repositories.calls.createException).toHaveLength(0);
   });
 });
+
+// Dispatch-doc-bound GRN: operator enters a dispatch number first, sees expected
+// products (no serials), and scans are validated at the product level.
+function createDocRepositories({ doc, openGrn = null, completedGrn = null, productsInDoc = [], expected = [], received = [], validationResult }) {
+  const calls = { createGrn: [], insertScan: [], updateSerialReceipt: [], createException: [] };
+  const repositories = {
+    calls,
+    async withTransaction(work) {
+      return work(repositories);
+    },
+    grns: {
+      async findDocByRef(externalRef) {
+        return doc?.externalRef === externalRef ? doc : null;
+      },
+      async findCompletedByDoc() {
+        return completedGrn;
+      },
+      async findOpenByDoc() {
+        return openGrn;
+      },
+      async create(input) {
+        calls.createGrn.push(input);
+        return { grnId: 50, status: "PENDING", ...input };
+      },
+      async findById(grnId) {
+        return { grnId, sapDispatchDocId: doc.sapDispatchDocId, receivingWarehouseId: doc.destinationWarehouseId, status: "PENDING" };
+      },
+      async lockById(grnId) {
+        return { grnId, sapDispatchDocId: doc.sapDispatchDocId, receivingWarehouseId: doc.destinationWarehouseId, status: "PENDING" };
+      },
+      async findScanBySerial() {
+        return null;
+      },
+      async isProductInDoc(_docId, productId) {
+        return productsInDoc.includes(productId);
+      },
+      async expectedProducts() {
+        return expected;
+      },
+      async receivedCountsByProduct() {
+        return received;
+      },
+      async insertScan(input) {
+        calls.insertScan.push(input);
+        return { grnScanId: calls.insertScan.length, ...input };
+      },
+      async updateStatus() {}
+    },
+    serials: {
+      async updateReceipt(serialId, warehouseId, receivedBy) {
+        calls.updateSerialReceipt.push({ serialId, warehouseId, receivedBy });
+      },
+      async appendSerialEvent() {}
+    },
+    exceptionsRepo: {
+      async createException(input) {
+        calls.createException.push(input);
+        return { exceptionId: calls.createException.length, ruleCode: input.ruleCode, status: "OPEN" };
+      }
+    },
+    validationService: {
+      async validateSerial() {
+        return validationResult;
+      }
+    }
+  };
+  return repositories;
+}
+
+describe("IDM-02 GRN service — dispatch-doc-bound", () => {
+  test("startGrn binds the GRN to the dispatch doc and returns expected products with received counts", async () => {
+    const repositories = createDocRepositories({
+      doc: { sapDispatchDocId: 99, externalRef: "DISP-001", destinationWarehouseId: 5 },
+      expected: [{ productId: 7, productName: "Inverter 1KVA", batchNo: "B1", expectedQty: 3 }],
+      received: [{ productId: 7, batchNo: "B1", receivedQty: 1 }]
+    });
+    const service = createGrnService({ repositories });
+
+    const result = await service.startGrn({
+      receivingWarehouseId: 5,
+      dispatchRef: "DISP-001",
+      role: "admin",
+      userId: "operator_1"
+    });
+
+    expect(result.sapDispatchDocId).toBe(99);
+    expect(result.dispatchRef).toBe("DISP-001");
+    expect(result.expectedProducts).toEqual([
+      { productId: 7, productName: "Inverter 1KVA", batchNo: "B1", expectedQty: 3, receivedQty: 1 }
+    ]);
+    expect(repositories.calls.createGrn[0]).toMatchObject({ receivingWarehouseId: 5, sapDispatchDocId: 99 });
+  });
+
+  test("startGrn rejects a dispatch doc destined for a different warehouse", async () => {
+    const repositories = createDocRepositories({
+      doc: { sapDispatchDocId: 99, externalRef: "DISP-001", destinationWarehouseId: 8 },
+      validationResult: null
+    });
+    const service = createGrnService({ repositories });
+
+    await expect(
+      service.startGrn({ receivingWarehouseId: 5, dispatchRef: "DISP-001", role: "admin", userId: "operator_1" })
+    ).rejects.toMatchObject({ status: 409, code: "WRONG_WAREHOUSE" });
+  });
+
+  test("startGrn blocks a dispatch doc that was already received (closed GRN exists)", async () => {
+    const repositories = createDocRepositories({
+      doc: { sapDispatchDocId: 99, externalRef: "DISP-001", destinationWarehouseId: 5 },
+      completedGrn: { grnId: 40, status: "CLOSED" },
+      validationResult: null
+    });
+    const service = createGrnService({ repositories });
+
+    await expect(
+      service.startGrn({ receivingWarehouseId: 5, dispatchRef: "DISP-001", role: "admin", userId: "operator_1" })
+    ).rejects.toMatchObject({ status: 409, code: "ALREADY_RECEIVED" });
+    expect(repositories.calls.createGrn).toHaveLength(0);
+  });
+
+  test("startGrn blocks a dispatch doc already marked GRN_CLOSED", async () => {
+    const repositories = createDocRepositories({
+      doc: { sapDispatchDocId: 99, externalRef: "DISP-001", destinationWarehouseId: 5, status: "GRN_CLOSED" },
+      validationResult: null
+    });
+    const service = createGrnService({ repositories });
+
+    await expect(
+      service.startGrn({ receivingWarehouseId: 5, dispatchRef: "DISP-001", role: "admin", userId: "operator_1" })
+    ).rejects.toMatchObject({ status: 409, code: "ALREADY_RECEIVED" });
+  });
+
+  test("scanSerial accepts a serial whose product is on the dispatch doc", async () => {
+    const repositories = createDocRepositories({
+      doc: { sapDispatchDocId: 99, externalRef: "DISP-001", destinationWarehouseId: 5 },
+      productsInDoc: [7],
+      validationResult: {
+        valid: true,
+        serial: { serialId: 12, serialNo: "MTK1234567890", productId: 7, currentWarehouseId: 5 },
+        alert: null,
+        exception: null
+      }
+    });
+    const service = createGrnService({ repositories });
+
+    const result = await service.scanSerial({ grnId: 50, serialNo: "MTK1234567890", userId: "operator_1" });
+
+    expect(result.matchStatus).toBe("MATCHED");
+    expect(repositories.calls.updateSerialReceipt).toEqual([{ serialId: 12, warehouseId: 5, receivedBy: "operator_1" }]);
+    expect(repositories.calls.insertScan[0]).toMatchObject({ matchStatus: "MATCHED" });
+  });
+
+  test("scanSerial rejects a serial whose product is NOT on the dispatch doc", async () => {
+    const repositories = createDocRepositories({
+      doc: { sapDispatchDocId: 99, externalRef: "DISP-001", destinationWarehouseId: 5 },
+      productsInDoc: [7],
+      validationResult: {
+        valid: true,
+        serial: { serialId: 13, serialNo: "MTK9999999999", productId: 42, currentWarehouseId: 5 },
+        alert: null,
+        exception: null
+      }
+    });
+    const service = createGrnService({ repositories });
+
+    const result = await service.scanSerial({ grnId: 50, serialNo: "MTK9999999999", userId: "operator_1" });
+
+    expect(result.valid).toBe(false);
+    expect(result.matchStatus).toBe("WRONG_SERIAL");
+    expect(result.alert.message).toMatch(/not part of this dispatch document/i);
+    expect(repositories.calls.insertScan[0]).toMatchObject({ matchStatus: "WRONG_SERIAL" });
+    expect(repositories.calls.updateSerialReceipt).toHaveLength(0);
+  });
+});

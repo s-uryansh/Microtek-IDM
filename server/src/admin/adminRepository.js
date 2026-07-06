@@ -107,6 +107,26 @@ export function createAdminRepository(pool) {
       return result.rows[0] ?? null;
     },
 
+    // Soft delete / restore a member: flip is_active. Deactivated users can no
+    // longer authenticate (login checks is_active) but their history is retained.
+    async toggleMemberActive(userId, isActive, updatedBy) {
+      const result = await pool.query(
+        `
+        UPDATE app_user
+        SET is_active = $2, updated_at = now(), updated_by = $3
+        WHERE app_user_id = $1
+        RETURNING
+          app_user_id AS "userId",
+          external_ref AS "externalRef",
+          username,
+          display_name AS "displayName",
+          default_warehouse_id AS "defaultWarehouseId",
+          is_active AS "isActive"`,
+        [userId, isActive, updatedBy]
+      );
+      return result.rows[0] ?? null;
+    },
+
     /* ── Roles ── */
     async listRoles() {
       const result = await pool.query(`

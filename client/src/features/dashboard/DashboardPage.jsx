@@ -9,6 +9,7 @@ import { KPIRow } from "./KPIRow.jsx";
 import { RecentGrnsWidget } from "./RecentGrnsWidget.jsx";
 import { RecentDispatchesWidget } from "./RecentDispatchesWidget.jsx";
 import { fetchDashboardSummary } from "../../api/modules/dashboard.js";
+import { searchWarehouses } from "../../api/modules/lookups.js";
 import { useAuth } from "../../auth/useAuth.js";
 
 const STATUS_LABELS = {
@@ -20,18 +21,24 @@ const STATUS_LABELS = {
 };
 
 export function DashboardPage() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const canViewExceptions = typeof hasPermission === "function" ? hasPermission("exception:read") : false;
+  const isAdmin = user?.role === "admin";
 
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Admin-only warehouse filter. "" means all warehouses; the server scopes
+  // non-admins to their assigned warehouses regardless of this control.
+  const [warehouseId, setWarehouseId] = useState("");
+  const [warehouses, setWarehouses] = useState([]);
+
   const loadSummary = useCallback(async ({ signal } = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchDashboardSummary({ signal });
+      const data = await fetchDashboardSummary({ warehouseId: warehouseId || undefined, signal });
       if (signal?.aborted) return;
       setSummary(data ?? null);
     } catch (err) {
@@ -40,13 +47,43 @@ export function DashboardPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, []);
+  }, [warehouseId]);
 
   useEffect(() => {
     const ctrl = new AbortController();
     loadSummary({ signal: ctrl.signal });
     return () => ctrl.abort();
   }, [loadSummary]);
+
+  // Populate the admin warehouse picker once.
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    const ctrl = new AbortController();
+    searchWarehouses({ signal: ctrl.signal })
+      .then((res) => setWarehouses(Array.isArray(res?.items) ? res.items : []))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [isAdmin]);
+
+  const warehouseFilter = isAdmin ? (
+    <div className="input-group">
+      <label className="input-group__label" htmlFor="dashboard-warehouse">Warehouse</label>
+      <select
+        id="dashboard-warehouse"
+        className="input"
+        aria-label="Filter dashboard by warehouse"
+        value={warehouseId}
+        onChange={(e) => setWarehouseId(e.target.value)}
+      >
+        <option value="">All warehouses</option>
+        {warehouses.map((w) => (
+          <option key={w.warehouseId} value={w.warehouseId}>
+            {w.code} · {w.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  ) : null;
 
   const donutData = (summary?.statusBreakdown ?? [])
     .filter((r) => r.count > 0)
@@ -61,7 +98,7 @@ export function DashboardPage() {
   if (error && !summary) {
     return (
       <div className="dashboard">
-        <PageHeader title="Dashboard" subtitle="Warehouse operations overview" />
+        <PageHeader title="Dashboard" subtitle="Warehouse operations overview" actions={warehouseFilter} />
         <ErrorState title="Unable to load dashboard" message={error} onRetry={loadSummary} />
       </div>
     );
@@ -69,7 +106,7 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard">
-      <PageHeader title="Dashboard" subtitle="Warehouse operations overview" />
+      <PageHeader title="Dashboard" subtitle="Warehouse operations overview" actions={warehouseFilter} />
 
       <KPIRow kpis={summary?.kpis} loading={loading} />
 

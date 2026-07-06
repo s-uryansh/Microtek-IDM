@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { requireAuthContext, requirePermission } from "../http/authContext.js";
+import { sendError } from "../http/errorResponse.js";
 
 export function createDashboardRoutes({ dashboardService }) {
   const router = Router();
@@ -11,8 +12,34 @@ export function createDashboardRoutes({ dashboardService }) {
     requirePermission("foundation:read"),
     async (request, response, next) => {
       try {
-        const warehouseIds =
-          request.auth.role === "admin" ? [] : (request.auth.warehouseIds ?? []);
+        const role = request.auth.role;
+        const assigned = request.auth.warehouseIds ?? [];
+
+        // Optional ?warehouseId filter lets an admin narrow the dashboard to a
+        // single warehouse. A non-admin may only narrow to a warehouse they are
+        // already assigned to — they can never widen their scope this way.
+        const hasWarehouseParam = request.query.warehouseId !== undefined && request.query.warehouseId !== "";
+        const requestedWarehouseId = Number.parseInt(request.query.warehouseId, 10);
+
+        if (hasWarehouseParam && (!Number.isInteger(requestedWarehouseId) || requestedWarehouseId <= 0)) {
+          sendError(response, 400, "BAD_REQUEST", "Invalid warehouseId");
+          return;
+        }
+
+        let warehouseIds;
+        if (role === "admin") {
+          // No selection => empty array => all warehouses (service treats [] as null).
+          warehouseIds = hasWarehouseParam ? [requestedWarehouseId] : [];
+        } else if (hasWarehouseParam) {
+          if (!assigned.some((id) => String(id) === String(requestedWarehouseId))) {
+            sendError(response, 403, "FORBIDDEN", "Insufficient permission");
+            return;
+          }
+          warehouseIds = [requestedWarehouseId];
+        } else {
+          warehouseIds = assigned;
+        }
+
         const result = await dashboardService.getSummary({ warehouseIds });
         response.status(200).json(result);
       } catch (error) {
