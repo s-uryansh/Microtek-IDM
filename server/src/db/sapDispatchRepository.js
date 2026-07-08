@@ -67,6 +67,50 @@ export function createSapDispatchRepository(pool) {
       return mapDispatch(result.rows[0]);
     },
 
+    async findById(sapDispatchDocId) {
+      const result = await pool.query(
+        `SELECT
+           sap_dispatch_doc_id AS "sapDispatchDocId",
+           external_ref AS "externalRef",
+           source_warehouse_id AS "sourceWarehouseId",
+           destination_warehouse_id AS "destinationWarehouseId",
+           status
+         FROM sap_dispatch_doc
+         WHERE sap_dispatch_doc_id = $1`,
+        [sapDispatchDocId]
+      );
+
+      return mapDispatch(result.rows[0]);
+    },
+
+    // Locks the doc row so concurrent scans against the same transfer serialize
+    // their line_no assignment (see countLines below).
+    async lockDocById(sapDispatchDocId) {
+      const result = await pool.query(
+        `SELECT
+           sap_dispatch_doc_id AS "sapDispatchDocId",
+           external_ref AS "externalRef",
+           source_warehouse_id AS "sourceWarehouseId",
+           destination_warehouse_id AS "destinationWarehouseId",
+           status
+         FROM sap_dispatch_doc
+         WHERE sap_dispatch_doc_id = $1
+         FOR UPDATE`,
+        [sapDispatchDocId]
+      );
+
+      return mapDispatch(result.rows[0]);
+    },
+
+    async countLines(sapDispatchDocId) {
+      const result = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM sap_dispatch_line WHERE sap_dispatch_doc_id = $1`,
+        [sapDispatchDocId]
+      );
+
+      return result.rows[0]?.count ?? 0;
+    },
+
     async findBySerialId(serialId) {
       const result = await pool.query(
         `SELECT

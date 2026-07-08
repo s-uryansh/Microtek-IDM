@@ -12,6 +12,8 @@ import { createDashboardService } from "./idm00/dashboardService.js";
 import { createDispatchRoutes } from "./idm05/dispatchRoutes.js";
 import { createDispatchExportRoutes } from "./idm05/dispatchExportRoutes.js";
 import { createDispatchService } from "./idm05/dispatchService.js";
+import { createWarehouseTransferRoutes } from "./idm05/warehouseTransferRoutes.js";
+import { createWarehouseTransferService } from "./idm05/warehouseTransferService.js";
 import { createGrnRoutes } from "./idm02/grnRoutes.js";
 import { createGrnService } from "./idm02/grnService.js";
 import { createImportRoutes } from "./idm01/importRoutes.js";
@@ -69,6 +71,12 @@ function createDefaultServices(config) {
         validationService
       },
       fulfilmentStatusService
+    }),
+    warehouseTransferService: createWarehouseTransferService({
+      repositories: {
+        ...repositories,
+        validationService
+      }
     }),
     grnService: createGrnService({
       repositories: {
@@ -223,6 +231,10 @@ export function createApp({ config, logger = console, services, rbacPolicy = nul
   app.use("/api/idm-06/validate", createScanApiLimiter(config), createValidationRoutes({ validationService: resolvedServices.validationService }));
   app.use("/api/idm-05/dispatches", createDispatchRoutes({ dispatchService: resolvedServices.dispatchService }));
   app.use("/api/idm-05/dispatches", createDispatchExportRoutes({ dispatchService: resolvedServices.dispatchService }));
+  app.use(
+    "/api/idm-05/transfers",
+    createWarehouseTransferRoutes({ warehouseTransferService: resolvedServices.warehouseTransferService })
+  );
   app.use(
     "/api/idm-07",
     createFulfilmentStatusRoutes({

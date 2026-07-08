@@ -7,6 +7,7 @@ import { DataTable } from "../../components/data/DataTable.jsx";
 import { ErrorState } from "../../components/ui/ErrorState.jsx";
 import { WarehouseSelector } from "../../components/operations/WarehouseSelector.jsx";
 import { fetchAgeingReport, fetchAgeingBucketProducts } from "../../api/modules/ageing.js";
+import { toCsv, downloadCsv } from "../../utils/csv.js";
 
 const columns = [
   { key: "label", label: "Age Bucket" },
@@ -46,6 +47,24 @@ function toChartData(summary) {
     .map((b) => ({ label: b.label, value: b.quantity, bucketCode: b.bucketCode }));
 }
 
+const AGEING_CSV_COLUMNS = [
+  { key: "serialNo", label: "Serial" },
+  { key: "productCode", label: "Product Code" },
+  { key: "productName", label: "Product Name" },
+  { key: "category", label: "Category" },
+  { key: "age", label: "Age" },
+  { key: "bucketLabel", label: "Age Bucket" }
+];
+
+function toAgeingCsvRow(item, bucketLabel) {
+  return {
+    ...item,
+    category: item.category || item.segment || "—",
+    age: item.ageDays !== null && item.ageDays !== undefined ? `${item.ageDays}d` : "—",
+    bucketLabel
+  };
+}
+
 export function AgeingPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [report, setReport] = useState(null);
@@ -56,6 +75,7 @@ export function AgeingPage() {
   const [bucketProducts, setBucketProducts] = useState(null);
   const [bucketLoading, setBucketLoading] = useState(false);
   const [selectedBucket, setSelectedBucket] = useState(null);
+  const [exportingAll, setExportingAll] = useState(false);
 
   const load = useCallback(
     async (id, { signal } = {}) => {
@@ -112,6 +132,34 @@ export function AgeingPage() {
     setBucketProducts(null);
   }
 
+  function handleExportBucket() {
+    if (!selectedBucket || !bucketProducts) return;
+    downloadCsv(
+      `ageing-${selectedBucket.bucketCode}.csv`,
+      toCsv(AGEING_CSV_COLUMNS, toArray(bucketProducts.items).map((item) => toAgeingCsvRow(item, selectedBucket.label)))
+    );
+  }
+
+  async function handleExportAll() {
+    if (!warehouseId) return;
+    setExportingAll(true);
+    try {
+      const nonEmptyBuckets = summaryRows.filter((b) => b.quantity > 0);
+      const perBucket = await Promise.all(
+        nonEmptyBuckets.map((bucket) =>
+          fetchAgeingBucketProducts({ warehouseId: Number(warehouseId), bucketCode: bucket.bucketCode }).then(
+            (data) => toArray(data?.items).map((item) => toAgeingCsvRow(item, bucket.label))
+          )
+        )
+      );
+      downloadCsv(`ageing-all-buckets-warehouse-${warehouseId}.csv`, toCsv(AGEING_CSV_COLUMNS, perBucket.flat()));
+    } catch (err) {
+      setError(err?.message || "Failed to export all buckets");
+    } finally {
+      setExportingAll(false);
+    }
+  }
+
   const chartData = toChartData(report?.summary);
   const summaryRows = toArray(report?.summary);
   const missingCount = report?.dataQuality?.missingReceivedAtCount ?? 0;
@@ -157,6 +205,13 @@ export function AgeingPage() {
         />
       )}
       {showReport && !error && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-3)" }}>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exportingAll}>
+            {exportingAll ? "Exporting..." : "Export All Buckets"}
+          </Button>
+        </div>
+      )}
+      {showReport && !error && (
         <div className="warehouse-grid warehouse-grid--two">
           <Card title="Ageing Distribution">
             <BarChart
@@ -188,7 +243,10 @@ export function AgeingPage() {
       {showReport && !error && selectedBucket && (
         <div style={{ marginTop: "var(--space-4)" }}>
           <Card title={`${selectedBucket.label} — Products`}>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-2)" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
+              <Button variant="secondary" size="sm" onClick={handleExportBucket} disabled={!bucketProducts}>
+                Export Bucket CSV
+              </Button>
               <Button variant="ghost" size="sm" onClick={closeDrillDown}>
                 Close
               </Button>

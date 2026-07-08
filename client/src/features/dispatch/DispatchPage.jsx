@@ -9,7 +9,9 @@ import {
   createDispatch,
   fetchDispatchAvailability,
   scanDispatchSerial,
-  completeDispatch
+  completeDispatch,
+  createWarehouseTransfer,
+  scanTransferSerial
 } from "../../api/modules/dispatch.js";
 import { searchInvoices } from "../../api/modules/lookups.js";
 
@@ -31,7 +33,7 @@ function PartialBanner({ stock, required }) {
   );
 }
 
-export function DispatchPage() {
+function CustomerDispatchPanel({ onSessionActiveChange }) {
   const [invoiceQuery, setInvoiceQuery] = useState("");
   const [invoiceId, setInvoiceId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
@@ -43,6 +45,10 @@ export function DispatchPage() {
   const [loadError, setLoadError] = useState(null);
   const [availability, setAvailability] = useState(null);
   const [availabilityError, setAvailabilityError] = useState(null);
+
+  useEffect(() => {
+    onSessionActiveChange?.(Boolean(session));
+  }, [session, onSessionActiveChange]);
 
   async function handleLoad() {
     const query = invoiceQuery.trim();
@@ -157,7 +163,6 @@ export function DispatchPage() {
   if (session) {
     return (
       <div>
-        <PageHeader title="Dispatch" subtitle="Scan and dispatch orders" />
         <Card title={`Dispatch #${session.dispatchId ?? "—"}`}>
           {session.partial && (
             <PartialBanner stock={session.dispatchQuantity} required={session.remainingInvoiceQuantity} />
@@ -204,7 +209,6 @@ export function DispatchPage() {
 
   return (
     <div>
-      <PageHeader title="Dispatch" subtitle="Scan and dispatch orders" />
       <Card title="Start Dispatch Session">
         <div className="scan-workflow-form">
           {/* Warehouse the operator dispatches from — locked to their assigned
@@ -317,6 +321,177 @@ export function DispatchPage() {
           )}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function WarehouseTransferPanel({ onSessionActiveChange }) {
+  const [sourceWarehouseId, setSourceWarehouseId] = useState("");
+  const [destinationWarehouseId, setDestinationWarehouseId] = useState("");
+  const [reference, setReference] = useState("");
+  const [session, setSession] = useState(null);
+  const [scanCount, setScanCount] = useState(0);
+  const [error, setError] = useState(null);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    onSessionActiveChange?.(Boolean(session));
+  }, [session, onSessionActiveChange]);
+
+  const canStart =
+    sourceWarehouseId &&
+    destinationWarehouseId &&
+    String(sourceWarehouseId) !== String(destinationWarehouseId);
+
+  async function handleStart() {
+    setError(null);
+    setCreating(true);
+    try {
+      const result = await createWarehouseTransfer({
+        sourceWarehouseId: Number(sourceWarehouseId),
+        destinationWarehouseId: Number(destinationWarehouseId),
+        reference
+      });
+      setSession(result);
+      setScanCount(0);
+    } catch (err) {
+      setError(err?.message || "Failed to start transfer");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleScan(serialNo) {
+    const result = (await scanTransferSerial({
+      transferId: session?.sapDispatchDocId,
+      serialNo
+    })) || {};
+    if (result.valid) {
+      setScanCount((count) => count + 1);
+      return { status: "SCANNED", message: "Serial moved out — awaiting receipt at destination", state: "success" };
+    }
+    return {
+      status: result.alert?.ruleCode || "REJECTED",
+      message: result.alert?.message || "Scan rejected",
+      state: "error"
+    };
+  }
+
+  function handleDone() {
+    setSession(null);
+    setSourceWarehouseId("");
+    setDestinationWarehouseId("");
+    setReference("");
+    setScanCount(0);
+  }
+
+  if (session) {
+    return (
+      <div>
+        <Card title={`Transfer ${session.externalRef}`}>
+          <div className="operation-panel" aria-label="Transfer summary">
+            <div className="operation-panel__results">
+              <div className="operation-panel__result">
+                <span className="operation-panel__result-title">
+                  Warehouse {session.sourceWarehouseId} → Warehouse {session.destinationWarehouseId}
+                </span>
+                <span className="operation-panel__result-meta">
+                  Reference {session.externalRef} · destination receives this stock via a normal GRN
+                </span>
+              </div>
+            </div>
+          </div>
+          <ScanSession
+            module="DISPATCH"
+            title={`Transfer ${session.externalRef}`}
+            scanCount={scanCount}
+            onScan={handleScan}
+          />
+          <div style={{ marginTop: "var(--space-3)" }}>
+            <Button variant="secondary" onClick={handleDone}>
+              Done
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Card title="Start Warehouse Transfer">
+        <div className="scan-workflow-form" style={{ maxWidth: 400 }}>
+          <WarehouseSelector
+            label="From warehouse"
+            value={sourceWarehouseId}
+            onChange={setSourceWarehouseId}
+            helperText="Stock is scanned out of this warehouse."
+          />
+          <WarehouseSelector
+            label="To warehouse"
+            value={destinationWarehouseId}
+            onChange={setDestinationWarehouseId}
+            helperText="Receives the stock via a normal GRN once scanning is done."
+          />
+          <Input
+            label="Reference (optional)"
+            value={reference}
+            onChange={setReference}
+            placeholder="e.g. internal transfer note number"
+          />
+          {error && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</p>}
+          <Button onClick={handleStart} disabled={!canStart || creating}>
+            {creating ? "Starting..." : "Start Transfer"}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+const DISPATCH_MODES = [
+  { key: "customer", label: "Customer Dispatch" },
+  { key: "transfer", label: "Warehouse Transfer" }
+];
+
+export function DispatchPage() {
+  const [mode, setMode] = useState("customer");
+  const [sessionActive, setSessionActive] = useState(false);
+
+  return (
+    <div>
+      <PageHeader title="Dispatch" subtitle="Scan and dispatch orders" />
+
+      {/* Once a session is underway, the other mode is hidden — switching mid-session
+          would be confusing for the worker and doesn't correspond to anything useful. */}
+      {!sessionActive && (
+        <div style={{ display: "flex", gap: "var(--space-1)", marginBottom: "var(--space-4)", borderBottom: "1px solid var(--color-border)" }}>
+          {DISPATCH_MODES.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setMode(item.key)}
+              style={{
+                padding: "var(--space-2) var(--space-4)",
+                border: "none",
+                borderBottom: mode === item.key ? "2px solid var(--color-primary)" : "2px solid transparent",
+                backgroundColor: "transparent",
+                cursor: "pointer",
+                fontWeight: mode === item.key ? 600 : 400,
+                color: mode === item.key ? "var(--color-primary)" : "var(--color-text-muted)",
+                fontSize: "0.875rem"
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {mode === "customer" ? (
+        <CustomerDispatchPanel onSessionActiveChange={setSessionActive} />
+      ) : (
+        <WarehouseTransferPanel onSessionActiveChange={setSessionActive} />
+      )}
     </div>
   );
 }

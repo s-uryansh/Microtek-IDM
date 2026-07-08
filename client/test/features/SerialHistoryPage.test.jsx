@@ -17,6 +17,12 @@ function renderPage() {
   );
 }
 
+function search(value) {
+  const input = screen.getByLabelText("Scan Serial");
+  fireEvent.change(input, { target: { value } });
+  fireEvent.keyDown(input, { key: "Enter" });
+}
+
 beforeEach(() => {
   mockFetchHistory.mockReset();
 });
@@ -25,7 +31,7 @@ describe("SerialHistoryPage", () => {
   test("renders search form", () => {
     renderPage();
     expect(screen.getByText("Serial History")).toBeVisible();
-    expect(screen.getByLabelText("Serial Number")).toBeVisible();
+    expect(screen.getByLabelText("Scan Serial")).toBeVisible();
   });
 
   test("renders timeline when serial is found", async () => {
@@ -38,8 +44,7 @@ describe("SerialHistoryPage", () => {
       ]
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Serial Number"), { target: { value: "MTK-LIFECYCLE-0001" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("MTK-LIFECYCLE-0001");
     await waitFor(() => {
       expect(screen.getByText("Serial: MTK-LIFECYCLE-0001")).toBeVisible();
     });
@@ -50,30 +55,27 @@ describe("SerialHistoryPage", () => {
   test("renders 'not found' state when found: false", async () => {
     mockFetchHistory.mockResolvedValue({ found: false, serial: null, timeline: [] });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Serial Number"), { target: { value: "MISSING" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("MISSING");
     await waitFor(() => {
       expect(screen.getByText("Not Found")).toBeVisible();
     });
-    expect(screen.getByText(/MISSING/)).toBeVisible();
+    expect(screen.getByText(/was not found/)).toBeVisible();
   });
 
   test("renders 'not found' state when backend returns 404", async () => {
     mockFetchHistory.mockRejectedValue(new ApiError(404, { error: { code: "NOT_FOUND", message: "Serial not found" } }));
     renderPage();
-    fireEvent.change(screen.getByLabelText("Serial Number"), { target: { value: "MISSING" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("MISSING");
     await waitFor(() => {
       expect(screen.getByText("Not Found")).toBeVisible();
     });
-    expect(screen.getByText(/MISSING/)).toBeVisible();
+    expect(screen.getByText(/was not found/)).toBeVisible();
   });
 
   test("does NOT crash when found but timeline missing", async () => {
     mockFetchHistory.mockResolvedValue({ found: true, serial: { serialId: 1, serialNo: "S-1" }, timeline: null });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Serial Number"), { target: { value: "S-1" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("S-1");
     await waitFor(() => {
       expect(screen.getByText(/No history events recorded/)).toBeVisible();
     });
@@ -82,22 +84,21 @@ describe("SerialHistoryPage", () => {
   test("renders error when backend returns 500", async () => {
     mockFetchHistory.mockRejectedValue(new Error("Request failed with status 500"));
     renderPage();
-    fireEvent.change(screen.getByLabelText("Serial Number"), { target: { value: "S-1" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("S-1");
     await waitFor(() => {
       expect(screen.getByText("Request failed with status 500")).toBeVisible();
     });
   });
 
-  test("disables search button for empty input", () => {
+  test("does not search for empty input", () => {
     renderPage();
-    expect(screen.getByText("Search")).toBeDisabled();
+    search("");
+    expect(mockFetchHistory).not.toHaveBeenCalled();
   });
 
-  test("ignores leading/trailing whitespace on submit", async () => {
-    mockFetchHistory.mockResolvedValue({ found: false, serial: null, timeline: [] });
+  test("ignores leading/trailing whitespace-only input", () => {
     renderPage();
-    fireEvent.change(screen.getByLabelText("Serial Number"), { target: { value: "   " } });
-    expect(screen.getByText("Search")).toBeDisabled();
+    search("   ");
+    expect(mockFetchHistory).not.toHaveBeenCalled();
   });
 });
