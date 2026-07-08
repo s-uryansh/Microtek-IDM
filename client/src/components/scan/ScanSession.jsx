@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 
 import { useScanner } from "../../hooks/useScanner.js";
 import { useScanSession } from "../../hooks/useScanSession.js";
+import { Collapsible } from "../ui/Collapsible.jsx";
 import { ScanCamera } from "./ScanCamera.jsx";
 import { ScanHistory } from "./ScanHistory.jsx";
 import { ScanScanner } from "./ScanScanner.jsx";
@@ -59,13 +60,15 @@ export function ScanSession({
         </div>
       </div>
 
-      <ScanCamera scanner={scanner} disabled={disabled} />
-
       {externallyDisabled && disabledMessage && (
         <p className="scan-session__disabled" role="status">
           {disabledMessage}
         </p>
       )}
+
+      <Collapsible title="Camera Scanner" defaultOpen={false} openLabel="Show Scanner" closeLabel="Hide Scanner">
+        <ScanCamera scanner={scanner} disabled={disabled} />
+      </Collapsible>
 
       <ScanScanner
         value={inputValue}

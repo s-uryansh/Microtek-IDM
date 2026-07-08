@@ -30,6 +30,8 @@ import {
 } from "../../api/modules/admin.js";
 import { useAuth } from "../../auth/useAuth.js";
 import { describePermission } from "./permissionLabels.js";
+import { Collapsible } from "../../components/ui/Collapsible.jsx";
+import { toCsv, downloadCsv } from "../../utils/csv.js";
 
 const PRODUCT_IMPORT_TEMPLATE = [
   "product_code,name,segment,category,is_battery,is_active",
@@ -149,39 +151,22 @@ function WarehousesTab() {
     { key: "_actions", label: "Actions", sortable: false }
   ];
 
+  function handleExportCsv() {
+    downloadCsv(
+      "warehouses-export.csv",
+      toCsv(warehouseColumns, filteredItems.map((wh) => ({
+        ...wh,
+        isActive: wh.isActive ? "Active" : "Inactive",
+        createdAt: new Date(wh.createdAt).toLocaleDateString()
+      })))
+    );
+  }
+
   return (
     <div>
-      <Card title="Add Warehouse">
-        <div className="scan-workflow-form" style={{ maxWidth: 400 }}>
-          <div style={{ display: "flex", gap: "var(--space-3)" }}>
-            <Input label="Code" value={code} onChange={setCode} placeholder="e.g. RW-04" />
-            <div className="input-group" style={{ flex: 1 }}>
-              <label className="input-group__label">Type</label>
-              <select
-                value={whType}
-                onChange={(e) => setWhType(e.target.value)}
-                className="input"
-                aria-label="Warehouse type"
-              >
-                <option value="PLANT">PLANT</option>
-                <option value="CENTRAL">CENTRAL</option>
-                <option value="REGIONAL">REGIONAL</option>
-              </select>
-            </div>
-          </div>
-          <Input label="Name" value={name} onChange={setName} placeholder="e.g. Regional Warehouse 04" />
-          {createError && (
-            <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{createError}</p>
-          )}
-          <Button onClick={handleCreate} disabled={!code.trim() || !name.trim() || creating}>
-            {creating ? "Adding..." : "Add Warehouse"}
-          </Button>
-        </div>
-      </Card>
-
-      <div style={{ marginTop: "var(--space-4)" }}>
-        <Card title="Warehouse List">
-          <div style={{ maxWidth: 360, marginBottom: "var(--space-3)" }}>
+      <Card title="Warehouse List">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-3)", alignItems: "flex-end", marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
+          <div style={{ maxWidth: 360, flex: 1 }}>
             <Input
               label="Search warehouses"
               value={search}
@@ -189,16 +174,51 @@ function WarehousesTab() {
               placeholder="Search by code, name, type or units"
             />
           </div>
-          <DataTable
-            columns={displayColumns}
-            data={rows}
-            loading={loading}
-            error={error}
-            onRetry={load}
-            pageSize={10}
-            sortable={true}
-          />
-        </Card>
+          <Button variant="secondary" onClick={handleExportCsv}>
+            Export CSV
+          </Button>
+        </div>
+        <DataTable
+          columns={displayColumns}
+          data={rows}
+          loading={loading}
+          error={error}
+          onRetry={load}
+          pageSize={10}
+          sortable={true}
+        />
+      </Card>
+
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <Collapsible title="Add Warehouse" openLabel="+ Add Warehouse" closeLabel="Cancel">
+          <Card title="Add Warehouse">
+            <div className="scan-workflow-form" style={{ maxWidth: 400 }}>
+              <div style={{ display: "flex", gap: "var(--space-3)" }}>
+                <Input label="Code" value={code} onChange={setCode} placeholder="e.g. RW-04" />
+                <div className="input-group" style={{ flex: 1 }}>
+                  <label className="input-group__label">Type</label>
+                  <select
+                    value={whType}
+                    onChange={(e) => setWhType(e.target.value)}
+                    className="input"
+                    aria-label="Warehouse type"
+                  >
+                    <option value="PLANT">PLANT</option>
+                    <option value="CENTRAL">CENTRAL</option>
+                    <option value="REGIONAL">REGIONAL</option>
+                  </select>
+                </div>
+              </div>
+              <Input label="Name" value={name} onChange={setName} placeholder="e.g. Regional Warehouse 04" />
+              {createError && (
+                <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{createError}</p>
+              )}
+              <Button onClick={handleCreate} disabled={!code.trim() || !name.trim() || creating}>
+                {creating ? "Adding..." : "Add Warehouse"}
+              </Button>
+            </div>
+          </Card>
+        </Collapsible>
       </div>
     </div>
   );
@@ -236,13 +256,7 @@ function ProductsTab() {
   async function handleExport() {
     try {
       const result = await exportProductsCsv();
-      const blob = new Blob([result.csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "products-export.csv";
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadCsv("products-export.csv", result.csv);
     } catch (err) {
       setError(err?.message || "Export failed");
     }
@@ -273,13 +287,7 @@ function ProductsTab() {
   }
 
   function handleDownloadTemplate() {
-    const blob = new Blob([PRODUCT_IMPORT_TEMPLATE], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "product-import-template.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadCsv("product-import-template.csv", PRODUCT_IMPORT_TEMPLATE);
   }
 
   const rows = toArray(products?.items).map((p) => ({
@@ -290,96 +298,100 @@ function ProductsTab() {
 
   return (
     <div>
-      <Card title="Import Template">
-        <div className="scan-workflow-form" style={{ maxWidth: 640 }}>
-          <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", margin: 0 }}>
-            Use this CSV structure for product imports.
-          </p>
-          <pre
-            style={{
-              margin: 0,
-              padding: "var(--space-3)",
-              backgroundColor: "var(--color-surface-subtle)",
-              borderRadius: "var(--radius-md)",
-              overflowX: "auto",
-              fontSize: "0.8125rem"
-            }}
-          >
-            {PRODUCT_IMPORT_TEMPLATE}
-          </pre>
-          <Button variant="secondary" onClick={handleDownloadTemplate}>
-            Download Template
-          </Button>
-        </div>
-      </Card>
-
-      <Card title="Import / Export Products">
-        <div className="scan-workflow-form" style={{ maxWidth: 500 }}>
-          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end" }}>
-            <Button variant="secondary" onClick={handleExport}>
-              Export CSV
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              style={{ display: "none" }}
-            />
-            <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-              Choose CSV File
-            </Button>
-          </div>
-          {csvText && (
-            <div>
-              <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
-                File loaded ({csvText.length} chars). Click Import to process.
-              </p>
-              <Button onClick={handleImport} disabled={importing}>
-                {importing ? "Importing..." : "Import Products"}
-              </Button>
-            </div>
-          )}
-          {importResult && (
-            <div
-              style={{
-                padding: "var(--space-3)",
-                borderRadius: "var(--radius-md)",
-                backgroundColor:
-                  importResult.errors?.length > 0
-                    ? "var(--color-warning-subtle)"
-                    : "var(--color-success-subtle)",
-                fontSize: "0.875rem"
-              }}
-            >
-              <p>Imported: {importResult.imported} products</p>
-              {importResult.errors?.length > 0 && (
-                <div style={{ marginTop: "var(--space-2)" }}>
-                  <p style={{ fontWeight: 600 }}>Errors:</p>
-                  {importResult.errors.map((err, i) => (
-                    <p key={i} style={{ color: "var(--color-error)", fontSize: "0.8125rem" }}>
-                      Row {err.row}: {err.message}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+      <Card title="Product List">
+        <DataTable
+          columns={productColumns}
+          data={rows}
+          loading={loading}
+          error={error}
+          onRetry={load}
+          pageSize={10}
+          sortable={true}
+        />
       </Card>
 
       <div style={{ marginTop: "var(--space-4)" }}>
-        <Card title="Product List">
-          <DataTable
-            columns={productColumns}
-            data={rows}
-            loading={loading}
-            error={error}
-            onRetry={load}
-            pageSize={10}
-            sortable={true}
-          />
-        </Card>
+        <Collapsible title="Import / Export Products" openLabel="Import / Export Products" closeLabel="Hide Import / Export">
+          <Card title="Import Template">
+            <div className="scan-workflow-form" style={{ maxWidth: 640 }}>
+              <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", margin: 0 }}>
+                Use this CSV structure for product imports.
+              </p>
+              <pre
+                style={{
+                  margin: 0,
+                  padding: "var(--space-3)",
+                  backgroundColor: "var(--color-surface-subtle)",
+                  borderRadius: "var(--radius-md)",
+                  overflowX: "auto",
+                  fontSize: "0.8125rem"
+                }}
+              >
+                {PRODUCT_IMPORT_TEMPLATE}
+              </pre>
+              <Button variant="secondary" onClick={handleDownloadTemplate}>
+                Download Template
+              </Button>
+            </div>
+          </Card>
+
+          <div style={{ marginTop: "var(--space-4)" }}>
+            <Card title="Import / Export Products">
+              <div className="scan-workflow-form" style={{ maxWidth: 500 }}>
+                <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end" }}>
+                  <Button variant="secondary" onClick={handleExport}>
+                    Export CSV
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    style={{ display: "none" }}
+                  />
+                  <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                    Choose CSV File
+                  </Button>
+                </div>
+                {csvText && (
+                  <div>
+                    <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
+                      File loaded ({csvText.length} chars). Click Import to process.
+                    </p>
+                    <Button onClick={handleImport} disabled={importing}>
+                      {importing ? "Importing..." : "Import Products"}
+                    </Button>
+                  </div>
+                )}
+                {importResult && (
+                  <div
+                    style={{
+                      padding: "var(--space-3)",
+                      borderRadius: "var(--radius-md)",
+                      backgroundColor:
+                        importResult.errors?.length > 0
+                          ? "var(--color-warning-subtle)"
+                          : "var(--color-success-subtle)",
+                      fontSize: "0.875rem"
+                    }}
+                  >
+                    <p>Imported: {importResult.imported} products</p>
+                    {importResult.errors?.length > 0 && (
+                      <div style={{ marginTop: "var(--space-2)" }}>
+                        <p style={{ fontWeight: 600 }}>Errors:</p>
+                        {importResult.errors.map((err, i) => (
+                          <p key={i} style={{ color: "var(--color-error)", fontSize: "0.8125rem" }}>
+                            Row {err.row}: {err.message}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        </Collapsible>
       </div>
     </div>
   );
@@ -409,6 +421,7 @@ function MembersTab() {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [formError, setFormError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState({
     username: "",
     displayName: "",
@@ -450,6 +463,7 @@ function MembersTab() {
       isActive: true
     });
     setFormError(null);
+    setEditorOpen(true);
   }
 
   function selectMember(member) {
@@ -463,6 +477,25 @@ function MembersTab() {
       isActive: Boolean(member.isActive)
     });
     setFormError(null);
+    setEditorOpen(true);
+  }
+
+  function handleExportCsv() {
+    downloadCsv(
+      "members-export.csv",
+      toCsv(memberColumns, toArray(members?.items).map((member) => ({
+        ...member,
+        defaultWarehouseLabel: warehouseLabel(
+          warehouseOptions.find((wh) => Number(wh.warehouseId) === Number(member.defaultWarehouseId || member.warehouseIds?.[0]))
+        ),
+        warehouseSummary: member.warehouseIds?.length
+          ? member.warehouseIds
+              .map((id) => warehouseLabel(warehouseOptions.find((wh) => Number(wh.warehouseId) === Number(id))))
+              .join(", ")
+          : "—",
+        isActive: member.isActive ? "Active" : "No longer in company"
+      })))
+    );
   }
 
   useEffect(() => {
@@ -563,13 +596,46 @@ function MembersTab() {
   }));
 
   return (
-    <div className="warehouse-grid warehouse-grid--two">
-      <Card title="Member Editor">
+    <div>
+      <Card title="Member List">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-3)", alignItems: "flex-end", marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 260, flex: 1 }}>
+            <Input label="Search Members" value={query} onChange={setQuery} placeholder="Search username or display name" />
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <Button variant="secondary" onClick={startNewMember}>
+              + New Member
+            </Button>
+            <Button variant="secondary" onClick={handleExportCsv}>
+              Export CSV
+            </Button>
+          </div>
+        </div>
+        <DataTable
+          columns={[...memberColumns, { key: "_actions", label: "Actions", sortable: false }]}
+          data={rows}
+          loading={loading}
+          error={error}
+          onRetry={load}
+          pageSize={12}
+          sortable={true}
+          onRowClick={(row) => {
+            const member = toArray(members?.items).find((item) => item.userId === row.userId);
+            if (member) selectMember(member);
+          }}
+        />
+      </Card>
+
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <Collapsible
+          title="Member Editor"
+          open={editorOpen}
+          onOpenChange={setEditorOpen}
+          openLabel="Show Member Editor"
+          closeLabel="Hide Member Editor"
+        >
+        <Card title="Member Editor">
         <div className="scan-workflow-form">
-          <Input label="Search Members" value={query} onChange={setQuery} placeholder="Search username or display name" />
-          <Button variant="secondary" onClick={startNewMember}>
-            New Member
-          </Button>
           <Input label="Username" value={form.username} onChange={(value) => setForm((prev) => ({ ...prev, username: value }))} />
           <Input label="Display Name" value={form.displayName} onChange={(value) => setForm((prev) => ({ ...prev, displayName: value }))} />
           <Input
@@ -620,23 +686,9 @@ function MembersTab() {
             {saving ? "Saving..." : selectedUserId ? "Update Member" : "Create Member"}
           </Button>
         </div>
-      </Card>
-
-      <Card title="Member List">
-        <DataTable
-          columns={[...memberColumns, { key: "_actions", label: "Actions", sortable: false }]}
-          data={rows}
-          loading={loading}
-          error={error}
-          onRetry={load}
-          pageSize={12}
-          sortable={true}
-          onRowClick={(row) => {
-            const member = toArray(members?.items).find((item) => item.userId === row.userId);
-            if (member) selectMember(member);
-          }}
-        />
-      </Card>
+        </Card>
+        </Collapsible>
+      </div>
     </div>
   );
 }
@@ -657,6 +709,7 @@ function RolesTab() {
   const [selectedRoleId, setSelectedRoleId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -689,6 +742,7 @@ function RolesTab() {
       permissions: []
     });
     setFormError(null);
+    setEditorOpen(true);
   }
 
   function selectRole(role) {
@@ -700,6 +754,20 @@ function RolesTab() {
       permissions: role.permissions || []
     });
     setFormError(null);
+    setEditorOpen(true);
+  }
+
+  function handleExportCsv() {
+    downloadCsv(
+      "roles-export.csv",
+      toCsv(roleColumns, toArray(roles?.items)
+        .filter((role) => role.code !== "admin")
+        .map((role) => ({
+          ...role,
+          permissionCount: role.permissions?.length || 0,
+          isActive: role.isActive ? "Active" : "Inactive"
+        })))
+    );
   }
 
   const permissionOptions = toArray(permissions?.items);
@@ -777,12 +845,41 @@ function RolesTab() {
   }
 
   return (
-    <div className="warehouse-grid warehouse-grid--two">
-      <Card title="Role Editor">
-        <div className="scan-workflow-form">
+    <div>
+      <Card title="Role List">
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
           <Button variant="secondary" onClick={startNewRole}>
-            New Role
+            + New Role
           </Button>
+          <Button variant="secondary" onClick={handleExportCsv}>
+            Export CSV
+          </Button>
+        </div>
+        <DataTable
+          columns={[...roleColumns, { key: "_actions", label: "Actions", sortable: false }]}
+          data={rows}
+          loading={loading}
+          error={error}
+          onRetry={load}
+          pageSize={12}
+          sortable={true}
+          onRowClick={(row) => {
+            const role = toArray(roles?.items).find((item) => item.roleId === row.roleId);
+            if (role) selectRole(role);
+          }}
+        />
+      </Card>
+
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <Collapsible
+          title="Role Editor"
+          open={editorOpen}
+          onOpenChange={setEditorOpen}
+          openLabel="Show Role Editor"
+          closeLabel="Hide Role Editor"
+        >
+        <Card title="Role Editor">
+        <div className="scan-workflow-form">
           {!selectedRoleId && (
             <Input
               label="Role Code"
@@ -849,23 +946,9 @@ function RolesTab() {
             {saving ? "Saving..." : selectedRoleId ? "Update Role" : "Create Role"}
           </Button>
         </div>
-      </Card>
-
-      <Card title="Role List">
-        <DataTable
-          columns={[...roleColumns, { key: "_actions", label: "Actions", sortable: false }]}
-          data={rows}
-          loading={loading}
-          error={error}
-          onRetry={load}
-          pageSize={12}
-          sortable={true}
-          onRowClick={(row) => {
-            const role = toArray(roles?.items).find((item) => item.roleId === row.roleId);
-            if (role) selectRole(role);
-          }}
-        />
-      </Card>
+        </Card>
+        </Collapsible>
+      </div>
     </div>
   );
 }
@@ -984,13 +1067,7 @@ function InvoicesTab() {
   async function handleExport() {
     try {
       const result = await exportInvoicesCsv();
-      const blob = new Blob([result.csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "invoices-export.csv";
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadCsv("invoices-export.csv", result.csv);
     } catch (err) {
       setError(err?.message || "Export failed");
     }
@@ -1021,13 +1098,7 @@ function InvoicesTab() {
   }
 
   function handleDownloadTemplate() {
-    const blob = new Blob([INVOICE_IMPORT_TEMPLATE], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "invoice-import-template.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadCsv("invoice-import-template.csv", INVOICE_IMPORT_TEMPLATE);
   }
 
   const invoiceItems = toArray(invoices?.items);
@@ -1097,71 +1168,7 @@ function InvoicesTab() {
 
   return (
     <div>
-      {isAdmin && (
-        <Card title="Invoice Bulk CSV (Admin only)">
-          <div className="scan-workflow-form" style={{ maxWidth: 640 }}>
-            <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", margin: 0 }}>
-              Import invoices in bulk. One CSV row per invoice line; invoice header
-              columns repeat for each line of the same <code>sap_invoice_ref</code>.
-            </p>
-            <Button variant="secondary" onClick={handleDownloadTemplate}>
-              Download Template
-            </Button>
-            <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end" }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv"
-                onChange={handleFileUpload}
-                style={{ display: "none" }}
-              />
-              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                Choose CSV File
-              </Button>
-            </div>
-            {csvText && (
-              <div>
-                <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
-                  File loaded ({csvText.length} chars). Click Import to process.
-                </p>
-                <Button onClick={handleImport} disabled={importing}>
-                  {importing ? "Importing..." : "Import Invoices"}
-                </Button>
-              </div>
-            )}
-            {importResult && (
-              <div
-                style={{
-                  padding: "var(--space-3)",
-                  borderRadius: "var(--radius-md)",
-                  backgroundColor:
-                    importResult.errors?.length > 0
-                      ? "var(--color-warning-subtle)"
-                      : "var(--color-success-subtle)",
-                  fontSize: "0.875rem"
-                }}
-              >
-                <p>
-                  Imported: {importResult.imported} invoice{importResult.imported !== 1 ? "s" : ""}
-                  {importResult.importedLines !== undefined ? `, ${importResult.importedLines} line items` : ""}
-                </p>
-                {importResult.errors?.length > 0 && (
-                  <div style={{ marginTop: "var(--space-2)" }}>
-                    <p style={{ fontWeight: 600 }}>Errors:</p>
-                    {importResult.errors.map((err, i) => (
-                      <p key={i} style={{ color: "var(--color-error)", fontSize: "0.8125rem" }}>
-                        Row {err.row}: {err.message}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
-
-      <div style={{ marginTop: isAdmin ? "var(--space-4)" : 0 }}>
+      <div style={{ marginTop: "var(--space-4)" }}>
         <Card title="All Invoices">
           <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-3)", alignItems: "flex-end", marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
             <div style={{ minWidth: 260, flex: 1 }}>
@@ -1256,6 +1263,78 @@ function InvoicesTab() {
           />
         </Card>
       </div>
+
+      {isAdmin && (
+        <div style={{ marginTop: "var(--space-4)" }}>
+        <Collapsible
+          title="Invoice Bulk CSV"
+          openLabel="Invoice Bulk CSV (Admin only)"
+          closeLabel="Hide Invoice Bulk CSV"
+        >
+        <Card title="Invoice Bulk CSV (Admin only)">
+          <div className="scan-workflow-form" style={{ maxWidth: 640 }}>
+            <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", margin: 0 }}>
+              Import invoices in bulk. One CSV row per invoice line; invoice header
+              columns repeat for each line of the same <code>sap_invoice_ref</code>.
+            </p>
+            <Button variant="secondary" onClick={handleDownloadTemplate}>
+              Download Template
+            </Button>
+            <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end" }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                style={{ display: "none" }}
+              />
+              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                Choose CSV File
+              </Button>
+            </div>
+            {csvText && (
+              <div>
+                <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
+                  File loaded ({csvText.length} chars). Click Import to process.
+                </p>
+                <Button onClick={handleImport} disabled={importing}>
+                  {importing ? "Importing..." : "Import Invoices"}
+                </Button>
+              </div>
+            )}
+            {importResult && (
+              <div
+                style={{
+                  padding: "var(--space-3)",
+                  borderRadius: "var(--radius-md)",
+                  backgroundColor:
+                    importResult.errors?.length > 0
+                      ? "var(--color-warning-subtle)"
+                      : "var(--color-success-subtle)",
+                  fontSize: "0.875rem"
+                }}
+              >
+                <p>
+                  Imported: {importResult.imported} invoice{importResult.imported !== 1 ? "s" : ""}
+                  {importResult.importedLines !== undefined ? `, ${importResult.importedLines} line items` : ""}
+                </p>
+                {importResult.errors?.length > 0 && (
+                  <div style={{ marginTop: "var(--space-2)" }}>
+                    <p style={{ fontWeight: 600 }}>Errors:</p>
+                    {importResult.errors.map((err, i) => (
+                      <p key={i} style={{ color: "var(--color-error)", fontSize: "0.8125rem" }}>
+                        Row {err.row}: {err.message}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </Card>
+        </Collapsible>
+        </div>
+      )}
 
       {expanded && (
         <div style={{ marginTop: "var(--space-4)" }}>
@@ -1418,6 +1497,31 @@ function InboundTab() {
     _doc: doc
   }));
 
+  const inboundCsvColumns = [
+    { key: "externalRef", label: "Dispatch Doc" },
+    { key: "sourceWarehouseCode", label: "From" },
+    { key: "destinationWarehouseCode", label: "To (Warehouse)" },
+    { key: "products", label: "Products" },
+    { key: "totalQuantity", label: "Total Qty" },
+    { key: "status", label: "Status" },
+    { key: "createdAt", label: "Imported" }
+  ];
+
+  function handleExportCsv() {
+    downloadCsv(
+      "inbound-stock-export.csv",
+      toCsv(inboundCsvColumns, toArray(docs?.items).map((doc) => ({
+        externalRef: doc.externalRef,
+        sourceWarehouseCode: doc.sourceWarehouseCode || (doc.sourceWarehouseId ? `WH-${doc.sourceWarehouseId}` : "—"),
+        destinationWarehouseCode: `${doc.destinationWarehouseCode || `WH-${doc.destinationWarehouseId}`}${doc.destinationWarehouseName ? ` · ${doc.destinationWarehouseName}` : ""}`,
+        products: toArray(doc.products).map((p) => `${p.productName} x${p.quantity}`).join("; ") || "—",
+        totalQuantity: doc.totalQuantity,
+        status: doc.status,
+        createdAt: fmtDate(doc.createdAt)
+      })))
+    );
+  }
+
   return (
     <div>
       <Card title="Inbound Stock — sent to each warehouse">
@@ -1425,6 +1529,11 @@ function InboundTab() {
           SAP dispatch documents: which stock was shipped to which warehouse. Click a row to
           see every serial. These are the serials a GRN at the destination warehouse expects.
         </p>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-3)" }}>
+          <Button variant="secondary" onClick={handleExportCsv}>
+            Export CSV
+          </Button>
+        </div>
         <DataTable
           columns={inboundColumns}
           data={rows}
@@ -1534,6 +1643,24 @@ function StockTab() {
       serialStatus: <span className="badge">{unit.serialStatus || "—"}</span>
     }));
 
+  function handleExportCsv() {
+    downloadCsv(
+      "warehouse-stock-export.csv",
+      toCsv(stockColumns, items
+        .filter((unit) => !warehouseFilter || String(unit.warehouseId) === String(warehouseFilter))
+        .filter((unit) => {
+          if (!query) return true;
+          return [unit.serialNo, unit.productName, unit.productCode, unit.warehouseCode].some((value) =>
+            String(value ?? "").toLowerCase().includes(query)
+          );
+        })
+        .map((unit) => ({
+          ...unit,
+          warehouseCode: `${unit.warehouseCode}${unit.warehouseName ? ` · ${unit.warehouseName}` : ""}`
+        })))
+    );
+  }
+
   return (
     <div>
       <Card title="Warehouse Stock — every unit currently in stock">
@@ -1541,6 +1668,11 @@ function StockTab() {
           Each individual product unit (serial number) that is currently IN_STOCK, and the
           warehouse it physically sits in.
         </p>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-3)" }}>
+          <Button variant="secondary" onClick={handleExportCsv}>
+            Export CSV
+          </Button>
+        </div>
         <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
           <div className="input-group" style={{ minWidth: 220 }}>
             <label className="input-group__label">Warehouse</label>

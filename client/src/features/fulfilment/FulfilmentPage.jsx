@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
-import { Input } from "../../components/ui/Input.jsx";
-import { Button } from "../../components/ui/Button.jsx";
 import { StatusBadge } from "../../components/ui/StatusBadge.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { fetchFulfilmentStatus } from "../../api/modules/fulfilment.js";
@@ -13,9 +11,7 @@ function safeNumber(value, fallback = 0) {
 }
 
 export function FulfilmentPage() {
-  const [invoiceId, setInvoiceId] = useState("");
   const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchParams] = useSearchParams();
 
@@ -24,33 +20,13 @@ export function FulfilmentPage() {
     return result;
   }
 
-  async function handleSearch() {
-    setError(null);
-    setStatus(null);
-    setLoading(true);
-    try {
-      const result = await loadStatus(invoiceId);
-      if (!result) {
-        setError("No fulfilment data found for this invoice.");
-      } else {
-        setStatus(result);
-      }
-    } catch (err) {
-      setError(err?.message || "Search failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
     const q = searchParams.get("q");
     if (!q) return;
     const digits = q.replace(/[^\d]/g, "");
     if (!digits) return;
-    setInvoiceId(digits);
     setError(null);
     setStatus(null);
-    setLoading(true);
     loadStatus(digits)
       .then((result) => {
         if (!result) {
@@ -59,8 +35,7 @@ export function FulfilmentPage() {
           setStatus(result);
         }
       })
-      .catch((err) => setError(err?.message || "Search failed"))
-      .finally(() => setLoading(false));
+      .catch((err) => setError(err?.message || "Search failed"));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleScanInvoice(value) {
@@ -68,7 +43,6 @@ export function FulfilmentPage() {
     if (!result) {
       return { status: "NOT_FOUND", message: "No fulfilment data found", state: "error" };
     }
-    setInvoiceId(String(result.invoiceId ?? value));
     setStatus(result);
     return { status: result.status || "FOUND", message: "Fulfilment status loaded", state: "success" };
   }
@@ -78,18 +52,7 @@ export function FulfilmentPage() {
       <PageHeader title="Fulfilment Status" subtitle="Track order fulfilment progress" />
       <Card title="Order Lookup">
         <div className="scan-workflow-form lookup-form">
-          <Input
-            label="Invoice ID"
-            value={invoiceId}
-            onChange={setInvoiceId}
-            type="number"
-            inputMode="numeric"
-            placeholder="Enter invoice ID"
-          />
           {error && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</p>}
-          <Button onClick={handleSearch} disabled={!invoiceId || loading}>
-            {loading ? "Searching..." : "Search"}
-          </Button>
           <ScanSession
             module="FULFILMENT"
             title="Invoice scanner"

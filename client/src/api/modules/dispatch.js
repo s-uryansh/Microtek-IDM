@@ -18,3 +18,16 @@ export function scanDispatchSerial({ dispatchId, serialNo, signal }) {
 export function completeDispatch({ dispatchId, signal }) {
   return post(`/idm-05/dispatches/${dispatchId}/complete`, {}, { signal });
 }
+
+/* ── Warehouse-to-warehouse transfer (no invoice) ── */
+export function createWarehouseTransfer({ sourceWarehouseId, destinationWarehouseId, reference, signal }) {
+  return post(
+    "/idm-05/transfers",
+    { warehouseId: sourceWarehouseId, destinationWarehouseId, reference },
+    { signal }
+  );
+}
+
+export function scanTransferSerial({ transferId, serialNo, signal }) {
+  return post(`/idm-05/transfers/${transferId}/scans`, { serialNo }, { signal });
+}

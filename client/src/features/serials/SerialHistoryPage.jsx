@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
-import { Input } from "../../components/ui/Input.jsx";
-import { Button } from "../../components/ui/Button.jsx";
 import { StatusBadge } from "../../components/ui/StatusBadge.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
 import { fetchSerialHistory } from "../../api/modules/history.js";
@@ -32,7 +30,6 @@ function formatTimestamp(iso) {
 export function SerialHistoryPage() {
   const [serialNo, setSerialNo] = useState("");
   const [history, setHistory] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchParams] = useSearchParams();
 
@@ -43,33 +40,17 @@ export function SerialHistoryPage() {
     return result;
   }
 
-  async function handleSearch() {
-    if (!serialNo.trim()) return;
-    setError(null);
-    setHistory(null);
-    setLoading(true);
-    try {
-      const result = await loadHistory(serialNo);
-      setHistory(result);
-    } catch (err) {
-      if (err?.status === 404) {
-        setHistory({ found: false, serial: null, timeline: [] });
-        return;
-      }
-      setError(err?.message || "Search failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleScanSerial(value) {
+    const lookupSerial = String(value || "").trim();
     try {
       const result = await loadHistory(value);
-      setSerialNo(String(value || "").trim());
+      setSerialNo(lookupSerial);
       setHistory(result);
       return { status: "FOUND", message: "Serial timeline loaded", state: "success" };
     } catch (err) {
       if (err?.status === 404) {
+        setSerialNo(lookupSerial);
+        setHistory({ found: false, serial: null, timeline: [] });
         return { status: "NOT_FOUND", message: "Serial not found", state: "error" };
       }
       throw err;
@@ -81,7 +62,6 @@ export function SerialHistoryPage() {
     setSerialNo(q.trim());
     setError(null);
     setHistory(null);
-    setLoading(true);
     loadHistory(q.trim())
       .then((result) => setHistory(result))
       .catch((err) => {
@@ -90,8 +70,7 @@ export function SerialHistoryPage() {
           return;
         }
         setError(err?.message || "Search failed");
-      })
-      .finally(() => setLoading(false));
+      });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const timeline = toArray(history?.timeline);
@@ -101,16 +80,7 @@ export function SerialHistoryPage() {
       <PageHeader title="Serial History" subtitle="Track serial number lifecycle" />
       <Card title="Serial Lookup">
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)", maxWidth: 480 }}>
-          <Input
-            label="Serial Number"
-            value={serialNo}
-            onChange={setSerialNo}
-            placeholder="Enter serial number"
-          />
           {error && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</p>}
-          <Button onClick={handleSearch} disabled={!serialNo.trim() || loading}>
-            {loading ? "Searching..." : "Search"}
-          </Button>
           <ScanSession
             module="HISTORY"
             title="Serial scanner"

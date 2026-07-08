@@ -16,6 +16,12 @@ function renderPage() {
   );
 }
 
+function search(value) {
+  const input = screen.getByLabelText("Scan Invoice");
+  fireEvent.change(input, { target: { value } });
+  fireEvent.keyDown(input, { key: "Enter" });
+}
+
 beforeEach(() => {
   mockFetchStatus.mockReset();
 });
@@ -24,8 +30,7 @@ describe("FulfilmentPage", () => {
   test("renders search form initially", () => {
     renderPage();
     expect(screen.getByText("Fulfilment Status")).toBeVisible();
-    expect(screen.getByLabelText("Invoice ID")).toBeVisible();
-    expect(screen.getByText("Search")).toBeVisible();
+    expect(screen.getByLabelText("Scan Invoice")).toBeVisible();
   });
 
   test("displays status on success", async () => {
@@ -34,20 +39,18 @@ describe("FulfilmentPage", () => {
       requiredQuantity: 5, scannedQuantity: 5, committedQuantity: 0
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "1" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("1");
     await waitFor(() => {
       expect(screen.getByText("Invoice #1")).toBeVisible();
     });
-    expect(screen.getByText("DISPATCHED")).toBeVisible();
+    expect(screen.getAllByText("DISPATCHED")[0]).toBeVisible();
     expect(screen.getByText("Required")).toBeVisible();
   });
 
   test("displays 0 when requiredQuantity/scannedQuantity are missing in response", async () => {
     mockFetchStatus.mockResolvedValue({ invoiceId: 2, status: "PENDING" });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "2" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("2");
     await waitFor(() => {
       expect(screen.getByText("Invoice #2")).toBeVisible();
     });
@@ -58,8 +61,7 @@ describe("FulfilmentPage", () => {
   test("renders error message on 404", async () => {
     mockFetchStatus.mockRejectedValue(new Error("Request failed with status 404"));
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "999" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("999");
     await waitFor(() => {
       expect(screen.getByText("Request failed with status 404")).toBeVisible();
     });
@@ -68,18 +70,16 @@ describe("FulfilmentPage", () => {
   test("renders 'No fulfilment data' when backend returns null", async () => {
     mockFetchStatus.mockResolvedValue(null);
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "1" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("1");
     await waitFor(() => {
-      expect(screen.getByText("No fulfilment data found for this invoice.")).toBeVisible();
+      expect(screen.getByText("No fulfilment data found")).toBeVisible();
     });
   });
 
   test("does NOT crash when result has no committedQuantity", async () => {
     mockFetchStatus.mockResolvedValue({ invoiceId: 3, status: "IN_PROGRESS", requiredQuantity: 10, scannedQuantity: 4 });
     renderPage();
-    fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "3" } });
-    fireEvent.click(screen.getByText("Search"));
+    search("3");
     await waitFor(() => expect(screen.getByText("Invoice #3")).toBeVisible());
     expect(screen.getByText("10")).toBeVisible();
     expect(screen.getByText("4")).toBeVisible();

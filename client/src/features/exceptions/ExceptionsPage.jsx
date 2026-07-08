@@ -35,7 +35,6 @@ export function ExceptionsPage() {
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [selected, setSelected] = useState(null);
-  const [exceptionIdInput, setExceptionIdInput] = useState("");
   const [detail, setDetail] = useState(null);
   const [detailError, setDetailError] = useState(null);
   const [correctionReason, setCorrectionReason] = useState("");
@@ -81,7 +80,6 @@ export function ExceptionsPage() {
     setSelected(parsed);
     const data = await fetchException({ exceptionId: parsed });
     setDetail(data);
-    setExceptionIdInput(String(parsed));
     return { status: "LOADED", message: "Exception detail loaded", state: "success" };
   }
 
@@ -136,17 +134,6 @@ export function ExceptionsPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           <Card title="Exception List">
             <div className="scan-workflow-form scan-workflow-form--compact">
-              <Input
-                label="Exception ID"
-                value={exceptionIdInput}
-                onChange={setExceptionIdInput}
-                type="number"
-                inputMode="numeric"
-                placeholder="Enter exception ID"
-              />
-              <Button onClick={() => handleViewDetail(Number(exceptionIdInput))} disabled={!exceptionIdInput}>
-                Load Exception
-              </Button>
               <ScanSession
                 module="EXCEPTION"
                 title="Exception scanner"
