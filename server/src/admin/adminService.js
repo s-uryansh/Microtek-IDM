@@ -12,12 +12,62 @@ const VALID_WAREHOUSE_TYPES = ["PLANT", "CENTRAL", "REGIONAL"];
 const MAX_PRODUCT_IMPORT_ROWS = 5000;
 
 // Validate each imported product row: constrains code shape and field lengths so
-// oversized/garbage values never reach the database (or the export CSV).
+// oversized/garbage values never reach the database (or the export CSV). Matches
+// the four columns the client's CSV marks required with (*).
 const productImportRowSchema = z.object({
-  productCode: z.string().regex(/^[A-Z0-9._-]{1,64}$/, "product_code must be 1-64 chars of A-Z 0-9 . _ -"),
-  name: z.string().min(1, "name is required").max(200, "name must be at most 200 characters"),
-  segment: z.string().max(64, "segment must be at most 64 characters")
+  productCode: z.string().regex(/^[A-Z0-9._-]{1,64}$/, "Product Code(*) must be 1-64 chars of A-Z 0-9 . _ -"),
+  name: z.string().min(1, "Product Name(*) is required").max(200, "Product Name(*) must be at most 200 characters"),
+  category: z.string().min(1, "Category(*) is required").max(60, "Category(*) must be at most 60 characters"),
+  subCategory: z.string().min(1, "Sub Category(*) is required").max(60, "Sub Category(*) must be at most 60 characters")
 });
+
+// The client's product export uses its own literal column headers (with "(*)"
+// suffixes, spaces, and even a typo — "Warraanty"). Map them to internal field
+// names instead of asking the client to reformat their file.
+const PRODUCT_CSV_FIELD_ALIASES = {
+  productCode: ["product code(*)"],
+  name: ["product name(*)"],
+  category: ["category(*)"],
+  subCategory: ["sub category(*)"],
+  distributorPrice: ["distributor price"],
+  warranty: ["warraanty"],
+  gst: ["gst"],
+  mrp: ["mrp"],
+  basePrice: ["base price"],
+  stock: ["stock"],
+  sbu: ["sbu"],
+  poll: ["poll"],
+  moq: ["moq"],
+  description: ["description"],
+  productCategory: ["product category"]
+};
+
+function mapProductRow(row) {
+  const byNormalizedKey = new Map(
+    Object.entries(row).map(([key, value]) => [String(key || "").trim().toLowerCase(), value])
+  );
+  const mapped = {};
+  for (const [field, aliases] of Object.entries(PRODUCT_CSV_FIELD_ALIASES)) {
+    for (const alias of aliases) {
+      if (byNormalizedKey.has(alias)) {
+        mapped[field] = byNormalizedKey.get(alias);
+        break;
+      }
+    }
+  }
+  return mapped;
+}
+
+// Modifiable: is_battery is derived by matching category/sub-category/product
+// category text against this keyword list, rather than a fixed category enum —
+// the client's category codes (e.g. "PSD") aren't a known fixed set.
+const BATTERY_CATEGORY_KEYWORDS = ["BATTERY"];
+
+function looksLikeBattery(...values) {
+  return values.some((value) =>
+    BATTERY_CATEGORY_KEYWORDS.some((keyword) => String(value || "").toUpperCase().includes(keyword))
+  );
+}
 
 // Flat CSV: one row per invoice line, with the invoice header columns repeated on
 // every line of the same invoice (grouped on import by sap_invoice_ref).
@@ -377,34 +427,33 @@ export function createAdminService({ repositories, adminRepo }) {
        PRODUCTS — CSV IMPORT / EXPORT
 */
 
-    VALID_PRODUCT_CATEGORIES: ["INVERTER", "BATTERY", "SOLAR", "ACCESSORY"],
-
     async listProducts() {
       return adminRepo.listProducts();
     },
 
     async exportProductsCsv() {
       const products = await adminRepo.listProducts();
-      const headers = ["product_code", "name", "segment", "category", "is_battery", "is_active"];
+      const headerToField = {
+        "Product Code(*)": "productCode",
+        "Product Name(*)": "name",
+        "Category(*)": "category",
+        "Sub Category(*)": "subCategory",
+        "Distributor Price": "distributorPrice",
+        "Warraanty": "warranty",
+        "Gst": "gst",
+        "Mrp": "mrp",
+        "Base Price": "basePrice",
+        "Stock": "stock",
+        "SBU": "sbu",
+        "Poll": "poll",
+        "MOQ": "moq",
+        "Description": "description",
+        "Product Category": "productCategory"
+      };
+      const headers = Object.keys(headerToField);
       const headerLine = headers.map(sanitizeCsvCell).join(",");
       const bodyLines = products.map((p) =>
-        headers
-          .map((h) =>
-            sanitizeCsvCell(
-              String(
-                p[
-                  h === "product_code"
-                    ? "productCode"
-                    : h === "is_battery"
-                      ? "isBattery"
-                      : h === "is_active"
-                        ? "isActive"
-                        : h
-                ] ?? ""
-              )
-            )
-          )
-          .join(",")
+        headers.map((h) => sanitizeCsvCell(String(p[headerToField[h]] ?? ""))).join(",")
       );
       return [headerLine, ...bodyLines].join("\n");
     },
@@ -439,15 +488,16 @@ export function createAdminService({ repositories, adminRepo }) {
       const seenCodes = new Set();
 
       for (let i = 0; i < records.length; i++) {
-        const row = records[i];
+        const row = mapProductRow(records[i]);
         const rowNum = i + 2;
 
         try {
-          const productCode = String(row.product_code || row.productCode || "").trim().toUpperCase();
-          const name = String(row.name || "").trim();
-          const segment = String(row.segment || row.category || "GENERAL").trim().toUpperCase();
+          const productCode = normalizeText(row.productCode).toUpperCase();
+          const name = normalizeText(row.name);
+          const category = normalizeText(row.category).toUpperCase();
+          const subCategory = normalizeText(row.subCategory).toUpperCase();
 
-          const parsed = productImportRowSchema.safeParse({ productCode, name, segment });
+          const parsed = productImportRowSchema.safeParse({ productCode, name, category, subCategory });
           if (!parsed.success) {
             errors.push({ row: rowNum, message: parsed.error.issues[0]?.message ?? "Invalid product row" });
             continue;
@@ -458,19 +508,26 @@ export function createAdminService({ repositories, adminRepo }) {
           }
           seenCodes.add(productCode);
 
-          const category = String(row.category || row.segment || segment).trim().toUpperCase();
-          const validCategories = this.VALID_PRODUCT_CATEGORIES;
-
-          const finalCategory = validCategories.includes(category) ? category : "ACCESSORY";
-          const isBattery =
-            String(row.is_battery || row.isBattery || "").toLowerCase() === "true" ||
-            finalCategory === "BATTERY";
+          const productCategory = normalizeText(row.productCategory).toUpperCase() || category;
+          const isBattery = looksLikeBattery(category, subCategory, productCategory);
 
           const result = await adminRepo.upsertProduct({
             productCode,
             name,
-            segment,
-            category: finalCategory,
+            segment: category, // the client's CSV has no dedicated segment column; mirrors category
+            category,
+            subCategory,
+            productCategory,
+            distributorPrice: csvNumber(row.distributorPrice),
+            warranty: normalizeText(row.warranty) || null,
+            gst: csvNumber(row.gst),
+            mrp: csvNumber(row.mrp),
+            basePrice: csvNumber(row.basePrice),
+            stock: csvInteger(row.stock),
+            sbu: normalizeText(row.sbu) || null,
+            poll: normalizeText(row.poll) || null,
+            moq: csvInteger(row.moq),
+            description: normalizeText(row.description) || null,
             isBattery,
             createdBy: userId
           });

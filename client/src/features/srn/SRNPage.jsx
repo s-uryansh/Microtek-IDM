@@ -210,6 +210,7 @@ export function SRNPage() {
                           <th style={{ padding: "var(--space-2) var(--space-3)" }}>#</th>
                           <th style={{ padding: "var(--space-2) var(--space-3)" }}>Product</th>
                           <th style={{ padding: "var(--space-2) var(--space-3)" }}>Code</th>
+                          <th style={{ padding: "var(--space-2) var(--space-3)" }}>Category</th>
                           <th style={{ padding: "var(--space-2) var(--space-3)" }}>Qty</th>
                         </tr>
                       </thead>
@@ -226,6 +227,9 @@ export function SRNPage() {
                             <td style={{ padding: "var(--space-2) var(--space-3)" }}>{line.lineNo}</td>
                             <td style={{ padding: "var(--space-2) var(--space-3)" }}>{line.productName}</td>
                             <td style={{ padding: "var(--space-2) var(--space-3)" }}>{line.productCode}</td>
+                            <td style={{ padding: "var(--space-2) var(--space-3)" }}>
+                              <span className="badge">{line.category || line.segment || "—"}</span>
+                            </td>
                             <td style={{ padding: "var(--space-2) var(--space-3)" }}>{line.quantity}</td>
                           </tr>
                         ))}

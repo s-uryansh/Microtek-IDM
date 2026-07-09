@@ -26,8 +26,10 @@ export function createAgeingReportRepository(pool) {
            s.warehouse_id AS "warehouseId",
            s.product_id AS "productId",
            s.age_days AS "ageDays",
-           s.missing_received_at AS "missingReceivedAt"
+           s.missing_received_at AS "missingReceivedAt",
+           p.mrp AS "price"
          FROM ageing_serial_snapshot s
+         LEFT JOIN product p ON p.product_id = s.product_id
          WHERE s.warehouse_id = ANY($1::bigint[])
          ${productFilter}
          ORDER BY s.warehouse_id, s.product_id, s.age_days NULLS LAST
@@ -95,6 +97,7 @@ export function createAgeingReportRepository(pool) {
           p.name AS "productName",
           p.segment,
           p.category,
+          p.mrp AS "price",
           s.age_days AS "ageDays",
           s.received_at AS "receivedAt"
         FROM ageing_serial_snapshot s

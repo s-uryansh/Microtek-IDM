@@ -1,18 +1,21 @@
 import { ageingReportSchema } from "../models/ageingSchemas.js";
 import { sanitizeCsvCell } from "../utils/sanitizeCsvCell.js";
 
-function addToSummary(summaryByBucket, bucket) {
+function addToSummary(summaryByBucket, bucket, price) {
+  const value = Number(price) || 0;
   const existing = summaryByBucket.get(bucket.code);
 
   if (existing) {
     existing.quantity += 1;
+    existing.totalValue += value;
     return;
   }
 
   summaryByBucket.set(bucket.code, {
     bucketCode: bucket.code,
     label: bucket.label,
-    quantity: 1
+    quantity: 1,
+    totalValue: value
   });
 }
 
@@ -42,7 +45,7 @@ export function createAgeingReportService({ repositories, bucketService }) {
           missingReceivedAtCount += 1;
         }
 
-        addToSummary(summaryByBucket, bucket);
+        addToSummary(summaryByBucket, bucket, row.price);
         data.push({
           ...row,
           bucketCode: bucket.code,

@@ -1,5 +1,5 @@
 export function createDashboardService({ repositories }) {
-  async function getSummary({ warehouseIds }) {
+  async function getSummary({ warehouseIds, category = null }) {
     const scope = Array.isArray(warehouseIds) && warehouseIds.length ? warehouseIds : null;
 
     const [
@@ -12,16 +12,18 @@ export function createDashboardService({ repositories }) {
       recentDispatches,
       stockByWarehouse,
       ageing,
+      stockBreakdown,
     ] = await Promise.all([
-      repositories.dashboard.countSerialsByStatus({ warehouseIds: scope }),
+      repositories.dashboard.countSerialsByStatus({ warehouseIds: scope, category }),
       repositories.dashboard.countExceptionsByStatus({ warehouseIds: scope }),
       repositories.dashboard.countExceptionsByRule({ warehouseIds: scope, limit: 8 }),
       repositories.dashboard.countGrnsInProgress({ warehouseIds: scope }),
       repositories.dashboard.countDispatchesInProgress({ warehouseIds: scope }),
       repositories.dashboard.findRecentGrns({ warehouseIds: scope, limit: 5 }),
       repositories.dashboard.findRecentDispatches({ warehouseIds: scope, limit: 5 }),
-      repositories.dashboard.countInStockByWarehouse({ warehouseIds: scope }),
-      repositories.dashboard.ageingBuckets({ warehouseIds: scope }),
+      repositories.dashboard.countInStockByWarehouse({ warehouseIds: scope, category }),
+      repositories.dashboard.ageingBuckets({ warehouseIds: scope, category }),
+      repositories.dashboard.countInStockByCategory({ warehouseIds: scope, category }),
     ]);
 
     const byStatus = Object.fromEntries(statusRows.map((r) => [r.status, r.count]));
@@ -45,6 +47,7 @@ export function createDashboardService({ repositories }) {
       statusBreakdown: statusRows,
       exceptionsByRule: excRuleRows,
       stockByWarehouse,
+      stockBreakdown,
       ageingDistribution,
       recentGrns,
       recentDispatches,
@@ -52,5 +55,9 @@ export function createDashboardService({ repositories }) {
     };
   }
 
-  return { getSummary };
+  async function listCategories() {
+    return repositories.dashboard.listCategories();
+  }
+
+  return { getSummary, listCategories };
 }

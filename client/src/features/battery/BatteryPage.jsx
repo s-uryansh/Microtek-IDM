@@ -89,7 +89,10 @@ export function BatteryPage() {
             <div className="operation-panel__results">
               {batteryLines.map((line) => (
                 <div key={line.invoiceLineId} className="operation-panel__result">
-                  <span className="operation-panel__result-title">{line.productName} · {line.productCode}</span>
+                  <span className="operation-panel__result-title">
+                    {line.productName} · {line.productCode}{" "}
+                    <span className="badge">{line.category || line.segment || "—"}</span>
+                  </span>
                   <span className="operation-panel__result-meta">Qty {line.quantity}</span>
                 </div>
               ))}

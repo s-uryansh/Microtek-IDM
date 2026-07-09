@@ -9,9 +9,17 @@ import { WarehouseSelector } from "../../components/operations/WarehouseSelector
 import { fetchAgeingReport, fetchAgeingBucketProducts } from "../../api/modules/ageing.js";
 import { toCsv, downloadCsv } from "../../utils/csv.js";
 
+function formatInr(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(number);
+}
+
 const columns = [
   { key: "label", label: "Age Bucket" },
-  { key: "quantity", label: "Quantity" }
+  { key: "quantity", label: "Quantity" },
+  { key: "totalValue", label: "Total Value", render: formatInr }
 ];
 
 const productColumns = [
@@ -34,7 +42,8 @@ const productColumns = [
     label: "Category",
     render: (value) => <span className="badge">{value || "—"}</span>
   },
-  { key: "age", label: "Age" }
+  { key: "age", label: "Age" },
+  { key: "price", label: "Price", render: formatInr }
 ];
 
 function toArray(value) {
@@ -53,6 +62,7 @@ const AGEING_CSV_COLUMNS = [
   { key: "productName", label: "Product Name" },
   { key: "category", label: "Category" },
   { key: "age", label: "Age" },
+  { key: "price", label: "Price" },
   { key: "bucketLabel", label: "Age Bucket" }
 ];
 

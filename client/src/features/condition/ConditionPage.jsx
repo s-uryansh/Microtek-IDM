@@ -86,6 +86,11 @@ export function ConditionPage() {
     () => [
       { key: "serialNo", label: "Serial", filterable: false },
       { key: "productCode", label: "Product" },
+      {
+        key: "category",
+        label: "Category",
+        render: (value, row) => <span className="badge">{value || row.segment || "—"}</span>
+      },
       { key: "conditionTag", label: "Condition" },
       { key: "warehouseId", label: "Warehouse" },
       {

@@ -189,6 +189,7 @@ export function createSerialRepository(pool) {
            sm.serial_no AS "serialNo",
            sm.product_id AS "productId",
            p.product_code AS "productCode",
+           p.category,
            sm.condition_tag AS "conditionTag",
            sm.current_warehouse_id AS "warehouseId"
          FROM serial_master sm

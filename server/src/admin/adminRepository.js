@@ -44,6 +44,7 @@ export function createAdminRepository(pool) {
           p.product_id AS "productId",
           p.product_code AS "productCode",
           p.name AS "productName",
+          p.category,
           w.warehouse_id AS "warehouseId",
           w.code AS "warehouseCode",
           w.name AS "warehouseName"
@@ -516,6 +517,18 @@ export function createAdminRepository(pool) {
           name,
           segment,
           category,
+          sub_category AS "subCategory",
+          product_category AS "productCategory",
+          distributor_price AS "distributorPrice",
+          warranty,
+          gst,
+          mrp,
+          base_price AS "basePrice",
+          stock,
+          sbu,
+          poll,
+          moq,
+          description,
           is_battery AS "isBattery",
           is_active AS "isActive",
           created_at AS "createdAt"
@@ -525,17 +538,35 @@ export function createAdminRepository(pool) {
       return result.rows;
     },
 
-    async upsertProduct({ productCode, name, segment, category, isBattery, createdBy }) {
+    async upsertProduct({
+      productCode, name, segment, category, subCategory, productCategory,
+      distributorPrice, warranty, gst, mrp, basePrice, stock, sbu, poll, moq, description,
+      isBattery, createdBy
+    }) {
       const result = await pool.query(
         `
-        INSERT INTO product (product_code, name, segment, category, is_battery, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO product (
+          product_code, name, segment, category, sub_category, product_category,
+          distributor_price, warranty, gst, mrp, base_price, stock, sbu, poll, moq, description,
+          is_battery, created_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         ON CONFLICT (product_code) DO UPDATE
         SET name = EXCLUDED.name, segment = EXCLUDED.segment,
-            category = EXCLUDED.category, is_battery = EXCLUDED.is_battery,
+            category = EXCLUDED.category, sub_category = EXCLUDED.sub_category,
+            product_category = EXCLUDED.product_category,
+            distributor_price = EXCLUDED.distributor_price, warranty = EXCLUDED.warranty,
+            gst = EXCLUDED.gst, mrp = EXCLUDED.mrp, base_price = EXCLUDED.base_price,
+            stock = EXCLUDED.stock, sbu = EXCLUDED.sbu, poll = EXCLUDED.poll,
+            moq = EXCLUDED.moq, description = EXCLUDED.description,
+            is_battery = EXCLUDED.is_battery,
             updated_at = now(), updated_by = EXCLUDED.created_by
         RETURNING product_id AS "productId", product_code AS "productCode", name`,
-        [productCode, name, segment, category, isBattery, createdBy]
+        [
+          productCode, name, segment, category, subCategory, productCategory,
+          distributorPrice, warranty, gst, mrp, basePrice, stock, sbu, poll, moq, description,
+          isBattery, createdBy
+        ]
       );
       return result.rows[0];
     },
@@ -790,6 +821,7 @@ export function createAdminRepository(pool) {
           sl.product_id AS "productId",
           p.product_code AS "productCode",
           p.name AS "productName",
+          p.category,
           sm.serial_no AS "serialNo",
           sm.current_status AS "serialStatus"
         FROM sap_dispatch_line sl

@@ -9,19 +9,26 @@ const KPI_CONFIG = [
   { id: "dispatches-inprog", label: "Dispatches In Progress", key: "dispatchesInProgress", unit: "sessions" },
 ];
 
-export function KPIRow({ kpis, loading }) {
+export function KPIRow({ kpis, loading, onInStockClick }) {
   return (
     <div className="kpi-row" aria-live="polite">
-      {KPI_CONFIG.map((cfg) => (
-        <KPICard
-          key={cfg.id}
-          label={cfg.label}
-          value={loading ? null : (kpis?.[cfg.key] ?? 0)}
-          unit={cfg.unit}
-          trend={null}
-          loading={loading}
-        />
-      ))}
+      {KPI_CONFIG.map((cfg) => {
+        const clickable = cfg.id === "in-stock" && typeof onInStockClick === "function";
+        return (
+          <KPICard
+            key={cfg.id}
+            label={cfg.label}
+            value={loading ? null : (kpis?.[cfg.key] ?? 0)}
+            unit={cfg.unit}
+            trend={null}
+            loading={loading}
+            onClick={clickable ? onInStockClick : undefined}
+            role={clickable ? "button" : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            style={clickable ? { cursor: "pointer" } : undefined}
+          />
+        );
+      })}
     </div>
   );
 }

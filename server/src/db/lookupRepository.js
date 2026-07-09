@@ -22,6 +22,8 @@ export function createLookupRepository(pool) {
          il.product_id AS "productId",
          p.product_code AS "productCode",
          p.name AS "productName",
+         p.category,
+         p.segment,
          p.is_battery AS "isBattery",
          il.required_quantity AS "quantity",
          il.uom,

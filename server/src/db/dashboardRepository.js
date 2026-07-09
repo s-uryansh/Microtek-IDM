@@ -8,15 +8,17 @@ export function createDashboardRepository(pool) {
     return (await run(sql, params))[0];
   }
 
-  // warehouseIds = null means all warehouses (admin)
-  async function countSerialsByStatus({ warehouseIds }) {
+  // warehouseIds = null means all warehouses (admin). category = null means no category filter.
+  async function countSerialsByStatus({ warehouseIds, category = null }) {
     return run(
-      `SELECT current_status AS "status", COUNT(*)::int AS "count"
-       FROM serial_master
-       WHERE ($1::bigint[] IS NULL OR current_warehouse_id = ANY($1::bigint[]))
-       GROUP BY current_status
+      `SELECT sm.current_status AS "status", COUNT(*)::int AS "count"
+       FROM serial_master sm
+       LEFT JOIN product p ON p.product_id = sm.product_id
+       WHERE ($1::bigint[] IS NULL OR sm.current_warehouse_id = ANY($1::bigint[]))
+         AND ($2::text IS NULL OR p.category = $2)
+       GROUP BY sm.current_status
        ORDER BY COUNT(*) DESC`,
-      [warehouseIds]
+      [warehouseIds, category]
     );
   }
 
@@ -93,38 +95,66 @@ export function createDashboardRepository(pool) {
     );
   }
 
-  async function countInStockByWarehouse({ warehouseIds }) {
+  async function countInStockByWarehouse({ warehouseIds, category = null }) {
     return run(
       `SELECT sm.current_warehouse_id AS "warehouseId",
               w.code AS "warehouseCode",
               COUNT(*)::int AS "count"
        FROM serial_master sm
        LEFT JOIN warehouse w ON w.warehouse_id = sm.current_warehouse_id
+       LEFT JOIN product p ON p.product_id = sm.product_id
        WHERE sm.current_status = 'IN_STOCK'
          AND ($1::bigint[] IS NULL OR sm.current_warehouse_id = ANY($1::bigint[]))
+         AND ($2::text IS NULL OR p.category = $2)
        GROUP BY sm.current_warehouse_id, w.code
        ORDER BY COUNT(*) DESC`,
-      [warehouseIds]
+      [warehouseIds, category]
     );
   }
 
-  async function ageingBuckets({ warehouseIds }) {
+  async function ageingBuckets({ warehouseIds, category = null }) {
     return run(
       `SELECT
          CASE
-           WHEN EXTRACT(DAY FROM (now() - received_at)) <= 30 THEN '0-30'
-           WHEN EXTRACT(DAY FROM (now() - received_at)) <= 60 THEN '31-60'
-           WHEN EXTRACT(DAY FROM (now() - received_at)) <= 90 THEN '61-90'
+           WHEN EXTRACT(DAY FROM (now() - sm.received_at)) <= 30 THEN '0-30'
+           WHEN EXTRACT(DAY FROM (now() - sm.received_at)) <= 60 THEN '31-60'
+           WHEN EXTRACT(DAY FROM (now() - sm.received_at)) <= 90 THEN '61-90'
            ELSE '91+'
          END AS "label",
          COUNT(*)::int AS "value"
-       FROM serial_master
-       WHERE current_status = 'IN_STOCK'
-         AND received_at IS NOT NULL
-         AND ($1::bigint[] IS NULL OR current_warehouse_id = ANY($1::bigint[]))
+       FROM serial_master sm
+       LEFT JOIN product p ON p.product_id = sm.product_id
+       WHERE sm.current_status = 'IN_STOCK'
+         AND sm.received_at IS NOT NULL
+         AND ($1::bigint[] IS NULL OR sm.current_warehouse_id = ANY($1::bigint[]))
+         AND ($2::text IS NULL OR p.category = $2)
        GROUP BY 1
-       ORDER BY MIN(received_at)`,
-      [warehouseIds]
+       ORDER BY MIN(sm.received_at)`,
+      [warehouseIds, category]
+    );
+  }
+
+  // Category -> Sub Category -> Product breakdown of in-stock serials, for the
+  // dashboard's "In Stock" drill-down.
+  async function countInStockByCategory({ warehouseIds, category = null }) {
+    return run(
+      `SELECT p.category, p.sub_category AS "subCategory",
+              p.product_id AS "productId", p.product_code AS "productCode",
+              p.name AS "productName", COUNT(*)::int AS "count"
+       FROM serial_master sm
+       JOIN product p ON p.product_id = sm.product_id
+       WHERE sm.current_status = 'IN_STOCK'
+         AND ($1::bigint[] IS NULL OR sm.current_warehouse_id = ANY($1::bigint[]))
+         AND ($2::text IS NULL OR p.category = $2)
+       GROUP BY p.category, p.sub_category, p.product_id, p.product_code, p.name
+       ORDER BY p.category, p.sub_category, p.product_code`,
+      [warehouseIds, category]
+    );
+  }
+
+  async function listCategories() {
+    return run(
+      `SELECT DISTINCT category FROM product WHERE category IS NOT NULL ORDER BY category`
     );
   }
 
@@ -138,5 +168,7 @@ export function createDashboardRepository(pool) {
     findRecentDispatches,
     countInStockByWarehouse,
     ageingBuckets,
+    countInStockByCategory,
+    listCategories,
   };
 }

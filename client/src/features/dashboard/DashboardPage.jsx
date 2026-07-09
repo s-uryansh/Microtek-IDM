@@ -8,7 +8,8 @@ import { ErrorState } from "../../components/ui/ErrorState.jsx";
 import { KPIRow } from "./KPIRow.jsx";
 import { RecentGrnsWidget } from "./RecentGrnsWidget.jsx";
 import { RecentDispatchesWidget } from "./RecentDispatchesWidget.jsx";
-import { fetchDashboardSummary } from "../../api/modules/dashboard.js";
+import { StockBreakdownPanel } from "./StockBreakdownPanel.jsx";
+import { fetchDashboardSummary, fetchDashboardCategories } from "../../api/modules/dashboard.js";
 import { searchWarehouses } from "../../api/modules/lookups.js";
 import { useAuth } from "../../auth/useAuth.js";
 
@@ -34,11 +35,21 @@ export function DashboardPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState([]);
 
+  // Category filter — re-scopes ageing / inventory-status / in-stock widgets.
+  // "" means all categories.
+  const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [showStockBreakdown, setShowStockBreakdown] = useState(false);
+
   const loadSummary = useCallback(async ({ signal } = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchDashboardSummary({ warehouseId: warehouseId || undefined, signal });
+      const data = await fetchDashboardSummary({
+        warehouseId: warehouseId || undefined,
+        category: category || undefined,
+        signal
+      });
       if (signal?.aborted) return;
       setSummary(data ?? null);
     } catch (err) {
@@ -47,7 +58,7 @@ export function DashboardPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [warehouseId]);
+  }, [warehouseId, category]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -64,6 +75,15 @@ export function DashboardPage() {
       .catch(() => {});
     return () => ctrl.abort();
   }, [isAdmin]);
+
+  // Populate the category picker once.
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchDashboardCategories({ signal: ctrl.signal })
+      .then((res) => setCategories(Array.isArray(res?.items) ? res.items : []))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, []);
 
   const warehouseFilter = isAdmin ? (
     <div className="input-group">
@@ -85,6 +105,31 @@ export function DashboardPage() {
     </div>
   ) : null;
 
+  const categoryFilter = (
+    <div className="input-group">
+      <label className="input-group__label" htmlFor="dashboard-category">Product</label>
+      <select
+        id="dashboard-category"
+        className="input"
+        aria-label="Filter dashboard by product category"
+        value={category}
+        onChange={(e) => setCategory(e.target.value)}
+      >
+        <option value="">All products</option>
+        {categories.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const dashboardFilters = (
+    <div style={{ display: "flex", gap: "var(--space-3)" }}>
+      {categoryFilter}
+      {warehouseFilter}
+    </div>
+  );
+
   const donutData = (summary?.statusBreakdown ?? [])
     .filter((r) => r.count > 0)
     .map((r) => ({ label: STATUS_LABELS[r.status] ?? r.status, value: r.count }));
@@ -98,7 +143,7 @@ export function DashboardPage() {
   if (error && !summary) {
     return (
       <div className="dashboard">
-        <PageHeader title="Dashboard" subtitle="Warehouse operations overview" actions={warehouseFilter} />
+        <PageHeader title="Dashboard" subtitle="Warehouse operations overview" actions={dashboardFilters} />
         <ErrorState title="Unable to load dashboard" message={error} onRetry={loadSummary} />
       </div>
     );
@@ -106,9 +151,21 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard">
-      <PageHeader title="Dashboard" subtitle="Warehouse operations overview" actions={warehouseFilter} />
+      <PageHeader title="Dashboard" subtitle="Warehouse operations overview" actions={dashboardFilters} />
 
-      <KPIRow kpis={summary?.kpis} loading={loading} />
+      <KPIRow
+        kpis={summary?.kpis}
+        loading={loading}
+        onInStockClick={() => setShowStockBreakdown((open) => !open)}
+      />
+
+      {showStockBreakdown && (
+        <StockBreakdownPanel
+          data={summary?.stockBreakdown}
+          loading={loading}
+          onClose={() => setShowStockBreakdown(false)}
+        />
+      )}
 
       <div className="dashboard__chart-row dashboard__chart-row--half">
         <Card title="Inventory Status Breakdown">

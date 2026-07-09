@@ -4,9 +4,11 @@ import { MemoryRouter } from "react-router-dom";
 import { DashboardPage } from "../../src/features/dashboard/DashboardPage.jsx";
 
 const summaryMock = vi.fn();
+const categoriesMock = vi.fn().mockResolvedValue({ items: [] });
 
 vi.mock("../../src/api/modules/dashboard.js", () => ({
-  fetchDashboardSummary: (...args) => summaryMock(...args)
+  fetchDashboardSummary: (...args) => summaryMock(...args),
+  fetchDashboardCategories: (...args) => categoriesMock(...args)
 }));
 
 let dashboardPermissions = new Set();

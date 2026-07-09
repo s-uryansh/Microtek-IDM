@@ -187,7 +187,8 @@ function CustomerDispatchPanel({ onSessionActiveChange }) {
                 {selectedInvoice.lines.map((line) => (
                   <div key={line.invoiceLineId} className="operation-panel__result">
                     <span className="operation-panel__result-title">
-                      {line.productName} · {line.productCode}
+                      {line.productName} · {line.productCode}{" "}
+                      <span className="badge">{line.category || line.segment || "—"}</span>
                     </span>
                     <span className="operation-panel__result-meta">Qty {line.quantity}</span>
                   </div>
@@ -263,6 +264,7 @@ function CustomerDispatchPanel({ onSessionActiveChange }) {
                     <thead>
                       <tr>
                         <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Item</th>
+                        <th className="data-table__th" style={{ textAlign: "left", padding: "var(--space-2)" }}>Category</th>
                         <th className="data-table__th" style={{ textAlign: "right", padding: "var(--space-2)" }}>Qty</th>
                       </tr>
                     </thead>
@@ -281,6 +283,9 @@ function CustomerDispatchPanel({ onSessionActiveChange }) {
                             >
                               {line.productCode}
                             </span>
+                          </td>
+                          <td style={{ padding: "var(--space-2)" }}>
+                            <span className="badge">{line.category || line.segment || "—"}</span>
                           </td>
                           <td style={{ padding: "var(--space-2)", textAlign: "right", fontFamily: "var(--font-mono)" }}>
                             {line.quantity}

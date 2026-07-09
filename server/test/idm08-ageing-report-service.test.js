@@ -44,9 +44,9 @@ describe("IDM-08 ageing report service", () => {
     });
 
     expect(result.summary).toEqual([
-      { bucketCode: "B0_30", label: "0-30", quantity: 1 },
-      { bucketCode: "B31_60", label: "31-60", quantity: 1 },
-      { bucketCode: "B61_PLUS", label: "61+", quantity: 1 }
+      { bucketCode: "B0_30", label: "0-30", quantity: 1, totalValue: 0 },
+      { bucketCode: "B31_60", label: "31-60", quantity: 1, totalValue: 0 },
+      { bucketCode: "B61_PLUS", label: "61+", quantity: 1, totalValue: 0 }
     ]);
     expect(repositories.calls).toEqual([{ warehouseIds: [5], productId: 10, limit: 50, offset: 0 }]);
   });
@@ -67,7 +67,7 @@ describe("IDM-08 ageing report service", () => {
     });
 
     expect(result.summary).toEqual([
-      { bucketCode: "MISSING_RECEIVED_AT", label: "Missing receipt date", quantity: 1 }
+      { bucketCode: "MISSING_RECEIVED_AT", label: "Missing receipt date", quantity: 1, totalValue: 0 }
     ]);
     expect(result.dataQuality).toEqual({
       missingReceivedAtCount: 1

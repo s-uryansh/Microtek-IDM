@@ -41,22 +41,34 @@ async function seedReferences(client) {
   }
 
   const products = {};
+  // [code, name, segment, is_battery, category, sub_category, product_category,
+  //  distributor_price, warranty, gst, mrp, base_price, sbu, poll, moq, description]
+  // sub_category/product_category mirror category for now (placeholder pending the
+  // client's real category taxonomy); stock is left NULL (see product-data plan).
   for (const prod of [
-    ["MTK-INVERTER-1KVA",  "Microtek Inverter 1KVA",     "INVERTER",  false, "INVERTER"],
-    ["MTK-INVERTER-2KVA",  "Microtek Inverter 2KVA",     "INVERTER",  false, "INVERTER"],
-    ["MTK-BATTERY-100AH",  "Microtek Battery 100AH",     "BATTERY",   true,  "BATTERY"],
-    ["MTK-BATTERY-150AH",  "Microtek Battery 150AH",     "BATTERY",   true,  "BATTERY"],
-    ["MTK-SOLAR-300W",  "Microtek Solar Panel 300W",  "SOLAR",     false, "SOLAR"],
-    ["MTK-SOLAR-500W",  "Microtek Solar Panel 500W",  "SOLAR",     false, "SOLAR"],
-    ["MTK-CHARGE-CONTROLLER",  "Microtek Charge Controller", "ACCESSORY", false, "ACCESSORY"],
-    ["899-95N-1075",  "SMART HYBRID NEW 1075 12V SW", "INVERTER",  false, "INVERTER"]
+    ["MTK-INVERTER-1KVA", "Microtek Inverter 1KVA", "INVERTER", false, "INVERTER", "INVERTER", "INVERTER", 8000, "24 months", 18, 12000, 7000, "SBU01", "1", 5, "Microtek Inverter 1KVA"],
+    ["MTK-INVERTER-2KVA", "Microtek Inverter 2KVA", "INVERTER", false, "INVERTER", "INVERTER", "INVERTER", 14000, "24 months", 18, 20000, 12000, "SBU01", "1", 5, "Microtek Inverter 2KVA"],
+    ["MTK-BATTERY-100AH", "Microtek Battery 100AH", "BATTERY", true, "BATTERY", "BATTERY", "BATTERY", 6000, "36 months", 18, 9500, 5200, "SBU02", "2", 10, "Microtek Battery 100AH"],
+    ["MTK-BATTERY-150AH", "Microtek Battery 150AH", "BATTERY", true, "BATTERY", "BATTERY", "BATTERY", 8500, "36 months", 18, 13500, 7400, "SBU02", "2", 10, "Microtek Battery 150AH"],
+    ["MTK-SOLAR-300W", "Microtek Solar Panel 300W", "SOLAR", false, "SOLAR", "SOLAR", "SOLAR", 5000, "10 years", 18, 8500, 4300, "SBU03", "3", 5, "Microtek Solar Panel 300W"],
+    ["MTK-SOLAR-500W", "Microtek Solar Panel 500W", "SOLAR", false, "SOLAR", "SOLAR", "SOLAR", 8000, "10 years", 18, 13500, 6900, "SBU03", "3", 5, "Microtek Solar Panel 500W"],
+    ["MTK-CHARGE-CONTROLLER", "Microtek Charge Controller", "ACCESSORY", false, "ACCESSORY", "ACCESSORY", "ACCESSORY", 1200, "12 months", 18, 2200, 1000, "SBU04", "4", 20, "Microtek Charge Controller"],
+    ["899-95N-1075", "SMART HYBRID NEW 1075 12V SW", "INVERTER", false, "INVERTER", "INVERTER", "INVERTER", 9000, "24 months", 18, 15000, 8200, "SBU01", "1", 5, "SMART HYBRID NEW 1075 12V SW"]
   ]) {
     const row = await upsertOne(client, `
-      INSERT INTO product (product_code, name, segment, is_battery, category, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO product (
+        product_code, name, segment, is_battery, category, sub_category, product_category,
+        distributor_price, warranty, gst, mrp, base_price, sbu, poll, moq, description, created_by
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (product_code) DO UPDATE
       SET name = EXCLUDED.name, segment = EXCLUDED.segment,
           is_battery = EXCLUDED.is_battery, category = EXCLUDED.category,
+          sub_category = EXCLUDED.sub_category, product_category = EXCLUDED.product_category,
+          distributor_price = EXCLUDED.distributor_price, warranty = EXCLUDED.warranty,
+          gst = EXCLUDED.gst, mrp = EXCLUDED.mrp, base_price = EXCLUDED.base_price,
+          sbu = EXCLUDED.sbu, poll = EXCLUDED.poll, moq = EXCLUDED.moq,
+          description = EXCLUDED.description,
           updated_at = now(), updated_by = EXCLUDED.created_by
       RETURNING product_id AS "productId"`,
       [...prod, createdBy]
@@ -407,7 +419,41 @@ async function seedProductionAndHistory(client, { warehouses, products }) {
     ["EM2K-0003", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-02"], "2026-05-12T00:00:00.000Z"],
     ["EM2K-0004", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-02"], "2026-05-13T00:00:00.000Z"],
     ["EM2K-0005", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-02"], "2026-05-14T00:00:00.000Z"],
-    ["EM2K-0006", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-02"], "2026-05-15T00:00:00.000Z"]
+    ["EM2K-0006", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-02"], "2026-05-15T00:00:00.000Z"],
+
+    /* Warehouse stock coverage: PLNT-01, CW-01, RW-03 previously had no IN_STOCK serials */
+    ["MTK-PLNT-INV1K-0001", "MTK-INVERTER-1KVA", "IN_STOCK", warehouses["PLNT-01"], "2026-07-03T00:00:00.000Z"],
+    ["MTK-PLNT-INV1K-0002", "MTK-INVERTER-1KVA", "IN_STOCK", warehouses["PLNT-01"], "2026-07-04T00:00:00.000Z"],
+    ["MTK-PLNT-INV1K-0003", "MTK-INVERTER-1KVA", "IN_STOCK", warehouses["PLNT-01"], "2026-07-05T00:00:00.000Z"],
+    ["MTK-PLNT-INV1K-0004", "MTK-INVERTER-1KVA", "IN_STOCK", warehouses["PLNT-01"], "2026-07-06T00:00:00.000Z"],
+    ["MTK-PLNT-BAT100-0001", "MTK-BATTERY-100AH", "IN_STOCK", warehouses["PLNT-01"], "2026-07-03T00:00:00.000Z"],
+    ["MTK-PLNT-BAT100-0002", "MTK-BATTERY-100AH", "IN_STOCK", warehouses["PLNT-01"], "2026-07-04T00:00:00.000Z"],
+    ["MTK-PLNT-BAT100-0003", "MTK-BATTERY-100AH", "IN_STOCK", warehouses["PLNT-01"], "2026-07-05T00:00:00.000Z"],
+    ["MTK-PLNT-BAT100-0004", "MTK-BATTERY-100AH", "IN_STOCK", warehouses["PLNT-01"], "2026-07-06T00:00:00.000Z"],
+
+    ["MTK-CW01-SOL300-0001", "MTK-SOLAR-300W", "IN_STOCK", warehouses["CW-01"], "2026-05-24T00:00:00.000Z"],
+    ["MTK-CW01-SOL300-0002", "MTK-SOLAR-300W", "IN_STOCK", warehouses["CW-01"], "2026-05-29T00:00:00.000Z"],
+    ["MTK-CW01-SOL300-0003", "MTK-SOLAR-300W", "IN_STOCK", warehouses["CW-01"], "2026-06-03T00:00:00.000Z"],
+    ["MTK-CW01-SOL300-0004", "MTK-SOLAR-300W", "IN_STOCK", warehouses["CW-01"], "2026-06-08T00:00:00.000Z"],
+    ["MTK-CW01-SOL300-0005", "MTK-SOLAR-300W", "IN_STOCK", warehouses["CW-01"], "2026-06-13T00:00:00.000Z"],
+    ["MTK-CW01-SOL300-0006", "MTK-SOLAR-300W", "IN_STOCK", warehouses["CW-01"], "2026-06-18T00:00:00.000Z"],
+    ["MTK-CW01-CHGC-0001", "MTK-CHARGE-CONTROLLER", "IN_STOCK", warehouses["CW-01"], "2026-05-25T00:00:00.000Z"],
+    ["MTK-CW01-CHGC-0002", "MTK-CHARGE-CONTROLLER", "IN_STOCK", warehouses["CW-01"], "2026-05-30T00:00:00.000Z"],
+    ["MTK-CW01-CHGC-0003", "MTK-CHARGE-CONTROLLER", "IN_STOCK", warehouses["CW-01"], "2026-06-04T00:00:00.000Z"],
+    ["MTK-CW01-CHGC-0004", "MTK-CHARGE-CONTROLLER", "IN_STOCK", warehouses["CW-01"], "2026-06-09T00:00:00.000Z"],
+    ["MTK-CW01-CHGC-0005", "MTK-CHARGE-CONTROLLER", "IN_STOCK", warehouses["CW-01"], "2026-06-14T00:00:00.000Z"],
+    ["MTK-CW01-CHGC-0006", "MTK-CHARGE-CONTROLLER", "IN_STOCK", warehouses["CW-01"], "2026-06-19T00:00:00.000Z"],
+
+    ["MTK-RW03-INV2K-0001", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-03"], "2026-03-30T00:00:00.000Z"],
+    ["MTK-RW03-INV2K-0002", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-03"], "2026-04-08T00:00:00.000Z"],
+    ["MTK-RW03-INV2K-0003", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-03"], "2026-04-17T00:00:00.000Z"],
+    ["MTK-RW03-INV2K-0004", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-03"], "2026-04-26T00:00:00.000Z"],
+    ["MTK-RW03-INV2K-0005", "MTK-INVERTER-2KVA", "IN_STOCK", warehouses["RW-03"], "2026-05-05T00:00:00.000Z"],
+    ["MTK-RW03-BAT150-0001", "MTK-BATTERY-150AH", "IN_STOCK", warehouses["RW-03"], "2026-04-01T00:00:00.000Z"],
+    ["MTK-RW03-BAT150-0002", "MTK-BATTERY-150AH", "IN_STOCK", warehouses["RW-03"], "2026-04-10T00:00:00.000Z"],
+    ["MTK-RW03-BAT150-0003", "MTK-BATTERY-150AH", "IN_STOCK", warehouses["RW-03"], "2026-04-19T00:00:00.000Z"],
+    ["MTK-RW03-BAT150-0004", "MTK-BATTERY-150AH", "IN_STOCK", warehouses["RW-03"], "2026-04-28T00:00:00.000Z"],
+    ["MTK-RW03-BAT150-0005", "MTK-BATTERY-150AH", "IN_STOCK", warehouses["RW-03"], "2026-05-07T00:00:00.000Z"]
   ];
 
   for (const [serialNo, productCode, status, warehouseId, receivedAt] of seedRows) {

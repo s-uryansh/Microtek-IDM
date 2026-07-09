@@ -40,8 +40,25 @@ export function createDashboardRoutes({ dashboardService }) {
           warehouseIds = assigned;
         }
 
-        const result = await dashboardService.getSummary({ warehouseIds });
+        const rawCategory = typeof request.query.category === "string" ? request.query.category.trim() : "";
+        const category = rawCategory ? rawCategory.toUpperCase() : null;
+
+        const result = await dashboardService.getSummary({ warehouseIds, category });
         response.status(200).json(result);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.get(
+    "/categories",
+    requireAuthContext,
+    requirePermission("foundation:read"),
+    async (_request, response, next) => {
+      try {
+        const items = await dashboardService.listCategories();
+        response.status(200).json({ items: items.map((row) => row.category) });
       } catch (error) {
         next(error);
       }
