@@ -1,9 +1,18 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, test } from "vitest";
 
-const seedSource = readFileSync(resolve(import.meta.dirname, "../src/db/seed-dev.js"), "utf8");
+// seed-dev.js is a thin orchestrator; its actual seed logic/data lives in the
+// sibling seedDev/*.js modules it imports. Concatenate all of them so these
+// content assertions stay valid regardless of how the logic is split across files.
+const seedDevDir = resolve(import.meta.dirname, "../src/db/seedDev");
+const seedSource = [
+  readFileSync(resolve(import.meta.dirname, "../src/db/seed-dev.js"), "utf8"),
+  ...readdirSync(seedDevDir)
+    .filter((name) => name.endsWith(".js"))
+    .map((name) => readFileSync(resolve(seedDevDir, name), "utf8"))
+].join("\n");
 const rootPackageJson = JSON.parse(readFileSync(resolve(import.meta.dirname, "../../package.json"), "utf8"));
 const serverPackageJson = JSON.parse(readFileSync(resolve(import.meta.dirname, "../package.json"), "utf8"));
 

@@ -77,7 +77,7 @@ export function InboundTab() {
 
   return (
     <div>
-      <Card title="Inbound Stock — sent to each warehouse">
+      <Card title="Inbound Stock: sent to each warehouse">
         <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", marginTop: 0 }}>
           SAP dispatch documents: which stock was shipped to which warehouse. Click a row to
           see every serial. These are the serials a GRN at the destination warehouse expects.

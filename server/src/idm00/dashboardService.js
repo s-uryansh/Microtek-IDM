@@ -1,6 +1,7 @@
 export function createDashboardService({ repositories }) {
-  async function getSummary({ warehouseIds, category = null }) {
+  async function getSummary({ warehouseIds, category = null, subCategory = null, productCategory = null }) {
     const scope = Array.isArray(warehouseIds) && warehouseIds.length ? warehouseIds : null;
+    const filters = { warehouseIds: scope, category, subCategory, productCategory };
 
     const [
       statusRows,
@@ -12,18 +13,16 @@ export function createDashboardService({ repositories }) {
       recentDispatches,
       stockByWarehouse,
       ageing,
-      stockBreakdown,
     ] = await Promise.all([
-      repositories.dashboard.countSerialsByStatus({ warehouseIds: scope, category }),
+      repositories.dashboard.countSerialsByStatus(filters),
       repositories.dashboard.countExceptionsByStatus({ warehouseIds: scope }),
       repositories.dashboard.countExceptionsByRule({ warehouseIds: scope, limit: 8 }),
       repositories.dashboard.countGrnsInProgress({ warehouseIds: scope }),
       repositories.dashboard.countDispatchesInProgress({ warehouseIds: scope }),
       repositories.dashboard.findRecentGrns({ warehouseIds: scope, limit: 5 }),
       repositories.dashboard.findRecentDispatches({ warehouseIds: scope, limit: 5 }),
-      repositories.dashboard.countInStockByWarehouse({ warehouseIds: scope, category }),
-      repositories.dashboard.ageingBuckets({ warehouseIds: scope, category }),
-      repositories.dashboard.countInStockByCategory({ warehouseIds: scope, category }),
+      repositories.dashboard.countInStockByWarehouse(filters),
+      repositories.dashboard.ageingBuckets(filters),
     ]);
 
     const byStatus = Object.fromEntries(statusRows.map((r) => [r.status, r.count]));
@@ -47,7 +46,6 @@ export function createDashboardService({ repositories }) {
       statusBreakdown: statusRows,
       exceptionsByRule: excRuleRows,
       stockByWarehouse,
-      stockBreakdown,
       ageingDistribution,
       recentGrns,
       recentDispatches,

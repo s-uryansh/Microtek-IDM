@@ -8,17 +8,20 @@ export function createDashboardRepository(pool) {
     return (await run(sql, params))[0];
   }
 
-  // warehouseIds = null means all warehouses (admin). category = null means no category filter.
-  async function countSerialsByStatus({ warehouseIds, category = null }) {
+  // warehouseIds = null means all warehouses (admin). category/subCategory/
+  // productCategory = null means no filter on that level.
+  async function countSerialsByStatus({ warehouseIds, category = null, subCategory = null, productCategory = null }) {
     return run(
       `SELECT sm.current_status AS "status", COUNT(*)::int AS "count"
        FROM serial_master sm
        LEFT JOIN product p ON p.product_id = sm.product_id
        WHERE ($1::bigint[] IS NULL OR sm.current_warehouse_id = ANY($1::bigint[]))
          AND ($2::text IS NULL OR p.category = $2)
+         AND ($3::text IS NULL OR p.sub_category = $3)
+         AND ($4::text IS NULL OR p.product_category = $4)
        GROUP BY sm.current_status
        ORDER BY COUNT(*) DESC`,
-      [warehouseIds, category]
+      [warehouseIds, category, subCategory, productCategory]
     );
   }
 
@@ -95,7 +98,7 @@ export function createDashboardRepository(pool) {
     );
   }
 
-  async function countInStockByWarehouse({ warehouseIds, category = null }) {
+  async function countInStockByWarehouse({ warehouseIds, category = null, subCategory = null, productCategory = null }) {
     return run(
       `SELECT sm.current_warehouse_id AS "warehouseId",
               w.code AS "warehouseCode",
@@ -106,13 +109,15 @@ export function createDashboardRepository(pool) {
        WHERE sm.current_status = 'IN_STOCK'
          AND ($1::bigint[] IS NULL OR sm.current_warehouse_id = ANY($1::bigint[]))
          AND ($2::text IS NULL OR p.category = $2)
+         AND ($3::text IS NULL OR p.sub_category = $3)
+         AND ($4::text IS NULL OR p.product_category = $4)
        GROUP BY sm.current_warehouse_id, w.code
        ORDER BY COUNT(*) DESC`,
-      [warehouseIds, category]
+      [warehouseIds, category, subCategory, productCategory]
     );
   }
 
-  async function ageingBuckets({ warehouseIds, category = null }) {
+  async function ageingBuckets({ warehouseIds, category = null, subCategory = null, productCategory = null }) {
     return run(
       `SELECT
          CASE
@@ -128,33 +133,22 @@ export function createDashboardRepository(pool) {
          AND sm.received_at IS NOT NULL
          AND ($1::bigint[] IS NULL OR sm.current_warehouse_id = ANY($1::bigint[]))
          AND ($2::text IS NULL OR p.category = $2)
+         AND ($3::text IS NULL OR p.sub_category = $3)
+         AND ($4::text IS NULL OR p.product_category = $4)
        GROUP BY 1
        ORDER BY MIN(sm.received_at)`,
-      [warehouseIds, category]
+      [warehouseIds, category, subCategory, productCategory]
     );
   }
 
-  // Category -> Sub Category -> Product breakdown of in-stock serials, for the
-  // dashboard's "In Stock" drill-down.
-  async function countInStockByCategory({ warehouseIds, category = null }) {
-    return run(
-      `SELECT p.category, p.sub_category AS "subCategory",
-              p.product_id AS "productId", p.product_code AS "productCode",
-              p.name AS "productName", COUNT(*)::int AS "count"
-       FROM serial_master sm
-       JOIN product p ON p.product_id = sm.product_id
-       WHERE sm.current_status = 'IN_STOCK'
-         AND ($1::bigint[] IS NULL OR sm.current_warehouse_id = ANY($1::bigint[]))
-         AND ($2::text IS NULL OR p.category = $2)
-       GROUP BY p.category, p.sub_category, p.product_id, p.product_code, p.name
-       ORDER BY p.category, p.sub_category, p.product_code`,
-      [warehouseIds, category]
-    );
-  }
-
+  // Distinct category / sub category / product category tuples, for the
+  // dashboard's cascading filter dropdowns.
   async function listCategories() {
     return run(
-      `SELECT DISTINCT category FROM product WHERE category IS NOT NULL ORDER BY category`
+      `SELECT DISTINCT category, sub_category AS "subCategory", product_category AS "productCategory"
+       FROM product
+       WHERE category IS NOT NULL
+       ORDER BY category, sub_category, product_category`
     );
   }
 
@@ -168,7 +162,6 @@ export function createDashboardRepository(pool) {
     findRecentDispatches,
     countInStockByWarehouse,
     ageingBuckets,
-    countInStockByCategory,
     listCategories,
   };
 }

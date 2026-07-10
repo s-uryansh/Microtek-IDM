@@ -8,7 +8,6 @@ import { ErrorState } from "../../components/ui/ErrorState.jsx";
 import { KPIRow } from "./KPIRow.jsx";
 import { RecentGrnsWidget } from "./RecentGrnsWidget.jsx";
 import { RecentDispatchesWidget } from "./RecentDispatchesWidget.jsx";
-import { StockBreakdownPanel } from "./StockBreakdownPanel.jsx";
 import { fetchDashboardSummary, fetchDashboardCategories } from "../../api/modules/dashboard.js";
 import { searchWarehouses } from "../../api/modules/lookups.js";
 import { useAuth } from "../../auth/useAuth.js";
@@ -35,11 +34,13 @@ export function DashboardPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState([]);
 
-  // Category filter — re-scopes ageing / inventory-status / in-stock widgets.
-  // "" means all categories.
+  // Category / Sub Category / Product Category filters — re-scope ageing /
+  // inventory-status / in-stock widgets. "" means no filter on that level.
+  // Each level cascades: changing a level clears the levels below it.
   const [category, setCategory] = useState("");
-  const [categories, setCategories] = useState([]);
-  const [showStockBreakdown, setShowStockBreakdown] = useState(false);
+  const [subCategory, setSubCategory] = useState("");
+  const [productCategory, setProductCategory] = useState("");
+  const [categoryFilters, setCategoryFilters] = useState([]);
 
   const loadSummary = useCallback(async ({ signal } = {}) => {
     setLoading(true);
@@ -48,6 +49,8 @@ export function DashboardPage() {
       const data = await fetchDashboardSummary({
         warehouseId: warehouseId || undefined,
         category: category || undefined,
+        subCategory: subCategory || undefined,
+        productCategory: productCategory || undefined,
         signal
       });
       if (signal?.aborted) return;
@@ -58,7 +61,7 @@ export function DashboardPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [warehouseId, category]);
+  }, [warehouseId, category, subCategory, productCategory]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -76,14 +79,28 @@ export function DashboardPage() {
     return () => ctrl.abort();
   }, [isAdmin]);
 
-  // Populate the category picker once.
+  // Populate the category/sub-category/product-category pickers once; each
+  // level's options are derived client-side from this one fetch.
   useEffect(() => {
     const ctrl = new AbortController();
     fetchDashboardCategories({ signal: ctrl.signal })
-      .then((res) => setCategories(Array.isArray(res?.items) ? res.items : []))
+      .then((res) => setCategoryFilters(Array.isArray(res?.items) ? res.items : []))
       .catch(() => {});
     return () => ctrl.abort();
   }, []);
+
+  const categoryOptions = [...new Set(categoryFilters.map((c) => c.category))].sort();
+  const subCategoryOptions = [...new Set(
+    categoryFilters
+      .filter((c) => !category || c.category === category)
+      .map((c) => c.subCategory)
+  )].sort();
+  const productCategoryOptions = [...new Set(
+    categoryFilters
+      .filter((c) => !category || c.category === category)
+      .filter((c) => !subCategory || c.subCategory === subCategory)
+      .map((c) => c.productCategory)
+  )].sort();
 
   const warehouseFilter = isAdmin ? (
     <div className="input-group">
@@ -107,16 +124,59 @@ export function DashboardPage() {
 
   const categoryFilter = (
     <div className="input-group">
-      <label className="input-group__label" htmlFor="dashboard-category">Product</label>
+      <label className="input-group__label" htmlFor="dashboard-category">Category</label>
       <select
         id="dashboard-category"
         className="input"
-        aria-label="Filter dashboard by product category"
+        aria-label="Filter dashboard by category"
         value={category}
-        onChange={(e) => setCategory(e.target.value)}
+        onChange={(e) => {
+          setCategory(e.target.value);
+          setSubCategory("");
+          setProductCategory("");
+        }}
       >
-        <option value="">All products</option>
-        {categories.map((c) => (
+        <option value="">All categories</option>
+        {categoryOptions.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const subCategoryFilter = (
+    <div className="input-group">
+      <label className="input-group__label" htmlFor="dashboard-sub-category">Sub Category</label>
+      <select
+        id="dashboard-sub-category"
+        className="input"
+        aria-label="Filter dashboard by sub category"
+        value={subCategory}
+        onChange={(e) => {
+          setSubCategory(e.target.value);
+          setProductCategory("");
+        }}
+      >
+        <option value="">All sub categories</option>
+        {subCategoryOptions.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const productCategoryFilter = (
+    <div className="input-group">
+      <label className="input-group__label" htmlFor="dashboard-product-category">Product Category</label>
+      <select
+        id="dashboard-product-category"
+        className="input"
+        aria-label="Filter dashboard by product category"
+        value={productCategory}
+        onChange={(e) => setProductCategory(e.target.value)}
+      >
+        <option value="">All product categories</option>
+        {productCategoryOptions.map((c) => (
           <option key={c} value={c}>{c}</option>
         ))}
       </select>
@@ -124,8 +184,10 @@ export function DashboardPage() {
   );
 
   const dashboardFilters = (
-    <div style={{ display: "flex", gap: "var(--space-3)" }}>
+    <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
       {categoryFilter}
+      {subCategoryFilter}
+      {productCategoryFilter}
       {warehouseFilter}
     </div>
   );
@@ -153,19 +215,7 @@ export function DashboardPage() {
     <div className="dashboard">
       <PageHeader title="Dashboard" subtitle="Warehouse operations overview" actions={dashboardFilters} />
 
-      <KPIRow
-        kpis={summary?.kpis}
-        loading={loading}
-        onInStockClick={() => setShowStockBreakdown((open) => !open)}
-      />
-
-      {showStockBreakdown && (
-        <StockBreakdownPanel
-          data={summary?.stockBreakdown}
-          loading={loading}
-          onClose={() => setShowStockBreakdown(false)}
-        />
-      )}
+      <KPIRow kpis={summary?.kpis} loading={loading} />
 
       <div className="dashboard__chart-row dashboard__chart-row--half">
         <Card title="Inventory Status Breakdown">

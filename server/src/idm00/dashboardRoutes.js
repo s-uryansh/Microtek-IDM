@@ -40,10 +40,15 @@ export function createDashboardRoutes({ dashboardService }) {
           warehouseIds = assigned;
         }
 
-        const rawCategory = typeof request.query.category === "string" ? request.query.category.trim() : "";
-        const category = rawCategory ? rawCategory.toUpperCase() : null;
+        const normalize = (value) => {
+          const raw = typeof value === "string" ? value.trim() : "";
+          return raw ? raw.toUpperCase() : null;
+        };
+        const category = normalize(request.query.category);
+        const subCategory = normalize(request.query.subCategory);
+        const productCategory = normalize(request.query.productCategory);
 
-        const result = await dashboardService.getSummary({ warehouseIds, category });
+        const result = await dashboardService.getSummary({ warehouseIds, category, subCategory, productCategory });
         response.status(200).json(result);
       } catch (error) {
         next(error);
@@ -58,7 +63,7 @@ export function createDashboardRoutes({ dashboardService }) {
     async (_request, response, next) => {
       try {
         const items = await dashboardService.listCategories();
-        response.status(200).json({ items: items.map((row) => row.category) });
+        response.status(200).json({ items });
       } catch (error) {
         next(error);
       }

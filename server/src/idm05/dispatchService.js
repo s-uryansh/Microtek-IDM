@@ -1,102 +1,15 @@
-function requiredQuantity(lines) {
-  return lines.reduce((total, line) => total + Number(line.quantity), 0);
-}
-
-function normalizePositiveInteger(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : null;
-}
-
-function productIdsForInvoice(invoice) {
-  return [...new Set(invoice.lines.map((line) => Number(line.productId)))];
-}
-
-function invalidScan(ruleCode, message) {
-  return {
-    valid: false,
-    serial: null,
-    alert: {
-      ruleCode,
-      message
-    },
-    exception: null
-  };
-}
-
-async function recordDispatchException(repositories, { serialNo, ruleCode, dispatchId, userId }) {
-  if (!repositories.exceptionsRepo) {
-    return null;
-  }
-
-  const exception = await repositories.exceptionsRepo.createException({
-    serialNo,
-    ruleCode,
-    contextType: "DISPATCH",
-    contextId: dispatchId,
-    raisedBy: userId,
-    createdBy: userId
-  });
-
-  return {
-    exceptionId: exception.exceptionId,
-    ruleCode: exception.ruleCode,
-    status: exception.status ?? "OPEN"
-  };
-}
-
-function invalidScanWithException(ruleCode, message, exception) {
-  return {
-    ...invalidScan(ruleCode, message),
-    exception
-  };
-}
-
-function formatCompletedSerialRow(row) {
-  return {
-    serialNo: row.serialNo,
-    productCode: row.productCode,
-    warehouseId: Number(row.warehouseId)
-  };
-}
+import {
+  requiredQuantity,
+  normalizePositiveInteger,
+  productIdsForInvoice,
+  recordDispatchException,
+  invalidScanWithException,
+  formatCompletedSerialRow,
+  findAvailableLine,
+  invoiceStatusFor
+} from "./dispatchService/helpers.js";
 
 export function createDispatchService({ repositories, fulfilmentStatusService }) {
-  function lineCapResolver(dispatch) {
-    const usesLineTargets = dispatch.lines.some(
-      (line) => line.targetQuantity !== null && line.targetQuantity !== undefined
-    );
-
-    return (line) => {
-      if (!usesLineTargets) {
-        return Number(line.quantity);
-      }
-      return Number(line.targetQuantity) || 0;
-    };
-  }
-
-  async function findAvailableLine(txRepositories, dispatch, serialProductId) {
-    const candidateLines = dispatch.lines.filter((line) => String(line.productId) === String(serialProductId));
-    const capFor = lineCapResolver(dispatch);
-
-    for (const line of candidateLines) {
-      const lineScanCount = await txRepositories.dispatches.countScansForLine(dispatch.dispatchId, line.invoiceLineId);
-      if (lineScanCount < capFor(line)) {
-        return { line, lineScanCount };
-      }
-    }
-
-    return { line: null, lineScanCount: 0 };
-  }
-
-  function invoiceStatusFor({ invoiceRequiredQuantity, scannedQuantity }) {
-    if (scannedQuantity >= invoiceRequiredQuantity) {
-      return "DISPATCHED";
-    }
-    if (scannedQuantity <= 0) {
-      return "PENDING";
-    }
-    return "PARTIALLY_DISPATCHED";
-  }
-
   return {
     async getDispatchWarehouseId(dispatchId) {
       return repositories.dispatches.getWarehouseId(dispatchId);
