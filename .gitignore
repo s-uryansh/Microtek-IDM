@@ -4,3 +4,5 @@ coverage/
 .env
 .env.local
 npm-debug.log*
+
+/data
