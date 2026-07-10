@@ -4,16 +4,3 @@ coverage/
 .env
 .env.local
 npm-debug.log*
-
-/Documentation
-/.agents
-/.codex
-/.claude
-/graphify-out
-AGENTS.md
-CLAUDE.md
-/.opencode
-/.vscode
-/docs
-/Plan
-/Scripts
