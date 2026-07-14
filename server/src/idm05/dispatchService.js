@@ -8,6 +8,7 @@ import {
   findAvailableLine,
   invoiceStatusFor
 } from "./dispatchService/helpers.js";
+import { assertWarehouseActive } from "../warehouseGuard.js";
 
 export function createDispatchService({ repositories, fulfilmentStatusService }) {
   return {
@@ -58,6 +59,9 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
           code: "INVOICE_ALREADY_DISPATCHED"
         });
       }
+
+      // Refuse dispatch out of a deactivated warehouse.
+      await assertWarehouseActive(repositories, warehouseId);
 
       const totalRequiredQuantity = requiredQuantity(invoice.lines);
       const existingDispatch = await repositories.dispatches.findByInvoiceId(invoiceId);
@@ -203,6 +207,9 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
       if (!dispatch) {
         throw new Error("Dispatch not found");
       }
+
+      // Refuse further scanning once the dispatch's warehouse is deactivated.
+      await assertWarehouseActive(repositories, dispatch.warehouseId);
 
       const validationResult = await repositories.validationService.validateSerial({
         serialNo,

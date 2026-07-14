@@ -113,6 +113,7 @@ export function WarehouseTransferPanel({ onSessionActiveChange }) {
             value={destinationWarehouseId}
             onChange={setDestinationWarehouseId}
             helperText="Receives the stock via a normal GRN once scanning is done."
+            allowStaffSelect
           />
           <Input
             label="Reference (optional)"

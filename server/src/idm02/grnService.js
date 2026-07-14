@@ -1,3 +1,5 @@
+import { assertWarehouseActive } from "../warehouseGuard.js";
+
 function alert(ruleCode, message) {
   return { ruleCode, message };
 }
@@ -52,6 +54,9 @@ export function createGrnService({ repositories }) {
     //    return its expected products (operator entered/scanned a dispatch number).
     //  - dispatchRef omitted => legacy warehouse-scoped GRN (unlinked).
     async startGrn({ receivingWarehouseId, dispatchRef, role, userWarehouseIds, userId }) {
+      // Refuse receiving stock into a deactivated warehouse.
+      await assertWarehouseActive(repositories, receivingWarehouseId, "receiving warehouse");
+
       const ref = typeof dispatchRef === "string" ? dispatchRef.trim() : dispatchRef;
 
       if (!ref) {
@@ -138,6 +143,9 @@ export function createGrnService({ repositories }) {
       if (!grn) {
         throw new Error("GRN not found");
       }
+
+      // Refuse further receiving once the GRN's warehouse is deactivated.
+      await assertWarehouseActive(repositories, grn.receivingWarehouseId, "receiving warehouse");
 
       const validation = await repositories.validationService.validateSerial({
         serialNo,

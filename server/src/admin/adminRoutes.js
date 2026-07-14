@@ -275,6 +275,10 @@ export function createAdminRoutes({ adminService }) {
       }
       response.status(200).json(result);
     } catch (error) {
+      if (error.status) {
+        sendError(response, error.status, error.code || "VALIDATION_ERROR", error.message);
+        return;
+      }
       next(error);
     }
   });

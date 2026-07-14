@@ -1,3 +1,5 @@
+import { assertWarehouseActive } from "../warehouseGuard.js";
+
 function invalid(ruleCode, message, exception = null) {
   return {
     valid: false,
@@ -51,6 +53,9 @@ async function reopenInvoice(repositories, invoiceId) {
 export function createSrnService({ repositories, conditionTagService }) {
   return {
     async createSrn({ receivingWarehouseId, invoiceId, returnProductIds, expectedQuantity, userId }) {
+      // Refuse to open a return against a deactivated warehouse.
+      await assertWarehouseActive(repositories, receivingWarehouseId, "receiving warehouse");
+
       // A return is only valid for an invoice that was actually dispatched. If
       // the invoice has no serials from a completed dispatch, there is nothing
       // legitimate that could be coming back, so the invoice id is rejected.
@@ -105,6 +110,9 @@ export function createSrnService({ repositories, conditionTagService }) {
       if (!srn) {
         throw new Error("SRN not found");
       }
+
+      // Refuse further returns once the SRN's warehouse is deactivated.
+      await assertWarehouseActive(repositories, srn.receivingWarehouseId, "receiving warehouse");
 
       const validation = await repositories.validationService.validateSerial({
         serialNo,

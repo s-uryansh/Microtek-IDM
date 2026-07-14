@@ -53,13 +53,20 @@ export function createWarehouseRepository(pool) {
       const result = await pool.query(
         `
         SELECT
-          warehouse_id AS "warehouseId",
-          code,
-          name,
-          type,
-          is_active AS "isActive"
-        FROM warehouse
-        WHERE warehouse_id = $1`,
+          w.warehouse_id AS "warehouseId",
+          w.code,
+          w.name,
+          w.type,
+          w.is_active AS "isActive",
+          COALESCE(s.unit_count, 0)::int AS "unitCount"
+        FROM warehouse w
+        LEFT JOIN (
+          SELECT current_warehouse_id, COUNT(*) AS unit_count
+          FROM serial_master
+          WHERE current_status = 'IN_STOCK'
+          GROUP BY current_warehouse_id
+        ) s ON s.current_warehouse_id = w.warehouse_id
+        WHERE w.warehouse_id = $1`,
         [warehouseId]
       );
       return result.rows[0] ?? null;

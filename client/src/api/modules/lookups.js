@@ -23,6 +23,6 @@ export function searchDispatches({ query, warehouseId, signal } = {}) {
   return get(`/lookups/dispatches${queryString({ query, warehouseId })}`, { signal });
 }
 
-export function searchWarehouses({ query, signal } = {}) {
-  return get(`/lookups/warehouses${queryString({ query })}`, { signal });
+export function searchWarehouses({ query, all, signal } = {}) {
+  return get(`/lookups/warehouses${queryString({ query, all })}`, { signal });
 }

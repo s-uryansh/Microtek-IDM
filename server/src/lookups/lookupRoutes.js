@@ -32,15 +32,24 @@ export function createLookupRoutes({ lookupService }) {
 
   router.get("/warehouses", async (request, response, next) => {
     try {
-      const warehouseIds = scopedWarehouseIds(lookupService, request);
-      if (!warehouseIds?.length) {
-        forbidden(response);
-        return;
+      // `all=true` returns every warehouse regardless of the caller's assigned
+      // scope. Used by pickers that must offer any warehouse as a target (e.g.
+      // the destination of a warehouse-to-warehouse transfer), not just the
+      // caller's own. Still gated by the router-level `foundation:read`.
+      const includeAll = booleanParam(request.query.all);
+      let warehouseIds = null;
+      if (!includeAll) {
+        warehouseIds = scopedWarehouseIds(lookupService, request);
+        if (!warehouseIds?.length) {
+          forbidden(response);
+          return;
+        }
       }
 
       const items = await lookupService.searchWarehouses({
         query: request.query.query,
         warehouseIds,
+        includeAll,
         limit: request.query.limit
       });
       response.status(200).json({ items });

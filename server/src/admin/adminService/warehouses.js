@@ -41,6 +41,17 @@ export function createWarehouseService({ adminRepo }) {
       if (!wh) {
         throw Object.assign(new Error("Warehouse not found"), { status: 404 });
       }
+      if (!wh.isActive) {
+        return wh;
+      }
+      if (wh.unitCount > 0) {
+        throw Object.assign(
+          new Error(
+            `Cannot deactivate warehouse ${wh.code}: it still holds ${wh.unitCount} unit(s) in stock. Transfer or dispatch them first.`
+          ),
+          { status: 409, code: "WAREHOUSE_NOT_EMPTY" }
+        );
+      }
       return adminRepo.toggleWarehouseActive(warehouseId, false, userId);
     },
 

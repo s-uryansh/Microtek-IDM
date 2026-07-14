@@ -4,6 +4,7 @@ import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { DataTable } from "../../components/data/DataTable.jsx";
 import { Collapsible } from "../../components/ui/Collapsible.jsx";
+import { useToast } from "../../components/ui/ToastProvider.jsx";
 import { toCsv, downloadCsv } from "../../utils/csv.js";
 import {
   fetchWarehouses,
@@ -33,6 +34,7 @@ export function WarehousesTab() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
   const [search, setSearch] = useState("");
+  const { showToast } = useToast();
 
   const load = useCallback(() => {
     setLoading(true);
@@ -70,7 +72,10 @@ export function WarehousesTab() {
       }
       load();
     } catch (err) {
-      setError(err?.message || "Failed to update warehouse");
+      showToast({
+        message: err?.message || "Failed to update warehouse",
+        variant: "error",
+      });
     }
   }
 

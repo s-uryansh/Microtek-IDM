@@ -1,3 +1,5 @@
+import { assertWarehouseActive } from "../warehouseGuard.js";
+
 // Moves stock between two of the company's own warehouses without an invoice.
 // Reuses the exact sap_dispatch_doc / sap_dispatch_line pipeline that SAP-imported
 // factory dispatches use (see importService.js): scanning here creates a doc +
@@ -50,6 +52,10 @@ export function createWarehouseTransferService({ repositories }) {
         throw Object.assign(new Error("Source and destination warehouse must be different."), { status: 400 });
       }
 
+      // Both ends of a transfer must be active warehouses.
+      await assertWarehouseActive(repositories, sourceWarehouseId, "source warehouse");
+      await assertWarehouseActive(repositories, destinationWarehouseId, "destination warehouse");
+
       const trimmedRef = typeof reference === "string" ? reference.trim() : "";
       const externalRef = trimmedRef || `WT-${sourceWarehouseId}-${destinationWarehouseId}-${Date.now()}`;
 
@@ -90,6 +96,9 @@ export function createWarehouseTransferService({ repositories }) {
     },
 
     async scanSerial({ sapDispatchDocId, sourceWarehouseId, serialNo, userId }) {
+      // Refuse further scanning once the source warehouse is deactivated.
+      await assertWarehouseActive(repositories, sourceWarehouseId, "source warehouse");
+
       const validationResult = await repositories.validationService.validateSerial({
         serialNo,
         contextType: "DISPATCH",

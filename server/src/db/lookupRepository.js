@@ -148,7 +148,7 @@ export function createLookupRepository(pool) {
       return result.rows;
     },
 
-    async searchWarehouses({ query, warehouseIds, limit = MAX_LIMIT }) {
+    async searchWarehouses({ query, warehouseIds, includeAll = false, limit = MAX_LIMIT }) {
       const result = await pool.query(
         `SELECT
            warehouse_id AS "warehouseId",
@@ -156,11 +156,11 @@ export function createLookupRepository(pool) {
            name,
            type
          FROM warehouse
-         WHERE warehouse_id = ANY($1::bigint[])
-           AND ($2::text = '' OR code ILIKE $3 OR name ILIKE $3 OR CAST(warehouse_id AS text) = $2)
+         WHERE ($1::boolean OR warehouse_id = ANY($2::bigint[]))
+           AND ($3::text = '' OR code ILIKE $4 OR name ILIKE $4 OR CAST(warehouse_id AS text) = $3)
          ORDER BY code
-         LIMIT $4`,
-        [warehouseIds, String(query || "").trim(), queryPattern(query), normalizeLimit(limit)]
+         LIMIT $5`,
+        [includeAll, warehouseIds || [], String(query || "").trim(), queryPattern(query), normalizeLimit(limit)]
       );
       return result.rows;
     }
