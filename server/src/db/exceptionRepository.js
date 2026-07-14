@@ -62,6 +62,25 @@ export function createExceptionRepository(pool) {
       return result.rows[0] ?? null;
     },
 
+    async findOpenByContext({ contextType, contextId, ruleCode }) {
+      const result = await pool.query(
+        `SELECT
+           exception_id AS "exceptionId",
+           rule_code AS "ruleCode",
+           status
+         FROM exception_log
+         WHERE context_type = $1
+           AND context_id = $2
+           AND rule_code = $3
+           AND status = 'OPEN'
+         ORDER BY exception_id DESC
+         LIMIT 1`,
+        [contextType, contextId ?? null, ruleCode]
+      );
+
+      return result.rows[0] ?? null;
+    },
+
     async findAll({ status, contextType, warehouseIds, limit, offset }) {
       const conditions = [];
       const values = [];

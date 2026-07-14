@@ -97,9 +97,36 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
       let createdNew = false;
 
       if (existingDispatch) {
+        // A dispatch is warehouse-scoped (one row per invoice, pinned by the
+        // ux_dispatch_invoice_once constraint). If the operator re-opens dispatch
+        // for this invoice with a different warehouse selected, reconcile it —
+        // otherwise scanSerial validates against the stale warehouse and every
+        // scan fails with WRONG_WAREHOUSE even though the correct warehouse is
+        // shown in the UI.
+        if (existingDispatch.warehouseId !== warehouseId) {
+          if (alreadyScannedQuantity > 0) {
+            // Scans already exist against the original warehouse — the dispatch
+            // is mid-flight and cannot silently switch warehouses.
+            throw Object.assign(
+              new Error("A dispatch is already in progress for this invoice at a different warehouse."),
+              {
+                status: 409,
+                code: "DISPATCH_WAREHOUSE_MISMATCH",
+                dispatchId: existingDispatch.dispatchId,
+                existingWarehouseId: existingDispatch.warehouseId
+              }
+            );
+          }
+          // Nothing scanned yet — re-point the untouched dispatch to the newly
+          // selected warehouse.
+          if (repositories.dispatches.updateWarehouse) {
+            await repositories.dispatches.updateWarehouse(existingDispatch.dispatchId, warehouseId, userId);
+          }
+        }
+
         dispatchRow = repositories.dispatches.setDispatchTargetQuantity
           ? await repositories.dispatches.setDispatchTargetQuantity(existingDispatch.dispatchId, targetQuantity, userId)
-          : { ...existingDispatch, targetQuantity };
+          : { ...existingDispatch, targetQuantity, warehouseId };
 
         const resumeStatus = alreadyScannedQuantity > 0 ? "IN_PROGRESS" : "PENDING";
         if (dispatchRow.status !== resumeStatus) {
@@ -128,17 +155,31 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
         }
       }
 
+      // A partial dispatch is a shortage regardless of whether it was detected on
+      // the first start or on a resume, so raise the SHORT exception in both cases.
+      // Dedupe against any already-open SHORT for this dispatch so repeated
+      // re-opens don't pile up duplicate exceptions.
       let partialException = null;
-      if (isPartial && createdNew && repositories.exceptionsRepo) {
-        const exception = await repositories.exceptionsRepo.createException({
-          serialNo: null,
-          ruleCode: "SHORT",
-          contextType: "DISPATCH",
-          contextId: dispatchRow.dispatchId,
-          warehouseId,
-          raisedBy: userId,
-          createdBy: userId
-        });
+      if (isPartial && repositories.exceptionsRepo) {
+        const existingShort = repositories.exceptionsRepo.findOpenByContext
+          ? await repositories.exceptionsRepo.findOpenByContext({
+              contextType: "DISPATCH",
+              contextId: dispatchRow.dispatchId,
+              ruleCode: "SHORT"
+            })
+          : null;
+
+        const exception =
+          existingShort ??
+          (await repositories.exceptionsRepo.createException({
+            serialNo: null,
+            ruleCode: "SHORT",
+            contextType: "DISPATCH",
+            contextId: dispatchRow.dispatchId,
+            warehouseId,
+            raisedBy: userId,
+            createdBy: userId
+          }));
         partialException = {
           exceptionId: exception.exceptionId,
           ruleCode: exception.ruleCode,

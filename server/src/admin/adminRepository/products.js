@@ -4,28 +4,34 @@ export function createProductRepository(pool) {
     async listProducts() {
       const result = await pool.query(`
         SELECT
-          product_id AS "productId",
-          product_code AS "productCode",
-          name,
-          segment,
-          category,
-          sub_category AS "subCategory",
-          product_category AS "productCategory",
-          distributor_price AS "distributorPrice",
-          warranty,
-          gst,
-          mrp,
-          base_price AS "basePrice",
-          stock,
-          sbu,
-          poll,
-          moq,
-          description,
-          is_battery AS "isBattery",
-          is_active AS "isActive",
-          created_at AS "createdAt"
-        FROM product
-        ORDER BY category, product_code
+          p.product_id AS "productId",
+          p.product_code AS "productCode",
+          p.name,
+          p.segment,
+          p.category,
+          p.sub_category AS "subCategory",
+          p.product_category AS "productCategory",
+          p.distributor_price AS "distributorPrice",
+          p.warranty,
+          p.gst,
+          p.mrp,
+          p.base_price AS "basePrice",
+          p.stock,
+          p.sbu,
+          p.poll,
+          p.moq,
+          p.description,
+          p.is_battery AS "isBattery",
+          p.is_active AS "isActive",
+          p.created_at AS "createdAt",
+          COALESCE(s.serial_numbers, ARRAY[]::text[]) AS "serialNumbers"
+        FROM product p
+        LEFT JOIN (
+          SELECT product_id, array_agg(serial_no ORDER BY serial_no) AS serial_numbers
+          FROM serial_master
+          GROUP BY product_id
+        ) s ON s.product_id = p.product_id
+        ORDER BY p.category, p.product_code
       `);
       return result.rows;
     },

@@ -215,6 +215,25 @@ export function createDispatchRepository(pool) {
       return mapDispatch(result.rows[0]);
     },
 
+    async updateWarehouse(dispatchId, warehouseId, updatedBy) {
+      const result = await pool.query(
+        `UPDATE dispatch
+         SET warehouse_id = $2,
+             updated_at = now(),
+             updated_by = $3
+         WHERE dispatch_id = $1
+         RETURNING
+           dispatch_id AS "dispatchId",
+           invoice_id AS "invoiceId",
+           warehouse_id AS "warehouseId",
+           target_quantity AS "targetQuantity",
+           status`,
+        [dispatchId, warehouseId, updatedBy]
+      );
+
+      return mapDispatch(result.rows[0]);
+    },
+
     async insertScan({ dispatchId, invoiceLineId, serialId, scannedBy, createdBy }) {
       const result = await pool.query(
         `INSERT INTO dispatch_scan (

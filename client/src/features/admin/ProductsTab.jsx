@@ -12,6 +12,54 @@ const PRODUCT_IMPORT_TEMPLATE = [
   "SPGS4050S2204P6252,SPGS-PWM4050-MS2206024TT4N-P625BW2N,PSD,SPGS,1000,36 months,18,1900,600,,SBU06,4,500,SPGS-PWM4050-MS2206024TT4N-P625BW2N,PSD"
 ].join("\n");
 
+function SerialNumbersCell({ value }) {
+  const [expanded, setExpanded] = useState(false);
+  const serials = toArray(value);
+
+  if (!serials.length) return orNA(null);
+
+  // Few serials read fine inline — no toggle needed.
+  if (serials.length <= 2) {
+    return <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem" }}>{serials.join(", ")}</span>;
+  }
+
+  return (
+    <div style={{ minWidth: "9rem" }}>
+      <button
+        type="button"
+        className="badge"
+        aria-expanded={expanded}
+        onClick={(event) => {
+          event.stopPropagation();
+          setExpanded((open) => !open);
+        }}
+        style={{ border: "none", cursor: "pointer", gap: "var(--space-1)" }}
+      >
+        {serials.length} serials {expanded ? "▴" : "▾"}
+      </button>
+      {expanded && (
+        <ul
+          style={{
+            margin: "var(--space-2) 0 0",
+            padding: 0,
+            listStyle: "none",
+            maxHeight: "12rem",
+            overflowY: "auto",
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.75rem",
+            lineHeight: 1.6,
+            color: "var(--color-text-secondary)"
+          }}
+        >
+          {serials.map((serial, index) => (
+            <li key={`${serial}-${index}`}>{serial}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 const productColumns = [
   { key: "productCode", label: "Code" },
   { key: "name", label: "Name" },
@@ -28,6 +76,16 @@ const productColumns = [
   { key: "sbu", label: "SBU" },
   { key: "poll", label: "Poll" },
   { key: "description", label: "Description" },
+  {
+    key: "serialNumbers",
+    label: "Serial Numbers",
+    // Serials are free-text (many per product), so keep them out of the filter
+    // dropdown — the DataTable's free-text search still spans this column.
+    filterable: false,
+    sortable: false,
+    render: (value) => <SerialNumbersCell value={value} />,
+    filterValue: (row) => toArray(row.serialNumbers).join(" ")
+  },
   { key: "isBattery", label: "Battery" },
   { key: "isActive", label: "Active" }
 ];
