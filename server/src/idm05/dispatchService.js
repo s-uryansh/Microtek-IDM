@@ -94,7 +94,6 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
       const targetQuantity = alreadyScannedQuantity + dispatchQuantity;
 
       let dispatchRow;
-      let createdNew = false;
 
       if (existingDispatch) {
         // A dispatch is warehouse-scoped (one row per invoice, pinned by the
@@ -143,7 +142,6 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
             targetQuantity,
             createdBy: userId
           });
-          createdNew = true;
         } catch (error) {
           if (error.code === "23505" && error.constraint === "ux_dispatch_invoice_once") {
             throw Object.assign(new Error("A dispatch already exists for this invoice."), {
