@@ -8,7 +8,8 @@ function createRepositories({
   appendEventError = null,
   serialByNo = null,
   sapDispatchForSerial = null,
-  existingReceiptScan = null
+  existingReceiptScan = null,
+  warehousesByRef = new Map([["PLNT-01", { warehouseId: 1, code: "PLNT-01" }]])
 } = {}) {
   const calls = {
     createBatch: [],
@@ -83,6 +84,20 @@ function createRepositories({
           throw appendEventError;
         }
         calls.appendEvent.push(event);
+      },
+      async findWarehouseByRef(ref) {
+        if (ref === undefined || ref === null || String(ref).trim() === "") {
+          return null;
+        }
+        const key = String(ref).trim();
+        if (warehousesByRef.has(key)) {
+          return warehousesByRef.get(key);
+        }
+        const numeric = Number(key);
+        if (Number.isInteger(numeric) && numeric > 0) {
+          return { warehouseId: numeric };
+        }
+        return null;
       }
     },
     sapDispatches: {

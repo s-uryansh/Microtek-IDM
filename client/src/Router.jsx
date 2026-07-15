@@ -16,6 +16,7 @@ import { FulfilmentPage } from "./features/fulfilment/FulfilmentPage.jsx";
 import { AgeingPage } from "./features/ageing/AgeingPage.jsx";
 import { SerialHistoryPage } from "./features/serials/SerialHistoryPage.jsx";
 import { ExceptionsPage } from "./features/exceptions/ExceptionsPage.jsx";
+// eslint-disable-next-line no-unused-vars -- kept for the temporarily-disabled /imports route (see ImportBlocked). Restore its element to re-enable.
 import { ImportProductionPage } from "./features/imports/ImportProductionPage.jsx";
 import {
   InboundPage,
