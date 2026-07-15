@@ -26,7 +26,9 @@ describe("loadConfig", () => {
       apiRateLimitWindowMs: 60000,
       apiRateLimitMax: 600,
       scanRateLimitWindowMs: 60000,
-      scanRateLimitMax: 240
+      scanRateLimitMax: 240,
+      importWebhookSecret: undefined,
+      sapSourceWarehouseCode: "PLNT-01"
     });
   });
 
