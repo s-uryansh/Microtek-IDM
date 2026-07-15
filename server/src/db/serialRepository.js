@@ -28,6 +28,30 @@ export function createSerialRepository(pool) {
       return result.rows[0] ?? null;
     },
 
+    // Resolve a warehouse by a human-friendly reference: its code ("RW-01") or
+    // full name, case-insensitively, or a numeric warehouse_id (kept for the SAP
+    // JSON/QR path that still sends ids). Returns null when nothing matches so
+    // callers can reject the row as UNKNOWN_WAREHOUSE.
+    async findWarehouseByRef(ref) {
+      if (ref === undefined || ref === null || String(ref).trim() === "") {
+        return null;
+      }
+      const value = String(ref).trim();
+      const result = await pool.query(
+        `SELECT warehouse_id AS "warehouseId", code, name
+         FROM warehouse
+         WHERE is_active = TRUE
+           AND (LOWER(code) = LOWER($1) OR LOWER(name) = LOWER($1) OR CAST(warehouse_id AS text) = $1)
+         ORDER BY warehouse_id
+         LIMIT 1`,
+        [value]
+      );
+
+      const row = result.rows[0];
+      if (!row) return null;
+      return { ...row, warehouseId: toNumber(row.warehouseId) };
+    },
+
     async insertProductionSerial({
       serialNo,
       productId,

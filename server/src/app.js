@@ -62,7 +62,7 @@ function createDefaultServices(config) {
   return {
     pool,
     repositories,
-    importService: createImportService({ repositories }),
+    importService: createImportService({ repositories, sapSourceWarehouseCode: config.sapSourceWarehouseCode }),
     validationService,
     fulfilmentStatusService,
     dispatchService: createDispatchService({

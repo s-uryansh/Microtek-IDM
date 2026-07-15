@@ -20,7 +20,13 @@ export const envSchema = z.object({
   // request.ip reflects the real client for IP-keyed rate limiting. Defaults to
   // "false" (no proxy trusted) to match prior behaviour.
   TRUST_PROXY: z.string().default("false"),
-  IMPORT_WEBHOOK_SECRET: z.string().min(32).optional()
+  IMPORT_WEBHOOK_SECRET: z.string().min(32).optional(),
+  // The warehouse that factory-produced serials are stamped as dispatched FROM.
+  // Production always originates at the SAP plant, so the import never reads a
+  // source warehouse from the payload/CSV — it resolves this code to an id and
+  // stamps every imported serial with it. Referenced by code (or name) so it
+  // survives id changes across environments.
+  SAP_SOURCE_WAREHOUSE_CODE: z.string().trim().min(1).default("PLNT-01")
 });
 
 // Field metadata for startup environment reporting: which vars are required and
@@ -40,5 +46,6 @@ export const ENV_FIELDS = [
   { key: "SCAN_RATE_LIMIT_WINDOW_MS", default: 60000 },
   { key: "SCAN_RATE_LIMIT_MAX", default: 240 },
   { key: "TRUST_PROXY", default: "false" },
-  { key: "IMPORT_WEBHOOK_SECRET", requiredInProduction: true }
+  { key: "IMPORT_WEBHOOK_SECRET", requiredInProduction: true },
+  { key: "SAP_SOURCE_WAREHOUSE_CODE", default: "PLNT-01" }
 ];

@@ -4,8 +4,8 @@ import { createImportProductionBatch } from "./importService/productionImport.js
 import { validateProductionRecord } from "./importService/recordNormalization.js";
 import { createScanReceipt } from "./importService/receiptScan.js";
 
-export function createImportService({ repositories }) {
-  const importProductionBatch = createImportProductionBatch({ repositories });
+export function createImportService({ repositories, sapSourceWarehouseCode }) {
+  const importProductionBatch = createImportProductionBatch({ repositories, sapSourceWarehouseCode });
   const scanReceipt = createScanReceipt({ repositories });
 
   const service = {

@@ -1,14 +1,18 @@
 import { z } from "zod";
 
-import { serialNoSchema, warehouseIdSchema, userIdSchema } from "./commonSchemas.js";
+import { serialNoSchema, userIdSchema } from "./commonSchemas.js";
 
+// Canonical production row after normalization. Rows are serial-level (one
+// physical unit each). The source warehouse is NOT part of the row — production
+// always originates at the SAP plant, which the service stamps server-side. The
+// optional destination is carried as a free-form reference (warehouse code or
+// name, e.g. "RW-01") that the service resolves to an id; numeric ids arriving
+// from the SAP JSON/QR path are normalized into this same string reference.
 export const productionRecordSchema = z.object({
   serialNo: serialNoSchema,
   productCode: z.string().trim().min(1).max(40),
   batchNo: z.string().trim().max(60).optional(),
-  warehouseId: warehouseIdSchema.optional(),
-  sourceWarehouseId: warehouseIdSchema.optional(),
-  destinationWarehouseId: warehouseIdSchema.optional(),
+  destinationWarehouseRef: z.string().trim().min(1).max(120).optional(),
   qrCode: z.string().trim().max(2000).optional(),
   sourceInvoiceRef: z.string().trim().max(60).optional()
 });

@@ -9,7 +9,8 @@ const navSections = [
   {
     title: "Inbound",
     items: [
-      { label: "Import Production", path: "/imports", icon: "box", permission: "integration:import" },
+      // TEMPORARILY HIDDEN: Import Production nav item. Uncomment to restore.
+      // { label: "Import Production", path: "/imports", icon: "box", permission: "integration:import" },
       { label: "GRN", path: "/grn", icon: "box", permission: "grn:write" },
       { label: "Battery Pre-Bill", path: "/battery", icon: "battery", permission: "battery:read" }
     ]

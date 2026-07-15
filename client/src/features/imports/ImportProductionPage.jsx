@@ -5,10 +5,15 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { importProductionCsv } from "../../api/modules/imports.js";
+import { downloadCsv } from "../../utils/csv.js";
 
+// Friendly, products-style headers (see ProductsTab.jsx). Required columns are
+// marked (*). The source warehouse is the SAP plant, stamped server-side, so it
+// is intentionally not a CSV column; only the destination is supplied, by
+// warehouse code or name (resolved by the server, e.g. "RW-03").
 const CSV_TEMPLATE =
-  "serialNo,productCode,batchNo,sourceWarehouseId,destinationWarehouseId,sourceInvoiceRef\n" +
-  "MTK1234567890,MTK-INVERTER-1KVA,B-01,1,3,INV-1001\n";
+  "Serial No(*),Product Code(*),Batch No,Destination Warehouse,Source Invoice Ref\n" +
+  "MTK1234567890,MTK-INVERTER-1KVA,B-01,RW-03,INV-1001\n";
 
 export function ImportProductionPage() {
   const fileInputRef = useRef(null);
@@ -21,15 +26,7 @@ export function ImportProductionPage() {
   const [error, setError] = useState(null);
 
   function handleDownloadTemplate() {
-    const blob = new Blob([CSV_TEMPLATE], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "idm-01-production-template.csv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadCsv("idm-01-production-template.csv", CSV_TEMPLATE);
   }
 
   async function handleFileChange(event) {

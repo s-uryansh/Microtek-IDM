@@ -7,6 +7,39 @@ import { toCsv, downloadCsv } from "../../utils/csv.js";
 import { fetchInboundDispatches } from "../../api/modules/admin.js";
 import { toArray, fmtDate } from "./adminShared.js";
 
+const STATUS_LABELS = {
+  IN_STOCK: "In Stock",
+  IN_TRANSIT: "In Transit",
+  DISPATCHED: "Dispatched",
+  RETURNED: "Returned",
+  PRODUCED: "Produced",
+  IMPORTED: "Imported",
+  GRN_IN_PROGRESS: "GRN In Progress",
+  GRN_CLOSED: "GRN Closed",
+};
+
+function statusLabel(status) {
+  if (!status) return status;
+  return STATUS_LABELS[status] || status;
+}
+
+// The stored sap_dispatch_doc.status is "IMPORTED" as soon as the SAP dispatch is
+// imported, but the physical stock is still IN_TRANSIT until a GRN receives every
+// serial into stock. Derive the displayed status from the serial states so the row
+// only reads "Imported" once ALL serials are IN_STOCK; otherwise it reflects that
+// stock is still in transit. Falls back to the stored status when no serials exist.
+function deriveDisplayStatus(doc) {
+  const serialStatuses = toArray(doc.lines)
+    .map((line) => line.serialStatus)
+    .filter(Boolean);
+  if (serialStatuses.length === 0) return doc.status;
+  const allInStock = serialStatuses.every((s) => s === "IN_STOCK");
+  // Every serial received into stock: keep the stored status ("IMPORTED").
+  if (allInStock) return doc.status;
+  // Any serial still not in stock: the dispatch is physically in transit.
+  return "IN_TRANSIT";
+}
+
 const inboundColumns = [
   { key: "externalRef", label: "Dispatch Doc" },
   { key: "sourceWarehouseCode", label: "From" },
@@ -14,7 +47,7 @@ const inboundColumns = [
   { key: "_products", label: "Products", sortable: false },
   { key: "totalQuantity", label: "Total Qty" },
   { key: "status", label: "Status" },
-  { key: "createdAt", label: "Imported" }
+  { key: "createdAt", label: "Import Date" }
 ];
 
 export function InboundTab() {
@@ -40,7 +73,7 @@ export function InboundTab() {
     sourceWarehouseCode: doc.sourceWarehouseCode || (doc.sourceWarehouseId ? `WH-${doc.sourceWarehouseId}` : "—"),
     destinationWarehouseCode: `${doc.destinationWarehouseCode || `WH-${doc.destinationWarehouseId}`}${doc.destinationWarehouseName ? ` · ${doc.destinationWarehouseName}` : ""}`,
     totalQuantity: doc.totalQuantity,
-    status: <StatusBadge status={doc.status} />,
+    status: <StatusBadge status={statusLabel(deriveDisplayStatus(doc))} />,
     createdAt: fmtDate(doc.createdAt),
     _products: (
       <span style={{ fontSize: "0.8125rem", color: "var(--color-text-secondary)" }}>
@@ -57,7 +90,7 @@ export function InboundTab() {
     { key: "products", label: "Products" },
     { key: "totalQuantity", label: "Total Qty" },
     { key: "status", label: "Status" },
-    { key: "createdAt", label: "Imported" }
+    { key: "createdAt", label: "Import Date" }
   ];
 
   function handleExportCsv() {
@@ -69,7 +102,7 @@ export function InboundTab() {
         destinationWarehouseCode: `${doc.destinationWarehouseCode || `WH-${doc.destinationWarehouseId}`}${doc.destinationWarehouseName ? ` · ${doc.destinationWarehouseName}` : ""}`,
         products: toArray(doc.products).map((p) => `${p.productName} x${p.quantity}`).join("; ") || "—",
         totalQuantity: doc.totalQuantity,
-        status: doc.status,
+        status: statusLabel(deriveDisplayStatus(doc)),
         createdAt: fmtDate(doc.createdAt)
       })))
     );

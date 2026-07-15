@@ -3,7 +3,7 @@ import { productionBatchEnvelopeSchema } from "../../models/importSchemas.js";
 import { dedupeRecords } from "./dedupe.js";
 import { validateProductionRecord } from "./recordNormalization.js";
 
-export function createImportProductionBatch({ repositories }) {
+export function createImportProductionBatch({ repositories, sapSourceWarehouseCode = "PLNT-01" }) {
   return async function importProductionBatch(input) {
     // Only batch-envelope problems (missing externalRef/source/receivedBy, or
     // a non-array/empty records list) fail the whole batch. Individual
@@ -80,6 +80,29 @@ export function createImportProductionBatch({ repositories }) {
         const txRejectedRows = [...malformedRejections];
         const dispatchLineCounters = new Map();
 
+        // Production always originates at the SAP plant. Resolve it once and
+        // stamp it on every serial — the payload/CSV never supplies a source.
+        // A missing plant is a configuration fault for the whole batch, so fail
+        // loudly rather than importing serials with an unknown origin.
+        const sourceWarehouse = await txRepositories.serials.findWarehouseByRef(sapSourceWarehouseCode);
+        if (!sourceWarehouse) {
+          throw new Error(`SAP source warehouse "${sapSourceWarehouseCode}" is not configured`);
+        }
+        const sourceWarehouseId = sourceWarehouse.warehouseId;
+
+        // Destination refs (warehouse code/name/id) repeat across rows; resolve
+        // each ref at most once per batch.
+        const warehouseRefCache = new Map();
+        async function resolveDestinationWarehouseId(ref) {
+          if (warehouseRefCache.has(ref)) {
+            return warehouseRefCache.get(ref);
+          }
+          const warehouse = await txRepositories.serials.findWarehouseByRef(ref);
+          const resolvedId = warehouse ? warehouse.warehouseId : null;
+          warehouseRefCache.set(ref, resolvedId);
+          return resolvedId;
+        }
+
         for (const { index, record } of accepted) {
           const product = await txRepositories.serials.findProductByCode(record.productCode);
 
@@ -97,15 +120,33 @@ export function createImportProductionBatch({ repositories }) {
             continue;
           }
 
+          let destinationWarehouseId = null;
+          if (record.destinationWarehouseRef) {
+            destinationWarehouseId = await resolveDestinationWarehouseId(record.destinationWarehouseRef);
+            if (!destinationWarehouseId) {
+              txRejectedRows.push({
+                index,
+                serialNo: record.serialNo,
+                reason: "UNKNOWN_WAREHOUSE"
+              });
+              txRejections.push({
+                index,
+                serialNo: record.serialNo,
+                reason: "UNKNOWN_WAREHOUSE"
+              });
+              continue;
+            }
+          }
+
           const serial = await txRepositories.serials.insertProductionSerial({
             serialNo: record.serialNo,
             productId: product.productId,
             batchNo: record.batchNo,
-            currentWarehouseId: record.sourceWarehouseId ?? record.warehouseId,
-            sourceWarehouseId: record.sourceWarehouseId,
-            destinationWarehouseId: record.destinationWarehouseId ?? record.warehouseId,
+            currentWarehouseId: sourceWarehouseId,
+            sourceWarehouseId,
+            destinationWarehouseId,
             qrPayload: record.qrCode,
-            currentStatus: record.destinationWarehouseId ? "IN_TRANSIT" : "PRODUCED",
+            currentStatus: destinationWarehouseId ? "IN_TRANSIT" : "PRODUCED",
             sourceInvoiceRef: record.sourceInvoiceRef,
             batchId: batch.batchId,
             createdBy: parsed.data.receivedBy
@@ -120,11 +161,11 @@ export function createImportProductionBatch({ repositories }) {
             batchId: batch.batchId,
             createdBy: parsed.data.receivedBy
           });
-          if (record.destinationWarehouseId) {
+          if (destinationWarehouseId) {
             await txRepositories.serials.appendSerialEvent({
               serialId: serial.serialId,
               eventType: "FACTORY_DISPATCH",
-              warehouseId: record.destinationWarehouseId,
+              warehouseId: destinationWarehouseId,
               referenceType: "IMPORT",
               referenceId: batch.batchId,
               batchId: batch.batchId,
@@ -135,8 +176,8 @@ export function createImportProductionBatch({ repositories }) {
               const dispatchExternalRef = record.sourceInvoiceRef || parsed.data.externalRef;
               const dispatchDoc = await txRepositories.sapDispatches.upsertDoc({
                 externalRef: dispatchExternalRef,
-                sourceWarehouseId: record.sourceWarehouseId,
-                destinationWarehouseId: record.destinationWarehouseId,
+                sourceWarehouseId,
+                destinationWarehouseId,
                 batchId: batch.batchId,
                 createdBy: parsed.data.receivedBy
               });

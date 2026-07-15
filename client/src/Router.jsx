@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { ProtectedRoute } from "./auth/ProtectedRoute.jsx";
@@ -35,6 +36,16 @@ function withBoundary(node) {
   );
 }
 
+// TEMPORARY: Import Production is blocked for all roles (URL-typed access included).
+// Shows a "Not Allowed" popup and redirects to the dashboard. Remove this guard
+// and restore the original route element (below) to re-enable the feature.
+function ImportBlocked() {
+  useEffect(() => {
+    window.alert("Not Allowed");
+  }, []);
+  return <Navigate to="/dashboard" replace />;
+}
+
 export const router = createBrowserRouter([
   {
     path: "/login",
@@ -70,12 +81,15 @@ export const router = createBrowserRouter([
       { path: "serials", element: withBoundary(<SerialHistoryPage />), errorElement: <RouteErrorFallback /> },
       { path: "exceptions", element: withBoundary(<ExceptionsPage />), errorElement: <RouteErrorFallback /> },
       {
+        // TEMPORARILY BLOCKED: Import Production is off-limits for all roles,
+        // including direct URL entry. Restore the commented element below to re-enable.
         path: "imports",
-        element: (
-          <PermissionRoute permission="integration:import">
-            {withBoundary(<ImportProductionPage />)}
-          </PermissionRoute>
-        ),
+        element: <ImportBlocked />,
+        // element: (
+        //   <PermissionRoute permission="integration:import">
+        //     {withBoundary(<ImportProductionPage />)}
+        //   </PermissionRoute>
+        // ),
         errorElement: <RouteErrorFallback />
       },
       { path: "admin", element: <Navigate to="/admin/warehouses" replace /> },

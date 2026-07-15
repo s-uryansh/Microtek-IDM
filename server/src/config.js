@@ -97,6 +97,7 @@ export function loadConfig(env = process.env) {
     apiRateLimitMax: result.data.API_RATE_LIMIT_MAX,
     scanRateLimitWindowMs: result.data.SCAN_RATE_LIMIT_WINDOW_MS,
     scanRateLimitMax: result.data.SCAN_RATE_LIMIT_MAX,
-    importWebhookSecret: result.data.IMPORT_WEBHOOK_SECRET
+    importWebhookSecret: result.data.IMPORT_WEBHOOK_SECRET,
+    sapSourceWarehouseCode: result.data.SAP_SOURCE_WAREHOUSE_CODE
   };
 }

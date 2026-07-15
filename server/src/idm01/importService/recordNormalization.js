@@ -19,11 +19,6 @@ function pickFirst(source, keys) {
   return undefined;
 }
 
-function toPositiveInteger(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : undefined;
-}
-
 function parseQrCode(qrCode) {
   if (!qrCode) return {};
 
@@ -44,20 +39,32 @@ function normalizeRecord(rawInput) {
   const input = rawInput && typeof rawInput === "object" && !Array.isArray(rawInput) ? rawInput : {};
   const qrData = qrOnlyRecordSchema.safeParse(input).success ? parseQrCode(input.qrCode) : {};
   const merged = { ...qrData, ...input };
-  const sourceWarehouseId = toPositiveInteger(
-    pickFirst(merged, ["sourceWarehouseId", "sourceWarehouse", "dispatchedFromWarehouseId", "fromWarehouseId"])
-  );
-  const destinationWarehouseId = toPositiveInteger(
-    pickFirst(merged, ["destinationWarehouseId", "destinationWarehouse", "warehouseId", "toWarehouseId"])
-  );
+
+  // Destination only: source is stamped server-side from the SAP plant, so any
+  // source-warehouse field in the payload is intentionally ignored. Accept the
+  // friendly CSV header ("Destination Warehouse"), the camelCase forms, and the
+  // numeric id from the SAP JSON/QR path — all coerced to a string reference the
+  // service resolves to a warehouse id.
+  const destinationWarehouseRefRaw = pickFirst(merged, [
+    "destinationWarehouseRef",
+    "Destination Warehouse",
+    "destinationWarehouse",
+    "destinationWarehouseId",
+    "warehouseId",
+    "toWarehouseId"
+  ]);
+  const destinationWarehouseRef =
+    destinationWarehouseRefRaw === undefined ? undefined : String(destinationWarehouseRefRaw).trim() || undefined;
 
   return {
-    serialNo: String(pickFirst(merged, ["serialNo", "serial", "serialNumber"]) ?? "").trim(),
-    productCode: String(pickFirst(merged, ["productCode", "sku", "materialCode"]) ?? "").trim(),
-    batchNo: pickFirst(merged, ["batchNo", "batch", "batchNumber"]),
-    warehouseId: destinationWarehouseId,
-    sourceWarehouseId,
-    destinationWarehouseId,
+    // Descriptive columns (Product Name / Category / Sub Category) are for the
+    // human filling the CSV; matching is by Product Code, so they are not read.
+    serialNo: String(pickFirst(merged, ["serialNo", "serial", "serialNumber", "Serial No(*)", "Serial No"]) ?? "").trim(),
+    productCode: String(
+      pickFirst(merged, ["productCode", "sku", "materialCode", "Product Code(*)", "Product Code"]) ?? ""
+    ).trim(),
+    batchNo: pickFirst(merged, ["batchNo", "batch", "batchNumber", "Batch No"]),
+    destinationWarehouseRef,
     qrCode: input.qrCode,
     sourceInvoiceRef: pickFirst(merged, ["sourceInvoiceRef", "invoiceRef", "dispatchRef"])
   };
