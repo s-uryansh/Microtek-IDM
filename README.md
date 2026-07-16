@@ -1,6 +1,43 @@
+<div align="center">
+
 # Microtek IDM
 
-Microtek Inventory & Dispatch Management (IDM) is a serial-level warehouse operations system. SAP remains the ERP system of record; IDM is the system of record for the physical serial scanned receipt, dispatch, returns, battery pre-billing, exceptions, ageing, and traceability.
+### Inventory & Dispatch Management serial-level warehouse operations
+
+<p>
+  <img alt="Status" src="https://img.shields.io/badge/status-active%20development-brightgreen">
+  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white">
+  <img alt="Express" src="https://img.shields.io/badge/express-4.21-000000?logo=express&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=black">
+  <img alt="Vite" src="https://img.shields.io/badge/vite-6-646CFF?logo=vite&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/postgres-16-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Redis" src="https://img.shields.io/badge/redis-7-DC382D?logo=redis&logoColor=white">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-vitest%20%2B%20supertest-6E9F18?logo=vitest&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/license-proprietary-lightgrey">
+</p>
+
+</div>
+
+**Microtek Inventory & Dispatch Management (IDM)** is a serial-level warehouse operations system. SAP remains the ERP system of record; IDM is the system of record for the physical serial-scanned lifecycle receipt, dispatch, inter-warehouse transfer, returns, battery pre-billing, exceptions, ageing, and traceability.
+
+> [!NOTE]
+> **Scope of record.** IDM owns every physical serial from `PRODUCED → IN_TRANSIT → IN_STOCK → DISPATCHED → RETURNED`, raising an `EXCEPTION` at any validation failure. SAP transports (inbound/outbound) are stubbed behind webhook/CSV import and export endpoints for a future adapter.
+
+## Contents
+
+- [Microtek IDM](#microtek-idm)
+    - [Inventory \& Dispatch Management serial-level warehouse operations](#inventory--dispatch-management-serial-level-warehouse-operations)
+  - [Contents](#contents)
+  - [Tech Stack](#tech-stack)
+  - [Repository Structure](#repository-structure)
+  - [Prerequisites](#prerequisites)
+  - [Setup](#setup)
+  - [Database Migrations](#database-migrations)
+  - [Running](#running)
+  - [IDM Modules](#idm-modules)
+  - [Testing](#testing)
+  - [Developer Notes](#developer-notes)
+  - [Known Limitations](#known-limitations)
 
 ## Tech Stack
 
@@ -33,7 +70,7 @@ The codebase follows a **route → service → repository** layering. Services h
 
 ## Prerequisites
 
-Minimum versions (newer is fine — tested on the versions in parentheses):
+Minimum versions (newer is fine tested on the versions in parentheses):
 
 - Node.js ≥ 20 (tested on 25.x), npm ≥ 10 (tested on 11.x)
 - PostgreSQL ≥ 16 (tested on 18.x)
@@ -48,11 +85,11 @@ npm install                      # installs all workspaces (server + client)
 cp .env.example .env             # then fill in the values below
 ```
 
-Environment variables (`.env`) — the backend validates these on startup (`server/src/models/configSchemas.js`). Everything except `DATABASE_URL` has a working default, so the app boots in dev with just the database set. The `R` / `P` columns flag what is **R**equired and what is additionally required **in P**roduction.
+Environment variables (`.env`) the backend validates these on startup (`server/src/models/configSchemas.js`). Everything except `DATABASE_URL` has a working default, so the app boots in dev with just the database set. The `R` / `P` columns flag what is **R**equired and what is additionally required **in P**roduction.
 
 | Var | R | P | Default | Purpose |
 | --- | :-: | :-: | --- | --- |
-| `DATABASE_URL` | ✓ | | — | Postgres connection string |
+| `DATABASE_URL` | ✓ | | | Postgres connection string |
 | `NODE_ENV` | | | `development` | `development` \| `test` \| `production` |
 | `PORT` | | | `4000` | API port |
 | `CORS_ORIGIN` | | | `http://localhost:5173` | Allowed frontend origin |
@@ -60,7 +97,7 @@ Environment variables (`.env`) — the backend validates these on startup (`serv
 | `AUTH_TOKEN_SECRET` | | ✓ | dev secret | Session-token signing key (≥32 chars; the dev default is rejected in prod) |
 | `AUTH_SESSION_TTL_SECONDS` | | | `28800` | Session lifetime (8h) |
 | `REDIS_URL` | | ✓ | `redis://localhost:6379` | Redis URL (must be `rediss://` TLS or loopback in prod) |
-| `IMPORT_WEBHOOK_SECRET` | | ✓ | — | HMAC secret for the SAP import webhook (≥32 chars). **If unset, the webhook signature check silently passes** |
+| `IMPORT_WEBHOOK_SECRET` | | ✓ | | HMAC secret for the SAP import webhook (≥32 chars). **If unset, the webhook signature check silently passes** |
 | `AGEING_REFRESH_INTERVAL_MS` | | | `43200000` | Ageing snapshot refresh interval (12h) |
 | `API_RATE_LIMIT_WINDOW_MS` | | | `60000` | General API rate-limit window |
 | `API_RATE_LIMIT_MAX` | | | `600` | General API rate-limit max/window |
@@ -118,12 +155,13 @@ operator_1 / admin123     (role: warehouse_operator)
 | **IDM-02** | GRN (goods receipt) open a warehouse GRN, scan arriving serials, validate against the SAP dispatch, record receipt. |
 | **IDM-03** | Battery pre-billing commit battery serials to an invoice line before dispatch (a battery can't dispatch unless pre-billed). |
 | **IDM-04** | Returns (SRN) + condition correction receive returns against a dispatched invoice, re-open it, and retag DEFECTIVE/REPAIR stock back to SALEABLE. |
-| **IDM-05** | Customer dispatch dispatch stock against an invoice; enforces condition-hold and battery-pre-bill gates; flips serials to DISPATCHED. |
+| **IDM-05** | Dispatch dispatch stock against an invoice (enforces condition-hold and battery-pre-bill gates, flips serials to DISPATCHED), inter-warehouse transfer, and SAP export. Split into three route/service groups: customer dispatch, warehouse transfer, and export. |
 | **IDM-06** | Serial validation the shared, context-aware "is this serial valid for this operation?" primitive every scan module calls first. |
 | **IDM-07** | Fulfilment status reports how far an invoice is fulfilled (pending / partial / dispatched) and gates dispatch completion. |
 | **IDM-08** | Reporting ageing buckets (how long stock has sat) + opening-stock reconciliation (SAP vs IDM quantity variance); CSV/SAP exports. |
 | **IDM-09** | Serial history a single time-ordered audit timeline of every event and exception for a serial, across warehouses. |
 | **IDM-10** | Exception correction list/triage/resolve exceptions raised by scan workflows, each closed with a mandatory reason and status. |
+| **Admin** | Manage warehouses, roles + permissions, and members; product CSV import/export; invoice viewer (list/detail, bulk import, POD documents); inbound SAP dispatch-doc stock and warehouse stock viewers. All under `/api/admin` (`admin:access`; `GET /invoices` requires `invoice:read`). |
 
 ## Testing
 
