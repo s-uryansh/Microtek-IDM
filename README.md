@@ -5,7 +5,7 @@
 ### Inventory & Dispatch Management serial-level warehouse operations
 
 <p>
-  <img alt="Status" src="https://img.shields.io/badge/status-active%20development-brightgreen">
+  <img alt="Status" src="https://img.shields.io/badge/status-implemented-brightgreen">
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white">
   <img alt="Express" src="https://img.shields.io/badge/express-4.21-000000?logo=express&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=black">
@@ -18,10 +18,12 @@
 
 </div>
 
-**Microtek Inventory & Dispatch Management (IDM)** is a serial-level warehouse operations system. SAP remains the ERP system of record; IDM is the system of record for the physical serial-scanned lifecycle receipt, dispatch, inter-warehouse transfer, returns, battery pre-billing, exceptions, ageing, and traceability.
+**Microtek Inventory & Dispatch Management (IDM)** is a serial-level warehouse operations system. SAP remains the ERP system of record; IDM is the system of record for the physical serial-scanned lifecycle: GRN receipt, customer dispatch, inter-warehouse transfer, SRN returns, battery pre-billing, exceptions, ageing, and traceability. Accepted scans update IDM stock/status immediately.
 
 > [!NOTE]
 > **Scope of record.** IDM owns every physical serial from `PRODUCED → IN_TRANSIT → IN_STOCK → DISPATCHED → RETURNED`, raising an `EXCEPTION` at any validation failure. SAP transports (inbound/outbound) are stubbed behind webhook/CSV import and export endpoints for a future adapter.
+>
+> **Serial identity.** Stored warehouse serials are composed as `<PRODUCT_NAME_PREFIX>_<RAW_SERIAL>` so two products can share the same raw stamped serial. Operators still scan the raw serial after selecting the product in product-first scan flows.
 
 ## Contents
 
@@ -152,16 +154,16 @@ operator_1 / admin123     (role: warehouse_operator)
 | Module | What it does |
 | --- | --- |
 | **IDM-01** | Production import ingest SAP-produced serials via signed webhook **or** CSV upload; marks them IN_TRANSIT/PRODUCED and writes SAP dispatch docs. |
-| **IDM-02** | GRN (goods receipt) open a warehouse GRN, scan arriving serials, validate against the SAP dispatch, record receipt. |
+| **IDM-02** | GRN (goods receipt) load a SAP dispatch document, select the expected product, scan arriving serials, validate against the document, and update received counts/stock immediately. |
 | **IDM-03** | Battery pre-billing commit battery serials to an invoice line before dispatch (a battery can't dispatch unless pre-billed). |
-| **IDM-04** | Returns (SRN) + condition correction receive returns against a dispatched invoice, re-open it, and retag DEFECTIVE/REPAIR stock back to SALEABLE. |
-| **IDM-05** | Dispatch dispatch stock against an invoice (enforces condition-hold and battery-pre-bill gates, flips serials to DISPATCHED), inter-warehouse transfer, and SAP export. Split into three route/service groups: customer dispatch, warehouse transfer, and export. |
+| **IDM-04** | Returns (SRN) + condition correction receive returns against a dispatched invoice, declare original-only vs mixed/non-original stock, mark accepted foreign stock as NOT ORIGINAL, re-open returnable invoice quantity, and retag DEFECTIVE/REPAIR stock back to SALEABLE. |
+| **IDM-05** | Dispatch dispatch stock against an invoice with live warehouse-stock availability, product-first scanning, partial dispatch handling, condition-hold and battery-pre-bill gates, inter-warehouse transfer, and SAP export. Split into three route/service groups: customer dispatch, warehouse transfer, and export. |
 | **IDM-06** | Serial validation the shared, context-aware "is this serial valid for this operation?" primitive every scan module calls first. |
 | **IDM-07** | Fulfilment status reports how far an invoice is fulfilled (pending / partial / dispatched) and gates dispatch completion. |
 | **IDM-08** | Reporting ageing buckets (how long stock has sat) + opening-stock reconciliation (SAP vs IDM quantity variance); CSV/SAP exports. |
 | **IDM-09** | Serial history a single time-ordered audit timeline of every event and exception for a serial, across warehouses. |
 | **IDM-10** | Exception correction list/triage/resolve exceptions raised by scan workflows, each closed with a mandatory reason and status. |
-| **Admin** | Manage warehouses, roles + permissions, and members; product CSV import/export; invoice viewer (list/detail, bulk import, POD documents); inbound SAP dispatch-doc stock and warehouse stock viewers. All under `/api/admin` (`admin:access`; `GET /invoices` requires `invoice:read`). |
+| **Admin** | Manage warehouses, roles + permissions, and members; product CSV import/export; invoice viewer (list/detail, bulk import, POD documents); inbound SAP dispatch-doc stock and current warehouse stock viewers. All under `/api/admin` (`admin:access`; `GET /invoices` requires `invoice:read`). |
 
 ## Testing
 
@@ -181,6 +183,9 @@ npm run test --workspace client
 - **Auth context:** routes use `requireAuthContext` + `requirePermission(code, { warehouseIdFromBody|warehouseIdFromQuery })`; admins bypass scope, others are checked against assigned `warehouseIds`.
 - **Serial lifecycle:** modules append `serial_event` rows and raise `exception_log` entries as they work these power IDM-09 (history) and IDM-10 (exception desk).
 - **Returns & re-dispatch:** dispatch scans are *soft-returned* (`returned_at`) rather than deleted; scan/quantity counts exclude returned rows so a returned serial can be re-dispatched.
+- **SRN foreign stock:** an SRN must declare whether it is original-only or may include different products. Original-only returns reject serials not linked to that invoice; mixed returns accept them into stock flagged `NOT ORIGINAL`.
+- **Product-first scans:** GRN, dispatch, transfer, battery, and SRN require product selection before scanning when product lines are available; the selected product disambiguates raw serials that exist under more than one product.
+- **Composed serials:** `serial_master.serial_no` stores product-name prefix + raw serial; `base_serial` keeps the raw scanned value.
 - **Idempotency:** batch imports are de-duplicated by `externalRef`; receipt/dispatch uniqueness is enforced by partial unique indexes (`WHERE returned_at IS NULL`) plus serial state transitions.
 - **Scanning:** native `BarcodeDetector` with `@zxing/browser` fallback and a keyboard-wedge (hardware scanner) path; camera scanning requires HTTPS or localhost.
 
