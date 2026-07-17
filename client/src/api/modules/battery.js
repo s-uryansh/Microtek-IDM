@@ -1,7 +1,7 @@
 import { post, get } from "../client.js";
 
-export function commitBatterySerial({ invoiceId, serialNo, signal }) {
-  return post("/idm-03/battery/commit", { invoiceId, serialNo }, { signal });
+export function commitBatterySerial({ invoiceId, serialNo, productId, signal }) {
+  return post("/idm-03/battery/commit", { invoiceId, serialNo, productId }, { signal });
 }
 
 export function fetchBatteryCommitStatus({ invoiceId, signal }) {

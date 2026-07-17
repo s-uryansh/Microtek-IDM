@@ -1,11 +1,18 @@
 export function createSrnRepository(pool) {
   return {
-    async create({ receivingWarehouseId, invoiceId, returnProductIds, expectedQuantity, createdBy }) {
+    async create({ receivingWarehouseId, invoiceId, returnProductIds, expectedQuantity, allowsForeignStock, createdBy }) {
       const result = await pool.query(
-        `INSERT INTO srn (receiving_warehouse_id, invoice_id, return_product_ids, expected_quantity, created_by)
-         VALUES ($1, $2, $3::jsonb, $4, $5)
-         RETURNING srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", expected_quantity AS "expectedQuantity", status`,
-        [receivingWarehouseId, invoiceId, JSON.stringify(returnProductIds || []), expectedQuantity ?? null, createdBy]
+        `INSERT INTO srn (receiving_warehouse_id, invoice_id, return_product_ids, expected_quantity, allows_foreign_stock, created_by)
+         VALUES ($1, $2, $3::jsonb, $4, $5, $6)
+         RETURNING srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", expected_quantity AS "expectedQuantity", allows_foreign_stock AS "allowsForeignStock", status`,
+        [
+          receivingWarehouseId,
+          invoiceId,
+          JSON.stringify(returnProductIds || []),
+          expectedQuantity ?? null,
+          allowsForeignStock ?? false,
+          createdBy
+        ]
       );
 
       return result.rows[0];
@@ -13,7 +20,7 @@ export function createSrnRepository(pool) {
 
     async findById(srnId) {
       const result = await pool.query(
-        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", expected_quantity AS "expectedQuantity", status
+        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", expected_quantity AS "expectedQuantity", allows_foreign_stock AS "allowsForeignStock", status
          FROM srn
          WHERE srn_id = $1`,
         [srnId]
@@ -24,7 +31,7 @@ export function createSrnRepository(pool) {
 
     async lockById(srnId) {
       const result = await pool.query(
-        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", expected_quantity AS "expectedQuantity", status
+        `SELECT srn_id AS "srnId", receiving_warehouse_id AS "receivingWarehouseId", invoice_id AS "invoiceId", return_product_ids AS "returnProductIds", expected_quantity AS "expectedQuantity", allows_foreign_stock AS "allowsForeignStock", status
          FROM srn
          WHERE srn_id = $1
          FOR UPDATE`,
@@ -125,20 +132,21 @@ export function createSrnRepository(pool) {
       return result.rows[0].count;
     },
 
-    async insertScan({ srnId, serialId, originalDispatchScanId, conditionTag, scannedBy, createdBy }) {
+    async insertScan({ srnId, serialId, originalDispatchScanId, conditionTag, notOriginal, scannedBy, createdBy }) {
       const result = await pool.query(
         `INSERT INTO srn_scan (
            srn_id,
            serial_id,
            original_dispatch_scan_id,
            condition_tag,
+           not_original,
            scanned_by,
            created_by
          )
-         VALUES ($1, $2, $3, $4, $5, $6)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT DO NOTHING
          RETURNING srn_scan_id AS "srnScanId"`,
-        [srnId, serialId, originalDispatchScanId ?? null, conditionTag, scannedBy, createdBy]
+        [srnId, serialId, originalDispatchScanId ?? null, conditionTag, notOriginal ?? false, scannedBy, createdBy]
       );
 
       return result.rows[0] ?? null;

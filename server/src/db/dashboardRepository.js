@@ -126,7 +126,8 @@ export function createDashboardRepository(pool) {
            WHEN EXTRACT(DAY FROM (now() - sm.received_at)) <= 90 THEN '61-90'
            ELSE '91+'
          END AS "label",
-         COUNT(*)::int AS "value"
+         COUNT(*)::int AS "value",
+         COALESCE(SUM(p.mrp), 0)::float AS "price"
        FROM serial_master sm
        LEFT JOIN product p ON p.product_id = sm.product_id
        WHERE sm.current_status = 'IN_STOCK'
@@ -138,6 +139,56 @@ export function createDashboardRepository(pool) {
        GROUP BY 1
        ORDER BY MIN(sm.received_at)`,
       [warehouseIds, category, subCategory, productCategory]
+    );
+  }
+
+  // Base serials that are physically held in stock under two or more distinct
+  // products (e.g. an inverter and a controller both stamped "SKU-100E"). This
+  // is legitimate under the composed-serial model (V027) but operationally risky
+  // — an operator scanning the raw base gets an AMBIGUOUS_SERIAL — so admins get
+  // an alert listing each collision and the products/warehouses involved.
+  async function findDuplicateBaseSerials({ warehouseIds, limit = 50 }) {
+    return run(
+      `WITH held AS (
+         SELECT sm.base_serial,
+                sm.product_id,
+                sm.serial_no,
+                sm.current_warehouse_id,
+                p.product_code,
+                p.name AS product_name,
+                w.code AS warehouse_code
+         FROM serial_master sm
+         LEFT JOIN product p ON p.product_id = sm.product_id
+         LEFT JOIN warehouse w ON w.warehouse_id = sm.current_warehouse_id
+         WHERE sm.current_status = 'IN_STOCK'
+           AND sm.base_serial IS NOT NULL
+           AND sm.base_serial <> ''
+           AND ($1::bigint[] IS NULL OR sm.current_warehouse_id = ANY($1::bigint[]))
+       ),
+       dup AS (
+         SELECT base_serial
+         FROM held
+         GROUP BY base_serial
+         HAVING COUNT(DISTINCT product_id) > 1
+       )
+       SELECT h.base_serial AS "baseSerial",
+              json_agg(
+                json_build_object(
+                  'productId', h.product_id,
+                  'productCode', h.product_code,
+                  'productName', h.product_name,
+                  'serialNo', h.serial_no,
+                  'warehouseId', h.current_warehouse_id,
+                  'warehouseCode', h.warehouse_code
+                )
+                ORDER BY h.product_code, h.serial_no
+              ) AS "items"
+       FROM held h
+       JOIN dup ON dup.base_serial = h.base_serial
+       GROUP BY h.base_serial
+       ORDER BY h.base_serial
+       LIMIT $2`,
+      [warehouseIds, limit]
     );
   }
 
@@ -162,6 +213,7 @@ export function createDashboardRepository(pool) {
     findRecentDispatches,
     countInStockByWarehouse,
     ageingBuckets,
+    findDuplicateBaseSerials,
     listCategories,
   };
 }

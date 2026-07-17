@@ -35,13 +35,34 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
           })
         : 0;
 
+      // Per-product breakdown: how much of each invoice item is actually in
+      // this warehouse right now (same availability rule as the total above).
+      const stockByProduct = repositories.serials.countAvailableStockByProduct
+        ? await repositories.serials.countAvailableStockByProduct({
+            warehouseId,
+            productIds: productIdsForInvoice(invoice)
+          })
+        : new Map();
+      const requiredByProduct = new Map();
+      for (const line of invoice.lines) {
+        const productId = Number(line.productId);
+        requiredByProduct.set(productId, (requiredByProduct.get(productId) ?? 0) + Number(line.quantity));
+      }
+      const productAvailability = Array.from(requiredByProduct, ([productId, required]) => ({
+        productId,
+        requiredQuantity: required,
+        inStockQty: stockByProduct.get(productId) ?? 0
+      }));
+
       return {
         invoiceId,
         warehouseId,
+        invoiceType: invoice.invoiceType,
         invoiceRequiredQuantity,
         alreadyScannedQuantity,
         remainingInvoiceQuantity: Math.max(invoiceRequiredQuantity - alreadyScannedQuantity, 0),
-        currentWarehouseStockQty
+        currentWarehouseStockQty,
+        productAvailability
       };
     },
 
@@ -50,6 +71,15 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
 
       if (!invoice) {
         throw Object.assign(new Error("Invoice not found"), { status: 404 });
+      }
+
+      // TRANSFER invoices gate warehouse-to-warehouse transfers (V030); they are
+      // not customer sales and cannot be dispatched here.
+      if (invoice.invoiceType === "TRANSFER") {
+        throw Object.assign(
+          new Error("This is a warehouse-transfer invoice — use the Warehouse Transfer flow instead."),
+          { status: 409, code: "INVOICE_TYPE_MISMATCH" }
+        );
       }
 
       // An invoice already fully dispatched cannot be dispatched again.
@@ -201,7 +231,15 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
       };
     },
 
-    async scanSerial({ dispatchId, serialNo, userId }) {
+    // Product-first scan (mirrors GRN): the operator selects the invoice-listed
+    // product they are about to scan, then scans the raw base serial for it.
+    // `productId` is that selected-product context, forwarded to validateSerial as
+    // `expectedProductId`, which (a) disambiguates a base serial shared by several
+    // products to the selected product's row and (b) rejects a scan whose resolved
+    // product does not match the selection (PRODUCT_INVOICE_MISMATCH). `productId`
+    // is optional: an omitted context keeps the legacy scan behaviour, where the
+    // line is resolved from the serial's own product via findAvailableLine below.
+    async scanSerial({ dispatchId, serialNo, productId, userId }) {
       const dispatch = await repositories.dispatches.findById(dispatchId);
 
       if (!dispatch) {
@@ -216,6 +254,7 @@ export function createDispatchService({ repositories, fulfilmentStatusService })
         contextType: "DISPATCH",
         contextId: dispatchId,
         warehouseId: dispatch.warehouseId,
+        expectedProductId: productId ?? undefined,
         userId
       });
 

@@ -22,6 +22,8 @@ export function createInvoiceRepository(pool) {
     return {
       ...row,
       invoiceId: toNumber(row.invoiceId),
+      sourceWarehouseId: toNumber(row.sourceWarehouseId),
+      destinationWarehouseId: toNumber(row.destinationWarehouseId),
       lines
     };
   }
@@ -63,7 +65,10 @@ export function createInvoiceRepository(pool) {
       const result = await pool.query(
         `SELECT
            invoice_id AS "invoiceId",
-           status
+           status,
+           invoice_type AS "invoiceType",
+           source_warehouse_id AS "sourceWarehouseId",
+           destination_warehouse_id AS "destinationWarehouseId"
          FROM invoice
          WHERE invoice_id = $1`,
         [invoiceId]

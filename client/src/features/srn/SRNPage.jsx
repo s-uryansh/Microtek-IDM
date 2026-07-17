@@ -3,6 +3,7 @@ import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
+import { ProductPicker } from "../../components/scan/ProductPicker.jsx";
 import { WarehouseSelector } from "../../components/operations/WarehouseSelector.jsx";
 import { createSrn, scanSrnSerial } from "../../api/modules/srn.js";
 import { searchInvoices } from "../../api/modules/lookups.js";
@@ -22,6 +23,9 @@ export function SRNPage() {
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
   const [returnedCount, setReturnedCount] = useState(0);
+  // Product-first return scan (see GRN): during scanning the operator picks which
+  // of the return-selected products they are about to scan, scoping each scan to it.
+  const [scanProductId, setScanProductId] = useState(null);
 
   function handleToggleProduct(productId) {
     setSelectedProductIds((prev) => {
@@ -89,7 +93,8 @@ export function SRNPage() {
     const result = (await scanSrnSerial({
       srnId: session?.srnId,
       serialNo,
-      conditionTag: rowConditionTag
+      conditionTag: rowConditionTag,
+      productId: scanProductId
     })) || {};
     if (result.valid) {
       setReturnedCount((count) => count + 1);
@@ -108,6 +113,9 @@ export function SRNPage() {
 
   const declaredQuantity = expectedQuantity ? Number(expectedQuantity) : null;
   const limitReached = declaredQuantity !== null && returnedCount >= declaredQuantity;
+  // The operator can only scan against products they flagged for return.
+  const scanProducts = (invoice?.lines ?? []).filter((line) => selectedProductIds.has(line.productId));
+  const mustPickProduct = scanProducts.length > 0 && scanProductId == null;
 
   if (session) {
     return (
@@ -130,6 +138,16 @@ export function SRNPage() {
             </div>
             <ConditionTagSelect value={conditionTag} onChange={setConditionTag} />
           </div>
+          {scanProducts.length > 0 && (
+            <div className="input-group">
+              <label className="input-group__label">Which product are you scanning?</label>
+              <ProductPicker
+                items={scanProducts}
+                selectedProductId={scanProductId}
+                onSelect={setScanProductId}
+              />
+            </div>
+          )}
           <ScanSession
             module="SRN"
             title={
@@ -139,11 +157,13 @@ export function SRNPage() {
             }
             onScan={handleScan}
             scanCount={returnedCount}
-            externallyDisabled={limitReached}
+            disabled={limitReached || mustPickProduct}
             disabledMessage={
               limitReached
                 ? `All ${declaredQuantity} declared return units have been scanned.`
-                : ""
+                : mustPickProduct
+                  ? "Select a product above before scanning serials."
+                  : ""
             }
             placeholder="Scan return serial number"
           />

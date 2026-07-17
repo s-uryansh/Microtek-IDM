@@ -18,6 +18,7 @@ export function createBatteryPreBillingRoutes({ batteryPreBillingService }) {
     async (request, response, next) => {
       try {
         const { invoiceId, serialNo } = request.body;
+        const parsedProductId = Number.parseInt(request.body.productId, 10);
 
         if (!invoiceId || !serialNo) {
           sendError(response, 400, "BAD_REQUEST", "invoiceId and serialNo are required");
@@ -40,6 +41,8 @@ export function createBatteryPreBillingRoutes({ batteryPreBillingService }) {
         const result = await batteryPreBillingService.commitSerial({
           invoiceId,
           serialNo: serialNo.trim(),
+          // Optional product-first context (see GRN). Omitted keeps legacy behaviour.
+          productId: Number.isInteger(parsedProductId) && parsedProductId > 0 ? parsedProductId : undefined,
           userId: request.auth.userId,
           userWarehouseIds: request.auth.warehouseIds
         });

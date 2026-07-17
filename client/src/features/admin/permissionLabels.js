@@ -6,10 +6,13 @@ export const PERMISSION_LABELS = {
     label: "View reference data",
     description: "Read warehouses, products and other base configuration."
   },
-  "integration:import": {
-    label: "Import SAP data",
-    description: "Ingest production and factory-dispatch data from SAP into IDM."
-  },
+  // TEMPORARILY HIDDEN: IDM-01 "Import SAP data" is not shipped yet (see
+  // rbacPolicy.js where integration:import is commented out of the admin role).
+  // Restore this label alongside that permission when IDM-01 ships.
+  // "integration:import": {
+  //   label: "Import SAP data",
+  //   description: "Ingest production and factory-dispatch data from SAP into IDM."
+  // },
   "serial:validate": {
     label: "Validate serials",
     description: "Run real-time serial validation checks while scanning."

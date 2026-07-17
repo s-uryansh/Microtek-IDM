@@ -137,7 +137,15 @@ export function createGrnService({ repositories }) {
     // importService.scanReceipt (POST /api/idm-01/import/receipts/scans); see
     // SCRATCH_receipt_vs_grn_scan.txt for the comparison and why this path is
     // preferred (central validation, EXCESS vs WRONG_SERIAL, row locking).
-    async scanSerial({ grnId, serialNo, userId }) {
+    // Phase 1 (#4): the operator selects a product first, then scans the raw base
+    // serial for that product. `productId` is that selected-product context. It is
+    // forwarded to validateSerial as `expectedProductId`, which (a) disambiguates a
+    // base serial shared by several products to the selected product's row and (b)
+    // rejects a scan whose resolved product does not match the selection
+    // (PRODUCT_INVOICE_MISMATCH) — i.e. a composed-identity collision against the
+    // selected product. `productId` is optional: an omitted context keeps the
+    // legacy full-serial scan behaviour.
+    async scanSerial({ grnId, serialNo, productId, userId }) {
       const grn = await repositories.grns.findById(grnId);
 
       if (!grn) {
@@ -151,6 +159,7 @@ export function createGrnService({ repositories }) {
         serialNo,
         contextType: "GRN",
         contextId: grnId,
+        expectedProductId: productId ?? undefined,
         userId
       });
 

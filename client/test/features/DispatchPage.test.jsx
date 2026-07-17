@@ -40,7 +40,7 @@ const mockInvoice = {
   sapInvoiceRef: "INV-1",
   warehouseCode: "RW-01",
   status: "PENDING",
-  lines: [{ invoiceLineId: 10, lineNo: 1, productCode: "P1", productName: "Prod 1", quantity: 4 }]
+  lines: [{ invoiceLineId: 10, lineNo: 1, productId: 7, productCode: "P1", productName: "Prod 1", quantity: 4 }]
 };
 
 beforeEach(() => {
@@ -158,6 +158,8 @@ describe("DispatchPage — scan flows", () => {
     await waitFor(() => expect(screen.getByText(/In stock:/)).toBeVisible());
     fireEvent.click(screen.getByRole("button", { name: /Start Dispatch/ }));
     await waitFor(() => expect(screen.getByText(/Dispatch #/)).toBeVisible());
+    // Product-first scan: pick the invoice product before serials can be scanned.
+    fireEvent.click(screen.getByRole("button", { name: /Prod 1/ }));
   }
 
   test("enables scanning after dispatch setup", async () => {

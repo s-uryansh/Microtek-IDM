@@ -10,7 +10,14 @@ export function createBatteryPreBillingService({ repositories }) {
     // Operator enters the invoice, then scans battery serials. The invoice line
     // is resolved from the scanned serial's product — no manual line picking —
     // so a serial can never be committed against the wrong (non-battery) line.
-    async commitSerial({ invoiceId, serialNo, userId, userWarehouseIds = [] }) {
+    // Product-first commit (mirrors GRN): the operator selects the battery product
+    // on the invoice, then scans the raw base serial for it. `productId` is that
+    // selected-product context, forwarded to validateSerial as `expectedProductId`,
+    // which (a) disambiguates a base serial shared by several products to the
+    // selected product's row and (b) rejects a scan whose resolved product does not
+    // match the selection (PRODUCT_INVOICE_MISMATCH). `productId` is optional: when
+    // omitted the battery line is still resolved from the scanned serial's product.
+    async commitSerial({ invoiceId, serialNo, productId, userId, userWarehouseIds = [] }) {
       const invoice = await repositories.invoices.findById(invoiceId);
 
       if (!invoice) {
@@ -24,6 +31,7 @@ export function createBatteryPreBillingService({ repositories }) {
         serialNo,
         contextType: "BATTERY",
         contextId: invoiceId,
+        expectedProductId: productId ?? undefined,
         userId
       });
 

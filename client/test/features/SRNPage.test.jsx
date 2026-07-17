@@ -70,6 +70,8 @@ describe("SRNPage — happy path", () => {
     selectFirstProduct();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText(/SRN #1/)).toBeVisible());
+    // Product-first return: pick the product before serials can be scanned.
+    fireEvent.click(screen.getByRole("button", { name: /Battery 100Ah/ }));
     expect(createMock).toHaveBeenCalledWith({ warehouseId: 3, invoiceId: 10, returnProductIds: [100], expectedQuantity: null });
   });
 });
@@ -86,6 +88,8 @@ describe("SRNPage — scan flows", () => {
     selectFirstProduct();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText(/SRN #1/)).toBeVisible());
+    // Product-first return: pick the product before serials can be scanned.
+    fireEvent.click(screen.getByRole("button", { name: /Battery 100Ah/ }));
     const input = screen.getByLabelText("Scan Serial");
     fireEvent.change(input, { target: { value: "S-1" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -100,6 +104,8 @@ describe("SRNPage — scan flows", () => {
     selectFirstProduct();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText(/SRN #1/)).toBeVisible());
+    // Product-first return: pick the product before serials can be scanned.
+    fireEvent.click(screen.getByRole("button", { name: /Battery 100Ah/ }));
     const input = screen.getByLabelText("Scan Serial");
     fireEvent.change(input, { target: { value: "S-1" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -107,7 +113,8 @@ describe("SRNPage — scan flows", () => {
     expect(scanMock).toHaveBeenCalledWith({
       srnId: 1,
       serialNo: "S-1",
-      conditionTag: "DEFECTIVE"
+      conditionTag: "DEFECTIVE",
+      productId: 100
     });
   });
 
@@ -121,6 +128,8 @@ describe("SRNPage — scan flows", () => {
     selectFirstProduct();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText(/SRN #1/)).toBeVisible());
+    // Product-first return: pick the product before serials can be scanned.
+    fireEvent.click(screen.getByRole("button", { name: /Battery 100Ah/ }));
     const input = screen.getByLabelText("Scan Serial");
     fireEvent.change(input, { target: { value: "S-1" } });
     fireEvent.keyDown(input, { key: "Enter" });

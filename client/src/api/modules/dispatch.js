@@ -11,23 +11,23 @@ export function fetchDispatchAvailability({ invoiceId, warehouseId, signal }) {
   return get(`/idm-05/dispatches/availability?${params.toString()}`, { signal });
 }
 
-export function scanDispatchSerial({ dispatchId, serialNo, signal }) {
-  return post(`/idm-05/dispatches/${dispatchId}/scans`, { serialNo }, { signal });
+export function scanDispatchSerial({ dispatchId, serialNo, productId, signal }) {
+  return post(`/idm-05/dispatches/${dispatchId}/scans`, { serialNo, productId }, { signal });
 }
 
 export function completeDispatch({ dispatchId, signal }) {
   return post(`/idm-05/dispatches/${dispatchId}/complete`, {}, { signal });
 }
 
-/* ── Warehouse-to-warehouse transfer (no invoice) ── */
-export function createWarehouseTransfer({ sourceWarehouseId, destinationWarehouseId, reference, signal }) {
+/* ── Warehouse-to-warehouse transfer (invoice-gated, like customer dispatch) ── */
+export function createWarehouseTransfer({ sourceWarehouseId, destinationWarehouseId, reference, invoiceId, signal }) {
   return post(
     "/idm-05/transfers",
-    { warehouseId: sourceWarehouseId, destinationWarehouseId, reference },
+    { warehouseId: sourceWarehouseId, destinationWarehouseId, reference, invoiceId },
     { signal }
   );
 }
 
-export function scanTransferSerial({ transferId, serialNo, signal }) {
-  return post(`/idm-05/transfers/${transferId}/scans`, { serialNo }, { signal });
+export function scanTransferSerial({ transferId, serialNo, productId, signal }) {
+  return post(`/idm-05/transfers/${transferId}/scans`, { serialNo, productId }, { signal });
 }

@@ -3,6 +3,7 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
+import { ProductPicker } from "../../components/scan/ProductPicker.jsx";
 import { WarehouseSelector } from "../../components/operations/WarehouseSelector.jsx";
 import {
   createDispatch,
@@ -35,7 +36,11 @@ export function CustomerDispatchPanel({ onSessionActiveChange }) {
   const [invoiceId, setInvoiceId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  // Product-first scan (see GRN): the operator picks which invoice line they are
+  // about to scan before scanning its serials, so each scan is scoped to that row.
+  const [selectedProductId, setSelectedProductId] = useState(null);
   const [session, setSession] = useState(null);
+  const [scanCount, setScanCount] = useState(0);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
@@ -73,6 +78,12 @@ export function CustomerDispatchPanel({ onSessionActiveChange }) {
       // An already fully-dispatched invoice cannot be dispatched again.
       if (invoice.status === "DISPATCHED") {
         setLoadError("This invoice has already been fully dispatched.");
+        return;
+      }
+      // TRANSFER invoices (V030) gate warehouse-to-warehouse transfers, not
+      // customer sales — the server rejects them too (INVOICE_TYPE_MISMATCH).
+      if (invoice.invoiceType === "TRANSFER") {
+        setLoadError("This is a warehouse-transfer invoice — use the Warehouse Transfer tab instead.");
         return;
       }
       setSelectedInvoice(invoice);
@@ -125,6 +136,10 @@ export function CustomerDispatchPanel({ onSessionActiveChange }) {
         invoiceId: Number(invoiceId),
         warehouseId: Number(warehouseId)
       });
+      // Resume: seed the visible count from serials already dispatched in a prior
+      // (interrupted) session so the operator sees where they left off and does not
+      // rescan them. New scans increment from this base.
+      setScanCount(result?.alreadyScannedQuantity ?? 0);
       setSession(result);
     } catch (err) {
       setError(err?.message || "Failed to create dispatch");
@@ -136,9 +151,11 @@ export function CustomerDispatchPanel({ onSessionActiveChange }) {
   async function handleScan(serialNo) {
     const result = (await scanDispatchSerial({
       dispatchId: session?.dispatchId,
-      serialNo
+      serialNo,
+      productId: selectedProductId
     })) || {};
     if (result.valid) {
+      setScanCount((count) => count + 1);
       return { status: result.status || "ACCEPTED", message: "Serial dispatched", state: "success" };
     }
     return {
@@ -156,6 +173,10 @@ export function CustomerDispatchPanel({ onSessionActiveChange }) {
       setError(err?.message || "Failed to complete dispatch");
     }
   }
+
+  // Products the operator can scan against — the loaded invoice's lines.
+  const scanProducts = selectedInvoice?.lines ?? [];
+  const mustPickProduct = scanProducts.length > 0 && selectedProductId == null;
 
   if (session) {
     return (
@@ -193,12 +214,25 @@ export function CustomerDispatchPanel({ onSessionActiveChange }) {
               </div>
             </div>
           )}
+          {scanProducts.length > 0 && (
+            <div className="operation-panel" aria-label="Which product are you scanning?">
+              <h3 className="operation-panel__title">Which product are you scanning?</h3>
+              <ProductPicker
+                items={scanProducts}
+                selectedProductId={selectedProductId}
+                onSelect={setSelectedProductId}
+              />
+            </div>
+          )}
           <ScanSession
             module="DISPATCH"
             title={`Dispatch ${session.dispatchId ?? "—"} — ${session.status ?? "PENDING"}`}
+            scanCount={scanCount}
             onScan={handleScan}
             onComplete={session.status !== "DISPATCHED" ? handleComplete : undefined}
             completed={session.status === "DISPATCHED"}
+            disabled={mustPickProduct}
+            disabledMessage="Select a product above before scanning serials."
           />
         </Card>
       </div>
@@ -311,6 +345,46 @@ export function CustomerDispatchPanel({ onSessionActiveChange }) {
                               : `Enough stock — the full invoice quantity (${remainingQty}) will be dispatched.`}
                       </span>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {availability?.productAvailability?.length > 0 && (
+                <div className="operation-panel" aria-label="Stock by product">
+                  <h3 className="operation-panel__title">Stock in this warehouse — per item</h3>
+                  <div className="operation-panel__results">
+                    {availability.productAvailability.map((item) => {
+                      const line = selectedInvoice.lines?.find(
+                        (l) => Number(l.productId) === Number(item.productId)
+                      );
+                      const short = item.inStockQty < item.requiredQuantity;
+                      return (
+                        <div key={item.productId} className="operation-panel__result">
+                          <span className="operation-panel__result-title">
+                            {line?.productName ?? `Product #${item.productId}`}
+                            {line?.productCode && (
+                              <span
+                                style={{
+                                  color: "var(--color-text-muted)",
+                                  fontFamily: "var(--font-mono)",
+                                  fontSize: "0.8125rem",
+                                  marginLeft: "var(--space-2)"
+                                }}
+                              >
+                                {line.productCode}
+                              </span>
+                            )}
+                          </span>
+                          <span
+                            className="operation-panel__result-meta"
+                            style={short ? { color: "var(--color-warning)" } : undefined}
+                          >
+                            In stock {item.inStockQty} · Needed {item.requiredQuantity}
+                            {short ? " — short" : ""}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

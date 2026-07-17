@@ -202,6 +202,12 @@ export function DashboardPage() {
   const warehouseData = (summary?.stockByWarehouse ?? [])
     .map((r) => ({ label: r.warehouseCode ?? `WH-${r.warehouseId}`, value: r.count }));
 
+  // Base serials held in stock under two or more distinct products (e.g. an
+  // inverter and a controller both stamped "SKU-100E"). Legitimate under the
+  // composed-serial model, but a raw-base scan is ambiguous, so admins are
+  // alerted with the products involved.
+  const duplicateSerials = summary?.duplicateBaseSerials ?? [];
+
   if (error && !summary) {
     return (
       <div className="dashboard">
@@ -214,6 +220,56 @@ export function DashboardPage() {
   return (
     <div className="dashboard">
       <PageHeader title="Dashboard" subtitle="Warehouse operations overview" actions={dashboardFilters} />
+
+      {duplicateSerials.length > 0 && (
+        <div
+          className="dashboard__alert"
+          role="alert"
+          aria-label="Duplicate base serial alert"
+          style={{
+            border: "1px solid var(--color-warning)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--color-warning-subtle)",
+            padding: "var(--space-3)",
+            marginBottom: "var(--space-4)",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: "var(--space-2)" }}>
+            ⚠ {duplicateSerials.length} base serial
+            {duplicateSerials.length === 1 ? "" : "s"} shared across multiple products
+          </div>
+          <div style={{ color: "var(--color-text-muted)", fontSize: "0.875rem", marginBottom: "var(--space-2)" }}>
+            The following base serials are held in stock under more than one
+            product. A raw-serial scan is ambiguous — verify the product before acting.
+          </div>
+          <table className="data-table" style={{ width: "100%" }}>
+            <thead>
+              <tr>
+                <th className="data-table__th" style={{ textAlign: "left" }}>Base serial</th>
+                <th className="data-table__th" style={{ textAlign: "left" }}>Products involved</th>
+              </tr>
+            </thead>
+            <tbody>
+              {duplicateSerials.map((d) => (
+                <tr key={d.baseSerial}>
+                  <td style={{ fontFamily: "var(--font-mono)" }}>{d.baseSerial}</td>
+                  <td>
+                    {(d.items ?? []).map((p, i) => (
+                      <span key={p.serialNo ?? p.productId ?? i}>
+                        {i > 0 ? ", " : ""}
+                        <span style={{ fontFamily: "var(--font-mono)" }}>
+                          {p.serialNo ?? `${p.productName}_${d.baseSerial}`}
+                        </span>
+                        {p.warehouseCode ? ` (${p.warehouseCode})` : ""}
+                      </span>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <KPIRow kpis={summary?.kpis} loading={loading} />
 

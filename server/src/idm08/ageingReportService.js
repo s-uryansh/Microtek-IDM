@@ -1,6 +1,17 @@
 import { ageingReportSchema } from "../models/ageingSchemas.js";
 import { sanitizeCsvCell } from "../utils/sanitizeCsvCell.js";
 
+// Ageing dates are reported at month granularity (MM/YYYY) rather than a full
+// DD/MM/YYYY date, per the reporting requirement. The SAP export path keeps the
+// raw ISO timestamp (WADAT) because that field is an external SAP contract.
+function formatMonthYear(date) {
+  if (!date) return null;
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return null;
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${month}/${d.getFullYear()}`;
+}
+
 function addToSummary(summaryByBucket, bucket, price) {
   const value = Number(price) || 0;
   const existing = summaryByBucket.get(bucket.code);
@@ -82,7 +93,7 @@ export function createAgeingReportService({ repositories, bucketService }) {
           serialNo: row.serialNo,
           productCode: row.productCode,
           warehouseId: row.warehouseId,
-          receivedAt: row.receivedAt ? row.receivedAt.toISOString() : null,
+          receivedAt: formatMonthYear(row.receivedAt),
           ageDays: row.ageDays,
           bucket: bucket.label
         };
@@ -125,10 +136,10 @@ export function createAgeingReportService({ repositories, bucketService }) {
     async getCsvExport({ warehouseIds = [], limit = 1000, offset = 0 }) {
       const { rows } = await this.getExportRows({ warehouseIds, limit, offset });
 
-      const headers = ["serial_no", "product_code", "warehouse_id", "received_at", "age_days", "bucket"];
+      const headers = ["serial_no", "product_code", "warehouse_id", "received_month", "age_days", "bucket"];
       const headerLine = headers.map((h) => sanitizeCsvCell(h)).join(",");
       const bodyLines = rows.map((row) =>
-        headers.map((h) => sanitizeCsvCell(row[h === "serial_no" ? "serialNo" : h === "product_code" ? "productCode" : h === "warehouse_id" ? "warehouseId" : h === "received_at" ? "receivedAt" : h === "age_days" ? "ageDays" : h])).join(",")
+        headers.map((h) => sanitizeCsvCell(row[h === "serial_no" ? "serialNo" : h === "product_code" ? "productCode" : h === "warehouse_id" ? "warehouseId" : h === "received_month" ? "receivedAt" : h === "age_days" ? "ageDays" : h])).join(",")
       );
 
       return [headerLine, ...bodyLines].join("\n");

@@ -13,6 +13,11 @@ export function createInvoiceAdminRepository(pool) {
           i.invoice_id AS "invoiceId",
           i.sap_invoice_ref AS "sapInvoiceRef",
           i.status,
+          i.invoice_type AS "invoiceType",
+          i.source_warehouse_id AS "sourceWarehouseId",
+          sw.code AS "sourceWarehouseCode",
+          i.destination_warehouse_id AS "destinationWarehouseId",
+          dw.code AS "destinationWarehouseCode",
           i.created_at AS "createdAt",
           i.created_at AS "uploadedDate",
           i.order_id AS "orderId",
@@ -54,6 +59,8 @@ export function createInvoiceAdminRepository(pool) {
               )
           ), 0)::int AS "returnedQty"
         FROM invoice i
+        LEFT JOIN warehouse sw ON sw.warehouse_id = i.source_warehouse_id
+        LEFT JOIN warehouse dw ON dw.warehouse_id = i.destination_warehouse_id
         ${searchCondition}
         ORDER BY i.created_at DESC
       `, params);
@@ -79,6 +86,9 @@ export function createInvoiceAdminRepository(pool) {
       deliveryDate,
       salesOrderQty,
       podStatus,
+      invoiceType,
+      sourceWarehouseId,
+      destinationWarehouseId,
       createdBy
     }) {
       const result = await pool.query(
@@ -87,9 +97,10 @@ export function createInvoiceAdminRepository(pool) {
           sap_invoice_ref, status,
           order_id, customer_name, customer_code, billing_date, billing_number, division,
           total_sale_qty, item_total, total_amt, transport_name, lr_no, lr_date,
-          dispatch_date, delivery_date, sales_order_qty, pod_status, created_by
+          dispatch_date, delivery_date, sales_order_qty, pod_status,
+          invoice_type, source_warehouse_id, destination_warehouse_id, created_by
         )
-        VALUES ($1, COALESCE($2, 'PENDING'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        VALUES ($1, COALESCE($2, 'PENDING'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, COALESCE($19, 'CUSTOMER'), $20, $21, $22)
         ON CONFLICT (sap_invoice_ref) DO UPDATE
         SET status = EXCLUDED.status,
             order_id = EXCLUDED.order_id, customer_name = EXCLUDED.customer_name,
@@ -100,6 +111,9 @@ export function createInvoiceAdminRepository(pool) {
             lr_no = EXCLUDED.lr_no, lr_date = EXCLUDED.lr_date,
             dispatch_date = EXCLUDED.dispatch_date, delivery_date = EXCLUDED.delivery_date,
             sales_order_qty = EXCLUDED.sales_order_qty, pod_status = EXCLUDED.pod_status,
+            invoice_type = EXCLUDED.invoice_type,
+            source_warehouse_id = EXCLUDED.source_warehouse_id,
+            destination_warehouse_id = EXCLUDED.destination_warehouse_id,
             updated_at = now(), updated_by = EXCLUDED.created_by
         RETURNING invoice_id AS "invoiceId"`,
         [
@@ -108,6 +122,7 @@ export function createInvoiceAdminRepository(pool) {
           billingNumber ?? null, division ?? null, totalSaleQty ?? null, itemTotal ?? null,
           totalAmt ?? null, transportName ?? null, lrNo ?? null, lrDate ?? null,
           dispatchDate ?? null, deliveryDate ?? null, salesOrderQty ?? null, podStatus ?? null,
+          invoiceType ?? null, sourceWarehouseId ?? null, destinationWarehouseId ?? null,
           createdBy
         ]
       );

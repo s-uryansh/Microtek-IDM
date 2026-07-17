@@ -79,8 +79,15 @@ export function createLookupRepository(pool) {
            i.invoice_id AS "invoiceId",
            i.sap_invoice_ref AS "sapInvoiceRef",
            i.status,
+           i.invoice_type AS "invoiceType",
+           i.source_warehouse_id AS "sourceWarehouseId",
+           sw.code AS "sourceWarehouseCode",
+           i.destination_warehouse_id AS "destinationWarehouseId",
+           dw.code AS "destinationWarehouseCode",
            i.created_at AS "createdAt"
          FROM invoice i
+         LEFT JOIN warehouse sw ON sw.warehouse_id = i.source_warehouse_id
+         LEFT JOIN warehouse dw ON dw.warehouse_id = i.destination_warehouse_id
          WHERE ($1::text = '' OR i.sap_invoice_ref ILIKE $2 OR CAST(i.invoice_id AS text) = $1)
            AND (
              $3::boolean = FALSE OR EXISTS (

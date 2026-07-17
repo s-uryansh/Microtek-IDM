@@ -2,6 +2,12 @@ import { useState, useRef } from "react";
 
 import { EmptyState } from "../ui/EmptyState.jsx";
 
+function formatInr(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(number);
+}
+
 export function BarChart({ data, loading, emptyMessage = "No data available", className = "", onBarClick }) {
   if (loading) {
     return (
@@ -39,6 +45,7 @@ export function BarChart({ data, loading, emptyMessage = "No data available", cl
               key={bar.label}
               label={bar.label}
               value={bar.value}
+              price={bar.price}
               heightPercent={heightPercent}
               index={index}
               onClick={onBarClick ? () => onBarClick(bar) : undefined}
@@ -56,7 +63,7 @@ export function BarChart({ data, loading, emptyMessage = "No data available", cl
   );
 }
 
-function Bar({ label, value, heightPercent, index, onClick }) {
+function Bar({ label, value, price, heightPercent, index, onClick }) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const barRef = useRef(null);
 
@@ -92,6 +99,9 @@ function Bar({ label, value, heightPercent, index, onClick }) {
           <div className="bar-chart__tooltip" role="tooltip">
             <span className="bar-chart__tooltip-label">{label}</span>
             <span className="bar-chart__tooltip-value">{value.toLocaleString("en-US")}</span>
+            {price != null && (
+              <span className="bar-chart__tooltip-price">{formatInr(price)}</span>
+            )}
           </div>
         )}
     </div>

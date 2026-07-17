@@ -98,9 +98,12 @@ export function createDispatchRoutes({ dispatchService }) {
     requireDispatchWarehouseScope,
     async (request, response, next) => {
       try {
+        const parsedProductId = Number.parseInt(request.body.productId, 10);
         const result = await dispatchService.scanSerial({
           dispatchId: parseDispatchId(request),
           serialNo: request.body.serialNo,
+          // Optional product-first context (see GRN). Omitted keeps legacy behaviour.
+          productId: Number.isInteger(parsedProductId) && parsedProductId > 0 ? parsedProductId : undefined,
           userId: request.auth.userId
         });
         response.status(result.valid ? 201 : 200).json(result);

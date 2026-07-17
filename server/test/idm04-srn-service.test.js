@@ -58,7 +58,8 @@ function createRepositories({
       }
     },
     validationService: {
-      async validateSerial() {
+      async validateSerial(request) {
+        calls.validate = request;
         return validationResult;
       }
     }
@@ -108,6 +109,25 @@ describe("IDM-04 SRN service", () => {
     expect(result.valid).toBe(true);
     expect(repositories.calls.updateSerial).toEqual([{ serialId: 7, warehouseId: 5, receivedBy: "operator_1" }]);
     expect(repositories.calls.appendEvent[0]).toMatchObject({ eventType: "SRN", referenceType: "SRN", referenceId: 20 });
+  });
+
+  test("forwards the operator's selected product as expectedProductId to validation", async () => {
+    const { repositories, conditionTagService } = createRepositories({
+      srn: { srnId: 20, receivingWarehouseId: 5, invoiceId: 10 },
+      dispatchScan: { dispatchScanId: 1, serialId: 7, invoiceId: 10 },
+      validationResult: { valid: true, serial: { serialId: 7, serialNo: "MTK1234567890" } }
+    });
+    const service = createSrnService({ repositories, conditionTagService });
+
+    await service.scanReturn({
+      srnId: 20,
+      serialNo: "MTK1234567890",
+      conditionTag: "SALEABLE",
+      productId: 7,
+      userId: "operator_1"
+    });
+
+    expect(repositories.calls.validate).toMatchObject({ contextType: "SRN", expectedProductId: 7 });
   });
 
   test("T04-02 rejects returns without original dispatch", async () => {

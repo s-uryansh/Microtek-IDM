@@ -4,6 +4,7 @@ import { Card } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { ScanSession } from "../../components/scan/ScanSession.jsx";
+import { ProductPicker } from "../../components/scan/ProductPicker.jsx";
 import { commitBatterySerial, fetchBatteryCommitStatus } from "../../api/modules/battery.js";
 import { searchInvoices } from "../../api/modules/lookups.js";
 
@@ -13,8 +14,12 @@ export function BatteryPage() {
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [committedQuantity, setCommittedQuantity] = useState(null);
+  // Product-first commit (see GRN): the operator picks which battery product they
+  // are about to scan before scanning its serials, so each commit is scoped to it.
+  const [selectedProductId, setSelectedProductId] = useState(null);
 
   const batteryLines = (invoice?.lines || []).filter((line) => line.isBattery);
+  const mustPickProduct = batteryLines.length > 0 && selectedProductId == null;
 
   async function refreshStatus(invoiceId) {
     try {
@@ -58,7 +63,8 @@ export function BatteryPage() {
   async function handleScan(serialNo) {
     const res = await commitBatterySerial({
       invoiceId: Number(invoice.invoiceId),
-      serialNo
+      serialNo,
+      productId: selectedProductId
     });
 
     if (res?.valid) {
@@ -99,11 +105,23 @@ export function BatteryPage() {
             </div>
           </div>
 
+          {batteryLines.length > 0 && (
+            <div className="operation-panel" aria-label="Which product are you scanning?">
+              <h3 className="operation-panel__title">Which product are you scanning?</h3>
+              <ProductPicker
+                items={batteryLines}
+                selectedProductId={selectedProductId}
+                onSelect={setSelectedProductId}
+              />
+            </div>
+          )}
           <ScanSession
             module="BATTERY"
             title="Scan battery serials to commit"
             onScan={handleScan}
             placeholder="Scan battery serial number"
+            disabled={mustPickProduct}
+            disabledMessage="Select a battery product above before scanning serials."
           />
 
           <Button variant="secondary" onClick={() => { setInvoice(null); setInvoiceQuery(""); }}>

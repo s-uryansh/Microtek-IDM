@@ -52,7 +52,7 @@ async function reopenInvoice(repositories, invoiceId) {
 
 export function createSrnService({ repositories, conditionTagService }) {
   return {
-    async createSrn({ receivingWarehouseId, invoiceId, returnProductIds, expectedQuantity, userId }) {
+    async createSrn({ receivingWarehouseId, invoiceId, returnProductIds, expectedQuantity, allowsForeignStock, userId }) {
       // Refuse to open a return against a deactivated warehouse.
       await assertWarehouseActive(repositories, receivingWarehouseId, "receiving warehouse");
 
@@ -86,6 +86,10 @@ export function createSrnService({ repositories, conditionTagService }) {
         // The operator declares how many units they expect to return; serials are
         // still scanned individually, this is the target the scan count works to.
         expectedQuantity,
+        // When the operator has declared up-front that the returned batch may
+        // contain products that were never on the original dispatch, the SRN is
+        // flagged so scanReturn admits foreign serials instead of blocking them.
+        allowsForeignStock,
         createdBy: userId
       });
     },
@@ -94,7 +98,14 @@ export function createSrnService({ repositories, conditionTagService }) {
       return repositories.srns.getWarehouseId(srnId);
     },
 
-    async scanReturn({ srnId, serialNo, conditionTag, userId }) {
+    // Product-first return scan (mirrors GRN): the operator selects which returned
+    // product they are about to scan, then scans the raw base serial for it.
+    // `productId` is forwarded to validateSerial as `expectedProductId`, which (a)
+    // disambiguates a base serial shared by several products to the selected
+    // product's row and (b) rejects a scan whose resolved product does not match
+    // the selection (PRODUCT_INVOICE_MISMATCH). `productId` is optional; the return
+    // still reconciles against the original dispatch as before, independently.
+    async scanReturn({ srnId, serialNo, conditionTag, productId, userId }) {
       if (!conditionTagService.isAllowed(conditionTag)) {
         const exception = await createSrnException(repositories, {
           serialNo,
@@ -118,6 +129,7 @@ export function createSrnService({ repositories, conditionTagService }) {
         serialNo,
         contextType: "SRN",
         contextId: srnId,
+        expectedProductId: productId ?? undefined,
         userId
       });
 
@@ -147,29 +159,43 @@ export function createSrnService({ repositories, conditionTagService }) {
 
         const originalDispatchScan = await txRepositories.srns.findOriginalDispatchScan(validation.serial.serialId);
 
-        if (!originalDispatchScan) {
-          const exception = await createSrnException(txRepositories, {
-            serialNo,
-            ruleCode: "NO_ORIGINAL_DISPATCH",
-            srnId,
-            userId
-          });
-          return invalid("NO_ORIGINAL_DISPATCH", "Serial does not reconcile to an original dispatch.", exception);
-        }
+        // A return normally reconciles purely against what was actually
+        // dispatched: the serial must trace to a completed dispatch ON THIS
+        // INVOICE. (invoice_id comes back from PostgreSQL as a bigint string, so
+        // compare as strings.) We deliberately do NOT gate on the operator's
+        // selected product list — being a dispatched serial on this invoice is
+        // enough. A serial is "not original" when it either never came from a
+        // completed dispatch, or came from a different invoice.
+        const reconcilesToInvoice =
+          Boolean(originalDispatchScan) &&
+          (!lockedSrn.invoiceId ||
+            String(originalDispatchScan.invoiceId) === String(lockedSrn.invoiceId));
 
-        // A return is validated purely against what was actually dispatched:
-        // the serial must reconcile to a completed dispatch ON THIS INVOICE.
-        // (invoice_id comes back from PostgreSQL as a bigint string, so compare
-        // as strings.) We deliberately do NOT gate on the operator's selected
-        // product list — being a dispatched serial on this invoice is enough.
-        if (lockedSrn.invoiceId && String(originalDispatchScan.invoiceId) !== String(lockedSrn.invoiceId)) {
-          const exception = await createSrnException(txRepositories, {
-            serialNo,
-            ruleCode: "WRONG_INVOICE_SERIAL",
-            srnId,
-            userId
-          });
-          return invalid("WRONG_INVOICE_SERIAL", "Serial was not on the invoice being returned.", exception);
+        let notOriginal = false;
+        if (!reconcilesToInvoice) {
+          // The serial does not reconcile to the invoice being returned. When the
+          // operator declared up-front that this SRN may include foreign stock we
+          // admit it with a NOT ORIGINAL flag instead of blocking; otherwise the
+          // original guards reject it exactly as before.
+          if (!lockedSrn.allowsForeignStock) {
+            if (!originalDispatchScan) {
+              const exception = await createSrnException(txRepositories, {
+                serialNo,
+                ruleCode: "NO_ORIGINAL_DISPATCH",
+                srnId,
+                userId
+              });
+              return invalid("NO_ORIGINAL_DISPATCH", "Serial does not reconcile to an original dispatch.", exception);
+            }
+            const exception = await createSrnException(txRepositories, {
+              serialNo,
+              ruleCode: "WRONG_INVOICE_SERIAL",
+              srnId,
+              userId
+            });
+            return invalid("WRONG_INVOICE_SERIAL", "Serial was not on the invoice being returned.", exception);
+          }
+          notOriginal = true;
         }
 
         if (await txRepositories.srns.hasReturnedSerial(validation.serial.serialId)) {
@@ -185,8 +211,10 @@ export function createSrnService({ repositories, conditionTagService }) {
         const scan = await txRepositories.srns.insertScan({
           srnId,
           serialId: validation.serial.serialId,
-          originalDispatchScanId: originalDispatchScan.dispatchScanId,
+          // Foreign stock has no original dispatch scan to link back to.
+          originalDispatchScanId: notOriginal ? null : originalDispatchScan.dispatchScanId,
           conditionTag,
+          notOriginal,
           scannedBy: userId,
           createdBy: userId
         });
@@ -217,18 +245,23 @@ export function createSrnService({ repositories, conditionTagService }) {
           createdBy: userId
         });
 
-        // Re-open the original invoice for the returned quantity: soft-return the
-        // original dispatch scan so it stops counting, then recompute the invoice
-        // status (which drops from DISPATCHED to PARTIALLY_DISPATCHED).
-        if (txRepositories.dispatches?.markScanReturned) {
-          await txRepositories.dispatches.markScanReturned(originalDispatchScan.dispatchScanId, userId);
+        // Foreign stock has no original dispatch to unwind and no invoice to
+        // re-open — it simply lands in stock with the NOT ORIGINAL flag. For a
+        // genuine original, re-open the invoice for the returned quantity:
+        // soft-return the original dispatch scan so it stops counting, then
+        // recompute the invoice status (drops DISPATCHED → PARTIALLY_DISPATCHED).
+        if (!notOriginal) {
+          if (txRepositories.dispatches?.markScanReturned) {
+            await txRepositories.dispatches.markScanReturned(originalDispatchScan.dispatchScanId, userId);
+          }
+          await reopenInvoice(txRepositories, originalDispatchScan.invoiceId);
         }
-        await reopenInvoice(txRepositories, originalDispatchScan.invoiceId);
 
         return {
           valid: true,
           srnScanId: scan.srnScanId,
           conditionTag,
+          notOriginal,
           serial: validation.serial,
           alert: null,
           exception: null

@@ -13,6 +13,7 @@ export function createDashboardService({ repositories }) {
       recentDispatches,
       stockByWarehouse,
       ageing,
+      duplicateBaseSerials,
     ] = await Promise.all([
       repositories.dashboard.countSerialsByStatus(filters),
       repositories.dashboard.countExceptionsByStatus({ warehouseIds: scope }),
@@ -23,14 +24,19 @@ export function createDashboardService({ repositories }) {
       repositories.dashboard.findRecentDispatches({ warehouseIds: scope, limit: 5 }),
       repositories.dashboard.countInStockByWarehouse(filters),
       repositories.dashboard.ageingBuckets(filters),
+      repositories.dashboard.findDuplicateBaseSerials({ warehouseIds: scope, limit: 50 }),
     ]);
 
     const byStatus = Object.fromEntries(statusRows.map((r) => [r.status, r.count]));
     const byExc = Object.fromEntries(excStatusRows.map((r) => [r.status, r.count]));
 
     const BUCKET_ORDER = ["0-30", "31-60", "61-90", "91+"];
-    const ageingMap = Object.fromEntries(ageing.map((r) => [r.label, r.value]));
-    const ageingDistribution = BUCKET_ORDER.map((label) => ({ label, value: ageingMap[label] ?? 0 }));
+    const ageingMap = Object.fromEntries(ageing.map((r) => [r.label, r]));
+    const ageingDistribution = BUCKET_ORDER.map((label) => ({
+      label,
+      value: ageingMap[label]?.value ?? 0,
+      price: ageingMap[label]?.price ?? 0,
+    }));
 
     return {
       kpis: {
@@ -49,6 +55,7 @@ export function createDashboardService({ repositories }) {
       ageingDistribution,
       recentGrns,
       recentDispatches,
+      duplicateBaseSerials,
       asOf: new Date().toISOString(),
     };
   }

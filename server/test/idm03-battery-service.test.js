@@ -84,6 +84,21 @@ describe("IDM-03 battery pre-billing service", () => {
     expect(repositories.calls.appendEvent[0]).toMatchObject({ eventType: "PRE_BILLING", referenceId: 10 });
   });
 
+  test("forwards the operator's selected product as expectedProductId to validation", async () => {
+    const repositories = createRepositories();
+    const service = createBatteryPreBillingService({ repositories });
+
+    await service.commitSerial({
+      invoiceId: 100,
+      serialNo: "EB100-0001",
+      productId: 7,
+      userId: "operator_1",
+      userWarehouseIds: [3]
+    });
+
+    expect(repositories.calls.validate).toMatchObject({ contextType: "BATTERY", expectedProductId: 7 });
+  });
+
   test("rejects when the serial's product is not a battery line on the invoice", async () => {
     const repositories = createRepositories({ batteryLine: null });
     const service = createBatteryPreBillingService({ repositories });

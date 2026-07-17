@@ -31,6 +31,18 @@ describe("development seed data", () => {
     expect(seedSource).toContain("INV-002 lines: 2x Microtek Inverter 2KVA, 2x Microtek Solar Panel 500W, 1x Microtek Charge Controller");
   });
 
+  test("seeds a dedicated TRANSFER invoice carrying its own warehouse route", () => {
+    // V030: transfer invoices are a distinct kind from customer invoices —
+    // they carry invoice_type TRANSFER plus a source/destination route that
+    // the warehouse transfer flow validates against.
+    expect(seedSource).toContain("MTK-INVOICE-TRANSFER-001");
+    expect(seedSource).toContain('invoiceType: "TRANSFER"');
+    expect(seedSource).toContain("TRANSFER RW-01 → RW-02");
+    expect(seedSource).toContain("destination_warehouse_id");
+    // The seed exposes the transfer invoice ids for teardown/tests.
+    expect(seedSource).toContain("transferInvoiceId: transferInvoice.invoiceId");
+  });
+
   test("uses realistic Microtek product codes and serial identifiers", () => {
     expect(seedSource).not.toMatch(/DEMO-/);
     expect(seedSource).not.toMatch(/SKU-/);

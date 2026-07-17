@@ -11,34 +11,38 @@ export function createSapDispatchRepository(pool) {
       sapDispatchLineId: toNumber(row.sapDispatchLineId),
       serialId: toNumber(row.serialId),
       productId: toNumber(row.productId),
+      invoiceId: toNumber(row.invoiceId),
       sourceWarehouseId: toNumber(row.sourceWarehouseId),
       destinationWarehouseId: toNumber(row.destinationWarehouseId)
     };
   }
 
   return {
-    async upsertDoc({ externalRef, sourceWarehouseId, destinationWarehouseId, batchId, createdBy }) {
+    async upsertDoc({ externalRef, sourceWarehouseId, destinationWarehouseId, batchId, invoiceId, createdBy }) {
       const result = await pool.query(
         `INSERT INTO sap_dispatch_doc (
            external_ref,
            source_warehouse_id,
            destination_warehouse_id,
            batch_id,
+           invoice_id,
            created_by
          )
-         VALUES ($1, $2, $3, $4, $5)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (external_ref) DO UPDATE
          SET source_warehouse_id = COALESCE(EXCLUDED.source_warehouse_id, sap_dispatch_doc.source_warehouse_id),
              destination_warehouse_id = EXCLUDED.destination_warehouse_id,
              batch_id = COALESCE(EXCLUDED.batch_id, sap_dispatch_doc.batch_id),
+             invoice_id = COALESCE(EXCLUDED.invoice_id, sap_dispatch_doc.invoice_id),
              updated_at = now(),
              updated_by = EXCLUDED.created_by
          RETURNING
            sap_dispatch_doc_id AS "sapDispatchDocId",
            external_ref AS "externalRef",
            source_warehouse_id AS "sourceWarehouseId",
-           destination_warehouse_id AS "destinationWarehouseId"`,
-        [externalRef, sourceWarehouseId ?? null, destinationWarehouseId, batchId ?? null, createdBy]
+           destination_warehouse_id AS "destinationWarehouseId",
+           invoice_id AS "invoiceId"`,
+        [externalRef, sourceWarehouseId ?? null, destinationWarehouseId, batchId ?? null, invoiceId ?? null, createdBy]
       );
 
       return mapDispatch(result.rows[0]);
@@ -74,6 +78,7 @@ export function createSapDispatchRepository(pool) {
            external_ref AS "externalRef",
            source_warehouse_id AS "sourceWarehouseId",
            destination_warehouse_id AS "destinationWarehouseId",
+           invoice_id AS "invoiceId",
            status
          FROM sap_dispatch_doc
          WHERE sap_dispatch_doc_id = $1`,
@@ -92,6 +97,7 @@ export function createSapDispatchRepository(pool) {
            external_ref AS "externalRef",
            source_warehouse_id AS "sourceWarehouseId",
            destination_warehouse_id AS "destinationWarehouseId",
+           invoice_id AS "invoiceId",
            status
          FROM sap_dispatch_doc
          WHERE sap_dispatch_doc_id = $1
@@ -106,6 +112,21 @@ export function createSapDispatchRepository(pool) {
       const result = await pool.query(
         `SELECT COUNT(*)::int AS count FROM sap_dispatch_line WHERE sap_dispatch_doc_id = $1`,
         [sapDispatchDocId]
+      );
+
+      return result.rows[0]?.count ?? 0;
+    },
+
+    // Counts serials of one product already scanned into this transfer doc, so the
+    // transfer service can cap scans of a product at the gating invoice's quantity
+    // for that product (mirror of dispatch's per-line cap; the transfer schema has
+    // no invoice_line_id on its lines, so the cap is aggregated per product).
+    async countLinesByProduct(sapDispatchDocId, productId) {
+      const result = await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM sap_dispatch_line
+         WHERE sap_dispatch_doc_id = $1 AND product_id = $2`,
+        [sapDispatchDocId, productId]
       );
 
       return result.rows[0]?.count ?? 0;

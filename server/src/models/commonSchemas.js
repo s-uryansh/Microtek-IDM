@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-export const serialPattern = /^[A-Z0-9][A-Z0-9._/-]{5,79}$/;
+// Accepts both a raw scanned base serial ("SKU-110E") and the stored composed
+// serial ("INVERTER_1KVA_SKU-110E", see V027) — underscore is explicit and the
+// upper bound matches serial_master.serial_no VARCHAR(255).
+export const serialPattern = /^[A-Z0-9][A-Z0-9_./-]{5,254}$/;
 
 export const serialNoSchema = z.string().trim().regex(serialPattern);
 export const positiveIntegerSchema = z.number().int().positive();

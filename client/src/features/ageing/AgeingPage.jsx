@@ -16,6 +16,15 @@ function formatInr(value) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(number);
 }
 
+/* Ageing dates are reported at month granularity (MM/YYYY) rather than DD/MM/YYYY. */
+function formatMonthYear(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${month}/${d.getFullYear()}`;
+}
+
 const columns = [
   { key: "label", label: "Age Bucket" },
   { key: "quantity", label: "Quantity" },
@@ -43,6 +52,7 @@ const productColumns = [
     render: (value) => <span className="badge">{value || "—"}</span>
   },
   { key: "age", label: "Age" },
+  { key: "received", label: "Received", render: (_value, row) => formatMonthYear(row.receivedAt) },
   { key: "price", label: "Price", render: formatInr }
 ];
 
@@ -62,6 +72,7 @@ const AGEING_CSV_COLUMNS = [
   { key: "productName", label: "Product Name" },
   { key: "category", label: "Category" },
   { key: "age", label: "Age" },
+  { key: "received", label: "Received (MM/YYYY)" },
   { key: "price", label: "Price" },
   { key: "bucketLabel", label: "Age Bucket" }
 ];
@@ -71,6 +82,7 @@ function toAgeingCsvRow(item, bucketLabel) {
     ...item,
     category: item.category || item.segment || "—",
     age: item.ageDays !== null && item.ageDays !== undefined ? `${item.ageDays}d` : "—",
+    received: formatMonthYear(item.receivedAt),
     bucketLabel
   };
 }

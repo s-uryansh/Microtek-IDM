@@ -83,6 +83,7 @@ export function createGrnRoutes({ grnService }) {
         const result = await grnService.scanSerial({
           grnId: parseId(request.params.grnId),
           serialNo: request.body.serialNo,
+          productId: parseId(request.body.productId) ?? undefined,
           userId: request.auth.userId
         });
         response.status(result.valid ? 201 : 200).json(result);

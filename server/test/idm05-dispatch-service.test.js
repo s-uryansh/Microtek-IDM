@@ -103,7 +103,8 @@ function createRepositories({
       }
     },
     validationService: {
-      async validateSerial() {
+      async validateSerial(request) {
+        calls.validate = request;
         return validationResult;
       }
     },
@@ -150,6 +151,31 @@ describe("IDM-05 dispatch service", () => {
       warehouseId: 5,
       createdBy: "operator_1"
     });
+  });
+
+  test("rejects a TRANSFER invoice as the gate for a customer dispatch", async () => {
+    // Since V030 transfer invoices are a distinct kind (they carry a
+    // source/destination route); the customer dispatch flow must refuse them.
+    const repositories = createRepositories({
+      invoice: {
+        invoiceId: 100,
+        warehouseId: 5,
+        status: "PENDING",
+        invoiceType: "TRANSFER",
+        sourceWarehouseId: 5,
+        destinationWarehouseId: 6,
+        lines: [{ invoiceLineId: 200, productId: 7, quantity: 2 }]
+      }
+    });
+    const service = createDispatchService({
+      repositories,
+      fulfilmentStatusService: createFulfilmentStatusService()
+    });
+
+    await expect(
+      service.startDispatch({ invoiceId: 100, warehouseId: 5, userId: "operator_1" })
+    ).rejects.toMatchObject({ status: 409, code: "INVOICE_TYPE_MISMATCH" });
+    expect(repositories.calls.createDispatch).toHaveLength(0);
   });
 
   test("dispatches the full remaining invoice quantity when stock is sufficient", async () => {
@@ -616,6 +642,39 @@ describe("IDM-05 dispatch service", () => {
     expect(result.alert.ruleCode).toBe("PRODUCT_INVOICE_MISMATCH");
     expect(repositories.calls.insertScan).toHaveLength(0);
     expect(repositories.calls.updateSerial).toHaveLength(0);
+  });
+
+  test("forwards the operator's selected product as expectedProductId to validation", async () => {
+    const dispatch = {
+      dispatchId: 10,
+      invoiceId: 100,
+      warehouseId: 5,
+      status: "PENDING",
+      lines: [{ invoiceLineId: 200, productId: 7, quantity: 1 }],
+      scans: []
+    };
+    const repositories = createRepositories({
+      dispatch,
+      validationResult: {
+        valid: true,
+        serial: { serialId: 1, serialNo: "MTK1234567890", productId: 7, currentStatus: "IN_STOCK", currentWarehouseId: 5 },
+        alert: null,
+        exception: null
+      }
+    });
+    const service = createDispatchService({
+      repositories,
+      fulfilmentStatusService: createFulfilmentStatusService()
+    });
+
+    await service.scanSerial({
+      dispatchId: 10,
+      serialNo: "MTK1234567890",
+      productId: 7,
+      userId: "operator_1"
+    });
+
+    expect(repositories.calls.validate).toMatchObject({ contextType: "DISPATCH", expectedProductId: 7 });
   });
 
   test("does not append dispatch events when a duplicate scan is detected", async () => {

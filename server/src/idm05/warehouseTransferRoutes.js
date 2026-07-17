@@ -44,6 +44,7 @@ export function createWarehouseTransferRoutes({ warehouseTransferService }) {
           sourceWarehouseId: request.body.warehouseId,
           destinationWarehouseId: request.body.destinationWarehouseId,
           reference: request.body.reference,
+          invoiceId: request.body.invoiceId,
           userId: request.auth.userId
         });
         response.status(201).json(result);
@@ -66,10 +67,13 @@ export function createWarehouseTransferRoutes({ warehouseTransferService }) {
       try {
         const sapDispatchDocId = parseTransferId(request);
         const sourceWarehouseId = await warehouseTransferService.getTransferWarehouseId(sapDispatchDocId);
+        const parsedProductId = Number.parseInt(request.body.productId, 10);
         const result = await warehouseTransferService.scanSerial({
           sapDispatchDocId,
           sourceWarehouseId,
           serialNo: request.body.serialNo,
+          // Optional product-first context (see GRN/dispatch). Omitted keeps legacy behaviour.
+          productId: Number.isInteger(parsedProductId) && parsedProductId > 0 ? parsedProductId : undefined,
           userId: request.auth.userId
         });
         response.status(result.valid ? 201 : 200).json(result);

@@ -3,7 +3,11 @@ const foundationPermissionsByRole = new Map([
       "admin",
     new Set([
       "foundation:read",
-      "integration:import",
+      // TEMPORARILY HIDDEN: IDM-01 "Import SAP data" (integration:import) is not
+      // shipped yet (Import Production module hidden in Sidebar). Keeping it out of
+      // this set drops it from availablePermissionCodes, so it no longer appears in
+      // Role management or can be assigned. Restore this line when IDM-01 ships.
+      // "integration:import",
       "serial:validate",
       "dispatch:write",
       "grn:write",

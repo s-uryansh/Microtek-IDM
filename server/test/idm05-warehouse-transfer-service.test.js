@@ -2,19 +2,37 @@ import { describe, expect, test } from "vitest";
 
 import { createWarehouseTransferService } from "../src/idm05/warehouseTransferService.js";
 
+// A transfer is now invoice-gated (Finding #3) exactly like a customer dispatch,
+// so every startTransfer needs an invoice that findById can resolve, and each
+// scanned product is capped by that invoice's line quantities. The default
+// invoice authorises product 7 (used by the scan tests) with ample quantity.
+// Since V030, transfer invoices are a distinct kind: they must carry
+// invoiceType "TRANSFER" and their own source/destination route, which has to
+// match the transfer being started.
+const DEFAULT_INVOICE = {
+  invoiceId: 100,
+  invoiceType: "TRANSFER",
+  sourceWarehouseId: 1,
+  destinationWarehouseId: 2,
+  lines: [{ productId: 7, quantity: 10 }]
+};
+
 function createRepositories({
   existingDoc = null,
   upsertResult,
   validationResult,
   lineCount = 0,
   insertLineResult,
-  updateSerialResult = true
+  updateSerialResult = true,
+  invoice = DEFAULT_INVOICE,
+  scannedByProduct = {}
 } = {}) {
   const calls = {
     findDocByRef: [],
     upsertDoc: [],
     lockDoc: [],
     countLines: [],
+    countLinesByProduct: [],
     updateSerial: [],
     insertLine: [],
     appendEvent: [],
@@ -53,6 +71,10 @@ function createRepositories({
         calls.countLines.push(sapDispatchDocId);
         return lineCount;
       },
+      async countLinesByProduct(sapDispatchDocId, productId) {
+        calls.countLinesByProduct.push({ sapDispatchDocId, productId });
+        return scannedByProduct[productId] ?? 0;
+      },
       async insertLine(input) {
         calls.insertLine.push(input);
         if (insertLineResult === null) return null;
@@ -60,6 +82,11 @@ function createRepositories({
       },
       async findById(sapDispatchDocId) {
         return existingDoc?.sapDispatchDocId === sapDispatchDocId ? existingDoc : null;
+      }
+    },
+    invoices: {
+      async findById(invoiceId) {
+        return invoice?.invoiceId === invoiceId ? invoice : null;
       }
     },
     serials: {
@@ -96,6 +123,7 @@ describe("IDM-05 warehouse transfer service", () => {
       sourceWarehouseId: 1,
       destinationWarehouseId: 2,
       reference: "",
+      invoiceId: 100,
       userId: "operator_1"
     });
 
@@ -104,6 +132,7 @@ describe("IDM-05 warehouse transfer service", () => {
       sourceWarehouseId: 1,
       destinationWarehouseId: 2,
       batchId: null,
+      invoiceId: 100,
       createdBy: "operator_1"
     });
     expect(repositories.calls.upsertDoc[0].externalRef).toMatch(/^WT-1-2-/);
@@ -117,6 +146,7 @@ describe("IDM-05 warehouse transfer service", () => {
       sourceWarehouseId: 1,
       destinationWarehouseId: 2,
       reference: "  NOTE-42  ",
+      invoiceId: 100,
       userId: "operator_1"
     });
 
@@ -150,6 +180,7 @@ describe("IDM-05 warehouse transfer service", () => {
       sourceWarehouseId: 1,
       destinationWarehouseId: 2,
       reference: "NOTE-42",
+      invoiceId: 100,
       userId: "operator_1"
     });
 
@@ -170,7 +201,7 @@ describe("IDM-05 warehouse transfer service", () => {
     const service = createWarehouseTransferService({ repositories });
 
     await expect(
-      service.startTransfer({ sourceWarehouseId: 1, destinationWarehouseId: 2, reference: "NOTE-42", userId: "operator_1" })
+      service.startTransfer({ sourceWarehouseId: 1, destinationWarehouseId: 2, reference: "NOTE-42", invoiceId: 100, userId: "operator_1" })
     ).rejects.toMatchObject({ status: 409, code: "REFERENCE_IN_USE" });
     expect(repositories.calls.upsertDoc).toHaveLength(0);
   });
@@ -188,8 +219,127 @@ describe("IDM-05 warehouse transfer service", () => {
     const service = createWarehouseTransferService({ repositories });
 
     await expect(
-      service.startTransfer({ sourceWarehouseId: 1, destinationWarehouseId: 2, reference: "NOTE-42", userId: "operator_1" })
+      service.startTransfer({ sourceWarehouseId: 1, destinationWarehouseId: 2, reference: "NOTE-42", invoiceId: 100, userId: "operator_1" })
     ).rejects.toMatchObject({ status: 409, code: "ALREADY_RECEIVED" });
+  });
+
+  test("rejects a transfer that is not backed by an invoice", async () => {
+    const repositories = createRepositories();
+    const service = createWarehouseTransferService({ repositories });
+
+    await expect(
+      service.startTransfer({ sourceWarehouseId: 1, destinationWarehouseId: 2, reference: "", userId: "operator_1" })
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION_ERROR" });
+    expect(repositories.calls.upsertDoc).toHaveLength(0);
+  });
+
+  test("rejects a transfer whose invoice does not exist", async () => {
+    const repositories = createRepositories();
+    const service = createWarehouseTransferService({ repositories });
+
+    await expect(
+      service.startTransfer({
+        sourceWarehouseId: 1,
+        destinationWarehouseId: 2,
+        reference: "",
+        invoiceId: 999,
+        userId: "operator_1"
+      })
+    ).rejects.toMatchObject({ status: 404 });
+    expect(repositories.calls.upsertDoc).toHaveLength(0);
+  });
+
+  test("rejects a customer invoice as the gate for a warehouse transfer", async () => {
+    const repositories = createRepositories({
+      invoice: {
+        invoiceId: 100,
+        invoiceType: "CUSTOMER",
+        sourceWarehouseId: 1,
+        destinationWarehouseId: null,
+        lines: [{ productId: 7, quantity: 10 }]
+      }
+    });
+    const service = createWarehouseTransferService({ repositories });
+
+    await expect(
+      service.startTransfer({
+        sourceWarehouseId: 1,
+        destinationWarehouseId: 2,
+        reference: "",
+        invoiceId: 100,
+        userId: "operator_1"
+      })
+    ).rejects.toMatchObject({ status: 409, code: "INVOICE_TYPE_MISMATCH" });
+    expect(repositories.calls.upsertDoc).toHaveLength(0);
+  });
+
+  test("rejects a transfer invoice whose route does not match the transfer", async () => {
+    // Invoice authorises 1 -> 2, but the operator tries to run 1 -> 3 with it.
+    const repositories = createRepositories();
+    const service = createWarehouseTransferService({ repositories });
+
+    await expect(
+      service.startTransfer({
+        sourceWarehouseId: 1,
+        destinationWarehouseId: 3,
+        reference: "",
+        invoiceId: 100,
+        userId: "operator_1"
+      })
+    ).rejects.toMatchObject({ status: 409, code: "TRANSFER_ROUTE_MISMATCH" });
+    expect(repositories.calls.upsertDoc).toHaveLength(0);
+  });
+
+  test("rejects a scanned serial whose product is not on the transfer invoice", async () => {
+    const repositories = createRepositories({
+      existingDoc: { sapDispatchDocId: 50, invoiceId: 100, sourceWarehouseId: 1, destinationWarehouseId: 2 },
+      validationResult: {
+        valid: true,
+        // Product 99 is absent from the default invoice (which only authorises product 7).
+        serial: { serialId: 1, serialNo: "MTK1234567890", productId: 99, currentStatus: "IN_STOCK", currentWarehouseId: 1 },
+        alert: null,
+        exception: null
+      }
+    });
+    const service = createWarehouseTransferService({ repositories });
+
+    const result = await service.scanSerial({
+      sapDispatchDocId: 50,
+      sourceWarehouseId: 1,
+      serialNo: "MTK1234567890",
+      userId: "operator_1"
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.alert.ruleCode).toBe("PRODUCT_INVOICE_MISMATCH");
+    expect(repositories.calls.updateSerial).toHaveLength(0);
+    expect(repositories.calls.insertLine).toHaveLength(0);
+  });
+
+  test("rejects a scanned serial once the invoice line quantity is exhausted", async () => {
+    const repositories = createRepositories({
+      existingDoc: { sapDispatchDocId: 50, invoiceId: 100, sourceWarehouseId: 1, destinationWarehouseId: 2 },
+      // Product 7 is authorised for 10 units; 10 are already scanned, so the cap is spent.
+      scannedByProduct: { 7: 10 },
+      validationResult: {
+        valid: true,
+        serial: { serialId: 1, serialNo: "MTK1234567890", productId: 7, currentStatus: "IN_STOCK", currentWarehouseId: 1 },
+        alert: null,
+        exception: null
+      }
+    });
+    const service = createWarehouseTransferService({ repositories });
+
+    const result = await service.scanSerial({
+      sapDispatchDocId: 50,
+      sourceWarehouseId: 1,
+      serialNo: "MTK1234567890",
+      userId: "operator_1"
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.alert.ruleCode).toBe("PRODUCT_INVOICE_MISMATCH");
+    expect(repositories.calls.insertLine).toHaveLength(0);
   });
 
   test("scans a serial out of the source warehouse and creates a dispatch line", async () => {

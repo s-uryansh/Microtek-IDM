@@ -52,6 +52,9 @@ export function createSrnRoutes({ srnService }) {
           invoiceId: request.body.invoiceId ? Number.parseInt(request.body.invoiceId, 10) : null,
           returnProductIds: request.body.returnProductIds,
           expectedQuantity: Number.isInteger(expectedQuantity) && expectedQuantity > 0 ? expectedQuantity : null,
+          // Operator's up-front answer to "does this return contain products that
+          // were not on the original dispatch?" — admits foreign stock when true.
+          allowsForeignStock: request.body.allowsForeignStock === true,
           userId: request.auth.userId
         });
         response.status(201).json(result);
@@ -72,10 +75,13 @@ export function createSrnRoutes({ srnService }) {
     requireSrnWarehouseScope,
     async (request, response, next) => {
       try {
+        const parsedProductId = Number.parseInt(request.body.productId, 10);
         const result = await srnService.scanReturn({
           srnId: parseId(request.params.srnId),
           serialNo: request.body.serialNo,
           conditionTag: request.body.conditionTag,
+          // Optional product-first context (see GRN). Omitted keeps legacy behaviour.
+          productId: Number.isInteger(parsedProductId) && parsedProductId > 0 ? parsedProductId : undefined,
           userId: request.auth.userId
         });
         response.status(result.valid ? 201 : 200).json(result);

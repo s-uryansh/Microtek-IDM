@@ -6,17 +6,22 @@ import { normalizeText, csvCellValue, csvNumber, csvInteger, csvDate } from "./s
 // Flat CSV: one row per invoice line, with the invoice header columns repeated on
 // every line of the same invoice (grouped on import by sap_invoice_ref).
 const INVOICE_CSV_HEADERS = [
-  "sap_invoice_ref", "status",
+  "sap_invoice_ref", "status", "invoice_type", "source_warehouse", "destination_warehouse",
   "order_id", "customer_name", "customer_code", "billing_date", "billing_number", "division",
   "total_sale_qty", "item_total", "total_amt", "transport_name", "lr_no", "lr_date",
   "dispatch_date", "delivery_date", "sales_order_qty", "pod_status",
   "line_no", "material_code", "bill_qty", "uom", "amount", "pod_section", "pod_document"
 ];
 
+const INVOICE_TYPES = ["CUSTOMER", "TRANSFER"];
+
 function invoiceHeaderCells(inv) {
   return [
     inv.sapInvoiceRef,
     inv.status,
+    inv.invoiceType,
+    inv.sourceWarehouseCode,
+    inv.destinationWarehouseCode,
     inv.orderId,
     inv.customerName,
     inv.customerCode,
@@ -140,9 +145,65 @@ export function createInvoiceService({ adminRepo }) {
       for (const [ref, group] of groups) {
         const header = group.headerRow;
         try {
+          const invoiceType = normalizeText(header.invoice_type).toUpperCase() || "CUSTOMER";
+          if (!INVOICE_TYPES.includes(invoiceType)) {
+            errors.push({
+              row: group.headerRowNum,
+              message: `${ref}: invoice_type must be one of ${INVOICE_TYPES.join(", ")}`
+            });
+            continue;
+          }
+
+          const sourceCode = normalizeText(header.source_warehouse);
+          const destinationCode = normalizeText(header.destination_warehouse);
+          let sourceWarehouseId = null;
+          let destinationWarehouseId = null;
+
+          if (invoiceType === "TRANSFER") {
+            // A TRANSFER invoice must carry its route: stock leaves the source
+            // warehouse and is received at the destination warehouse (V030).
+            if (!sourceCode || !destinationCode) {
+              errors.push({
+                row: group.headerRowNum,
+                message: `${ref}: TRANSFER invoices require source_warehouse and destination_warehouse`
+              });
+              continue;
+            }
+            const source = await adminRepo.getWarehouseByCode(sourceCode);
+            if (!source) {
+              errors.push({ row: group.headerRowNum, message: `${ref}: Unknown source_warehouse: ${sourceCode}` });
+              continue;
+            }
+            const destination = await adminRepo.getWarehouseByCode(destinationCode);
+            if (!destination) {
+              errors.push({ row: group.headerRowNum, message: `${ref}: Unknown destination_warehouse: ${destinationCode}` });
+              continue;
+            }
+            if (source.warehouseId === destination.warehouseId) {
+              errors.push({
+                row: group.headerRowNum,
+                message: `${ref}: source_warehouse and destination_warehouse must be different`
+              });
+              continue;
+            }
+            sourceWarehouseId = source.warehouseId;
+            destinationWarehouseId = destination.warehouseId;
+          } else if (sourceCode || destinationCode) {
+            // Customer invoices never carry a route — the warehouse is picked at
+            // dispatch time, so a route here is almost certainly a mistake.
+            errors.push({
+              row: group.headerRowNum,
+              message: `${ref}: CUSTOMER invoices must not set source_warehouse/destination_warehouse`
+            });
+            continue;
+          }
+
           const invoice = await adminRepo.upsertInvoice({
             sapInvoiceRef: ref,
             status: normalizeText(header.status).toUpperCase() || "PENDING",
+            invoiceType,
+            sourceWarehouseId,
+            destinationWarehouseId,
             orderId: normalizeText(header.order_id) || null,
             customerName: normalizeText(header.customer_name) || null,
             customerCode: normalizeText(header.customer_code) || null,

@@ -72,6 +72,22 @@ export function createWarehouseRepository(pool) {
       return result.rows[0] ?? null;
     },
 
+    async getWarehouseByCode(code) {
+      const result = await pool.query(
+        `
+        SELECT
+          w.warehouse_id AS "warehouseId",
+          w.code,
+          w.name,
+          w.type,
+          w.is_active AS "isActive"
+        FROM warehouse w
+        WHERE UPPER(w.code) = UPPER($1)`,
+        [code]
+      );
+      return result.rows[0] ?? null;
+    },
+
     async createWarehouse({ code, name, type, createdBy }) {
       const result = await pool.query(
         `
@@ -103,14 +119,6 @@ export function createWarehouseRepository(pool) {
           type,
           is_active AS "isActive"`,
         [warehouseId, isActive, updatedBy]
-      );
-      return result.rows[0] ?? null;
-    },
-
-    async getWarehouseByCode(code) {
-      const result = await pool.query(
-        `SELECT warehouse_id AS "warehouseId", code FROM warehouse WHERE code = $1`,
-        [code]
       );
       return result.rows[0] ?? null;
     }

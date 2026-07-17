@@ -58,10 +58,43 @@ function ExpectedItems({ items }) {
   );
 }
 
+// Product-first selection. The user picks which invoice-listed product they are
+// about to scan (e.g. Inverter vs Controller) before scanning its serials, so the
+// backend can scope each scan to that product line.
+function ProductPicker({ items, selectedProductId, onSelect }) {
+  const rows = Array.isArray(items) ? items : [];
+  if (rows.length === 0) return null;
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+      {rows.map((item) => {
+        const active = item.productId === selectedProductId;
+        const received = safeNumber(item.receivedQty);
+        const expected = safeNumber(item.expectedQty);
+        return (
+          <button
+            key={`${item.productId}-${item.batchNo ?? ""}`}
+            type="button"
+            className={`button ${active ? "button--primary" : "button--secondary"}`}
+            onClick={() => onSelect(item.productId)}
+            style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.125rem" }}
+          >
+            <span style={{ fontWeight: 600 }}>{item.productName}</span>
+            <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>
+              {item.productCode} · {received}/{expected}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function GRNPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [dispatchRef, setDispatchRef] = useState("");
   const [session, setSession] = useState(null);
+  const [selectedProductId, setSelectedProductId] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -93,7 +126,7 @@ export function GRNPage() {
   }
 
   async function handleScan(serialNo) {
-    const result = (await scanGrnSerial({ grnId: session?.grnId, serialNo })) || {};
+    const result = (await scanGrnSerial({ grnId: session?.grnId, serialNo, productId: selectedProductId })) || {};
     if (result.valid) {
       await refreshExpected();
       return { status: result.matchStatus || "MATCHED", message: "Serial received", state: "success" };
@@ -132,6 +165,18 @@ export function GRNPage() {
           <ExpectedItems items={session.expectedProducts} />
         </Card>
 
+        <Card title="Which product are you scanning?">
+          <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", marginTop: 0 }}>
+            Select the product line before scanning its serials. Each scan is saved to the
+            inventory immediately, so an interrupted session keeps everything already scanned.
+          </p>
+          <ProductPicker
+            items={session.expectedProducts}
+            selectedProductId={selectedProductId}
+            onSelect={setSelectedProductId}
+          />
+        </Card>
+
         <Card title={`GRN #${session.grnId ?? "—"}`}>
           <ScanSession
             module="GRN"
@@ -140,6 +185,13 @@ export function GRNPage() {
             onComplete={session.status !== "CLOSED" ? handleComplete : undefined}
             completed={session.status === "CLOSED"}
             scanCount={safeNumber(session.summary?.scannedCount)}
+            disabled={
+              session.status !== "CLOSED"
+              && Array.isArray(session.expectedProducts)
+              && session.expectedProducts.length > 0
+              && selectedProductId == null
+            }
+            disabledMessage="Select a product above before scanning serials."
           />
         </Card>
         <ConfirmDialog

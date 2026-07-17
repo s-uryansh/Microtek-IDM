@@ -7,9 +7,10 @@ async function seedInvoiceRow(client, ref, header, status = "PENDING") {
       sap_invoice_ref, status,
       order_id, customer_name, customer_code, billing_date, billing_number, division,
       total_sale_qty, item_total, total_amt, transport_name, lr_no, lr_date,
-      dispatch_date, delivery_date, sales_order_qty, pod_status, created_by
+      dispatch_date, delivery_date, sales_order_qty, pod_status,
+      invoice_type, source_warehouse_id, destination_warehouse_id, created_by
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
     ON CONFLICT (sap_invoice_ref) DO UPDATE
     SET status = EXCLUDED.status,
         order_id = EXCLUDED.order_id, customer_name = EXCLUDED.customer_name,
@@ -20,6 +21,9 @@ async function seedInvoiceRow(client, ref, header, status = "PENDING") {
         lr_no = EXCLUDED.lr_no, lr_date = EXCLUDED.lr_date,
         dispatch_date = EXCLUDED.dispatch_date, delivery_date = EXCLUDED.delivery_date,
         sales_order_qty = EXCLUDED.sales_order_qty, pod_status = EXCLUDED.pod_status,
+        invoice_type = EXCLUDED.invoice_type,
+        source_warehouse_id = EXCLUDED.source_warehouse_id,
+        destination_warehouse_id = EXCLUDED.destination_warehouse_id,
         updated_at = now(), updated_by = EXCLUDED.created_by
     RETURNING invoice_id AS "invoiceId"`,
     [
@@ -29,7 +33,10 @@ async function seedInvoiceRow(client, ref, header, status = "PENDING") {
       header.totalSaleQty ?? null, header.itemTotal ?? null, header.totalAmt ?? null,
       header.transportName ?? null, header.lrNo ?? null, header.lrDate ?? null,
       header.dispatchDate ?? null, header.deliveryDate ?? null, header.salesOrderQty ?? null,
-      header.podStatus ?? null, createdBy
+      header.podStatus ?? null,
+      header.invoiceType ?? "CUSTOMER",
+      header.sourceWarehouseId ?? null, header.destinationWarehouseId ?? null,
+      createdBy
     ]
   );
 }
@@ -367,6 +374,44 @@ export async function seedInvoicesAndDispatch(client, { warehouses, products, se
     podDocument: "POD-559345.pdf"
   });
 
+  /* ── Invoice 9: MTK-INVOICE-TRANSFER-001, TRANSFER RW-01 → RW-02 ──
+     Unlike customer invoices, a TRANSFER invoice carries its route: stock
+     leaves source_warehouse_id and is received at destination_warehouse_id
+     via GRN (V030). Used by warehouse-transfer tests and the transfer panel. */
+  const transferInvoice = await seedInvoiceRow(client, "MTK-INVOICE-TRANSFER-001", {
+    invoiceType: "TRANSFER",
+    sourceWarehouseId: warehouses["RW-01"],
+    destinationWarehouseId: warehouses["RW-02"],
+    orderId: "STO-2026-0001",
+    customerName: "Microtek Regional Warehouse 02",
+    customerCode: "RW-02",
+    billingDate: "2026-06-01",
+    billingNumber: "BILL-2026-0009",
+    division: "POWER PRODUCTS",
+    totalSaleQty: 3,
+    itemTotal: 2,
+    totalAmt: 0,
+    transportName: "Microtek Fleet",
+    lrNo: "LR-559456",
+    lrDate: "2026-06-02",
+    dispatchDate: "2026-06-02",
+    deliveryDate: "2026-06-04",
+    salesOrderQty: 3,
+    podStatus: "PENDING"
+  });
+  const transferLine1 = await seedInvoiceLineRow(client, transferInvoice.invoiceId, 1, products["MTK-INVERTER-1KVA"], 2, {
+    uom: "NOS",
+    amount: null,
+    podSection: "SEC-A",
+    podDocument: null
+  });
+  const transferLine2 = await seedInvoiceLineRow(client, transferInvoice.invoiceId, 2, products["MTK-BATTERY-100AH"], 1, {
+    uom: "NOS",
+    amount: null,
+    podSection: "SEC-A",
+    podDocument: null
+  });
+
   return {
     invoiceId: invoice1.invoiceId,
     invoiceLineId: inv1Line1.invoiceLineId,
@@ -395,6 +440,9 @@ export async function seedInvoicesAndDispatch(client, { warehouses, products, se
     invoice6Id: invoice6.invoiceId,
     inv6Line1Id: inv6Line1.invoiceLineId,
     inv6Line2Id: inv6Line2.invoiceLineId,
-    inv6Line3Id: inv6Line3.invoiceLineId
+    inv6Line3Id: inv6Line3.invoiceLineId,
+    transferInvoiceId: transferInvoice.invoiceId,
+    transferLine1Id: transferLine1.invoiceLineId,
+    transferLine2Id: transferLine2.invoiceLineId
   };
 }

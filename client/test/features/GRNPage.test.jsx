@@ -56,8 +56,12 @@ describe("GRNPage — happy path", () => {
     expect(screen.getByText("Start GRN Session")).toBeVisible();
     await startSession();
     await waitFor(() => expect(screen.getByText(/GRN #1/)).toBeVisible());
-    // Expected items show product details, not serials.
-    expect(screen.getByText("Inverter 1KVA")).toBeVisible();
+    // Expected items show product details, not serials. The product name
+    // now also appears in the "which product are you scanning?" picker, so
+    // there are two matches — the expected-items row and the picker button.
+    const productMatches = screen.getAllByText("Inverter 1KVA");
+    expect(productMatches.length).toBeGreaterThanOrEqual(1);
+    productMatches.forEach((el) => expect(el).toBeVisible());
     expect(createMock).toHaveBeenCalledWith({ warehouseId: 3, dispatchRef: "DISP-1" });
   });
 });

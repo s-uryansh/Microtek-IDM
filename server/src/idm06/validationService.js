@@ -6,7 +6,9 @@ const messages = {
   ALREADY_DISPATCHED: "Serial has already been dispatched.",
   WRONG_WAREHOUSE: "Serial belongs to a different warehouse."
   ,
-  PRODUCT_INVOICE_MISMATCH: "Serial product does not match the invoice line."
+  PRODUCT_INVOICE_MISMATCH: "Serial product does not match the invoice line.",
+  AMBIGUOUS_SERIAL:
+    "Serial matches multiple products; scan the full product-prefixed serial or select the product first."
 };
 
 function toPublicSerial(serial) {
@@ -65,10 +67,18 @@ export function createValidationService({ repositories }) {
       }
 
       const request = parsed.data;
-      const serial = await repositories.serials.findBySerialNo(request.serialNo);
+      // Pass the product hint so a base serial shared by several products resolves
+      // to the right row (operators scan the raw base serial — see V027).
+      const serial = await repositories.serials.findBySerialNo(request.serialNo, {
+        productId: request.expectedProductId
+      });
 
       if (!serial) {
         return fail({ request, ruleCode: "NOT_FOUND" });
+      }
+
+      if (serial.ambiguous) {
+        return fail({ request, ruleCode: "AMBIGUOUS_SERIAL" });
       }
 
       if (serial.currentStatus === "DISPATCHED" && request.contextType !== "SRN") {

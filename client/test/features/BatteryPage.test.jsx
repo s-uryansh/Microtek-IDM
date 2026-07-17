@@ -39,6 +39,8 @@ async function loadInvoice() {
   fireEvent.change(screen.getByLabelText("Invoice ID"), { target: { value: "2" } });
   fireEvent.click(screen.getByRole("button", { name: "Load" }));
   await waitFor(() => expect(screen.getByText(/MTK-INVOICE-BATTERY-001/)).toBeVisible());
+  // Product-first commit: pick the battery product before serials can be scanned.
+  fireEvent.click(screen.getByRole("button", { name: /Microtek Battery 100AH/ }));
 }
 
 beforeEach(() => {
@@ -52,14 +54,15 @@ describe("BatteryPage", () => {
     renderPage();
     await loadInvoice();
 
-    expect(screen.getByText(/Microtek Battery 100AH/)).toBeVisible();
+    // Product name now appears in both the invoice items panel and the product picker.
+    expect(screen.getAllByText(/Microtek Battery 100AH/)[0]).toBeVisible();
 
     commitMock.mockResolvedValue({ valid: true, status: "COMMITTED" });
     fireEvent.change(screen.getByLabelText("Scan Serial"), { target: { value: "EB100-0001" } });
     fireEvent.keyDown(screen.getByLabelText("Scan Serial"), { key: "Enter" });
 
     await waitFor(() => expect(screen.getByText("Battery serial committed")).toBeVisible());
-    expect(commitMock).toHaveBeenCalledWith({ invoiceId: 2, serialNo: "EB100-0001" });
+    expect(commitMock).toHaveBeenCalledWith({ invoiceId: 2, serialNo: "EB100-0001", productId: 50 });
   });
 
   test("surfaces a commit rejection from the API", async () => {
