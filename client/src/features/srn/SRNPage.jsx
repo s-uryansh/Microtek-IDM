@@ -19,6 +19,7 @@ export function SRNPage() {
   const [selectedProductIds, setSelectedProductIds] = useState(new Set());
   const [expectedQuantity, setExpectedQuantity] = useState("");
   const [conditionTag, setConditionTag] = useState("SALEABLE");
+  const [allowsForeignStock, setAllowsForeignStock] = useState(null);
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -43,6 +44,7 @@ export function SRNPage() {
     setLoadError(null);
     setLoadingInvoice(true);
     setSelectedProductIds(new Set());
+    setAllowsForeignStock(null);
     try {
       // Operator enters a specific invoice ID (or full SAP ref) — load the exact
       // match, not a fuzzy ILIKE hit on another ref with the same digits.
@@ -79,9 +81,10 @@ export function SRNPage() {
         warehouseId: Number(warehouseId),
         invoiceId: Number(invoice.invoiceId),
         returnProductIds: Array.from(selectedProductIds),
-        expectedQuantity: expectedQuantity ? Number(expectedQuantity) : null
+        expectedQuantity: expectedQuantity ? Number(expectedQuantity) : null,
+        allowsForeignStock: allowsForeignStock === true
       });
-      setSession({ ...result, invoiceRef: invoice.sapInvoiceRef });
+      setSession({ ...result, invoiceRef: invoice.sapInvoiceRef, allowsForeignStock: allowsForeignStock === true });
     } catch (err) {
       setError(err?.message || "Failed to create SRN");
     } finally {
@@ -98,6 +101,16 @@ export function SRNPage() {
     })) || {};
     if (result.valid) {
       setReturnedCount((count) => count + 1);
+      // Foreign stock (not on the original invoice) is admitted rather than
+      // blocked when the operator declared allowsForeignStock up front — flag it
+      // clearly in the scan feedback so it isn't mistaken for a normal return.
+      if (result.notOriginal) {
+        return {
+          status: "NOT_ORIGINAL",
+          message: `Return accepted (${result.conditionTag || rowConditionTag}) — NOT ORIGINAL, item was not on this invoice`,
+          state: "warning"
+        };
+      }
       return {
         status: "ACCEPTED",
         message: `Return accepted (${result.conditionTag || rowConditionTag})`,
@@ -138,6 +151,12 @@ export function SRNPage() {
             </div>
             <ConditionTagSelect value={conditionTag} onChange={setConditionTag} />
           </div>
+          {session.allowsForeignStock && (
+            <p style={{ fontSize: "0.8125rem", color: "var(--color-warning)", marginBottom: "var(--space-3)" }}>
+              This return was flagged as possibly containing products different from the original invoice.
+              Non-original serials will be accepted and saved to stock as NOT ORIGINAL instead of blocked.
+            </p>
+          )}
           {scanProducts.length > 0 && (
             <div className="input-group">
               <label className="input-group__label">Which product are you scanning?</label>
@@ -275,15 +294,64 @@ export function SRNPage() {
                 </p>
               </div>
 
+              <ForeignStockQuestion value={allowsForeignStock} onChange={setAllowsForeignStock} />
+
               <ConditionTagSelect value={conditionTag} onChange={setConditionTag} />
               {error && <p style={{ color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</p>}
-              <Button onClick={handleCreate} disabled={creating || !warehouseId || selectedProductIds.size === 0}>
+              <Button
+                onClick={handleCreate}
+                disabled={
+                  creating || !warehouseId || selectedProductIds.size === 0 || allowsForeignStock === null
+                }
+              >
                 {creating ? "Creating..." : "Start SRN"}
               </Button>
             </>
           )}
         </div>
       </Card>
+    </div>
+  );
+}
+
+// Asked once, up front, when the SRN is being created (invoice already loaded).
+// The operator's answer becomes `allowsForeignStock` on the SRN: when Yes,
+// scanReturn admits serials that were never on the original invoice, saving
+// them to stock flagged NOT ORIGINAL instead of blocking them.
+function ForeignStockQuestion({ value, onChange }) {
+  return (
+    <div className="input-group">
+      <label className="input-group__label">
+        Does the returned stock contain products different from the original invoice?
+      </label>
+      <p style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "-4px", marginBottom: "var(--space-2)" }}>
+        e.g. 50 units were sent out, but the return has 40 original units + 10 different units.
+      </p>
+      <div style={{ display: "flex", gap: "var(--space-3)" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", cursor: "pointer" }}>
+          <input
+            type="radio"
+            name="srn-allows-foreign-stock"
+            checked={value === true}
+            onChange={() => onChange(true)}
+          />
+          Yes — may include different products
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", cursor: "pointer" }}>
+          <input
+            type="radio"
+            name="srn-allows-foreign-stock"
+            checked={value === false}
+            onChange={() => onChange(false)}
+          />
+          No — only original items
+        </label>
+      </div>
+      {value === true && (
+        <p style={{ fontSize: "0.75rem", color: "var(--color-warning)", marginTop: "var(--space-2)" }}>
+          Non-original scans will be accepted and saved to stock flagged NOT ORIGINAL instead of blocked.
+        </p>
+      )}
     </div>
   );
 }
