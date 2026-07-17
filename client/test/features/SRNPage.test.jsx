@@ -62,17 +62,28 @@ function selectFirstProduct() {
   fireEvent.click(checkboxes[0]);
 }
 
+function selectOriginalOnlyReturn() {
+  fireEvent.click(screen.getByLabelText(/No .* only original items/));
+}
+
 describe("SRNPage — happy path", () => {
   test("creates an SRN and shows the scan session", async () => {
     createMock.mockResolvedValue({ srnId: 1, receivingWarehouseId: 3, invoiceId: 10, status: "PENDING" });
     renderPage();
     await loadInvoice();
     selectFirstProduct();
+    selectOriginalOnlyReturn();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText(/SRN #1/)).toBeVisible());
     // Product-first return: pick the product before serials can be scanned.
     fireEvent.click(screen.getByRole("button", { name: /Battery 100Ah/ }));
-    expect(createMock).toHaveBeenCalledWith({ warehouseId: 3, invoiceId: 10, returnProductIds: [100], expectedQuantity: null });
+    expect(createMock).toHaveBeenCalledWith({
+      warehouseId: 3,
+      invoiceId: 10,
+      returnProductIds: [100],
+      expectedQuantity: null,
+      allowsForeignStock: false
+    });
   });
 });
 
@@ -86,6 +97,7 @@ describe("SRNPage — scan flows", () => {
     renderPage();
     await loadInvoice();
     selectFirstProduct();
+    selectOriginalOnlyReturn();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText(/SRN #1/)).toBeVisible());
     // Product-first return: pick the product before serials can be scanned.
@@ -102,6 +114,7 @@ describe("SRNPage — scan flows", () => {
     await loadInvoice();
     fireEvent.change(screen.getByLabelText("Condition Tag"), { target: { value: "DEFECTIVE" } });
     selectFirstProduct();
+    selectOriginalOnlyReturn();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText(/SRN #1/)).toBeVisible());
     // Product-first return: pick the product before serials can be scanned.
@@ -126,6 +139,7 @@ describe("SRNPage — scan flows", () => {
     renderPage();
     await loadInvoice();
     selectFirstProduct();
+    selectOriginalOnlyReturn();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText(/SRN #1/)).toBeVisible());
     // Product-first return: pick the product before serials can be scanned.
@@ -143,6 +157,7 @@ describe("SRNPage — error states", () => {
     renderPage();
     await loadInvoice();
     selectFirstProduct();
+    selectOriginalOnlyReturn();
     fireEvent.click(screen.getByText("Start SRN"));
     await waitFor(() => expect(screen.getByText("Forbidden")).toBeVisible());
   });

@@ -83,7 +83,7 @@ describe("AuthProvider", () => {
     await waitFor(() => expect(screen.getByText("admin")).toBeVisible());
     expect(global.fetch).toHaveBeenCalledTimes(1);
 
-    fireEvent.focus(window);
+    fireEvent(document, new Event("visibilitychange"));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
     expect(global.fetch).toHaveBeenLastCalledWith(
