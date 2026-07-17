@@ -5,7 +5,7 @@
 ### Inventory & Dispatch Management serial-level warehouse operations
 
 <p>
-  <img alt="Status" src="https://img.shields.io/badge/status-implemented-brightgreen">
+  <img alt="Status" src="https://img.shields.io/badge/status-Under Development-yellow">
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white">
   <img alt="Express" src="https://img.shields.io/badge/express-4.21-000000?logo=express&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=black">
